@@ -1,0 +1,79 @@
+# ==========================================
+# EchoTalk Git 忽略规则配置文件
+# ==========================================
+
+# --- 编译器/IDE 配置文件 ---
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# --- Python 虚拟环境与依赖 ---
+.venv/
+venv/
+ENV/
+env/
+backend/venv/
+
+# --- Python 编译字节码与缓存 ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.pytest_cache/
+.coverage
+htmlcov/
+.cache/
+
+# --- Python 打包构建临时文件 ---
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+*.egg-info/
+.installed.cfg
+*.egg
+*.pyd
+
+# --- 数据库文件 ---
+*.db
+*.db-journal
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+
+# --- 敏感环境配置（不应提交至 Git） ---
+.env
+.env.*
+!.env.template
+config.json
+secrets.json
+
+# --- 后端本地静态存储（忽略用户录音与上传文档，保留目录） ---
+backend/static/audio/*
+!backend/static/audio/.gitkeep
+backend/static/rag/*
+!backend/static/rag/.gitkeep
+
+# --- 前端桌面端构建与依赖 (Node/Vite/Electron) ---
+node_modules/
+frontend/node_modules/
+frontend/dist/
+frontend/dist_electron/
+frontend/yarn-error.log
+frontend/package-lock.json
+frontend/.eslintcache
+frontend/.temp/
