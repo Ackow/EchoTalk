@@ -78,3 +78,15 @@ class DialogueHistoryResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+# --- 场景 RAG 查询相关模式 ---
+class SceneQueryRequest(BaseModel):
+    query: str
+    top_k: int = 3
+
+class SceneQueryResponse(BaseModel):
+    scene_id: str
+    query: str
+    results: List[str]
+
