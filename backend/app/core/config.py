@@ -32,6 +32,11 @@ class Settings(BaseSettings):
     AZURE_SPEECH_KEY: str = "mock-key"
     AZURE_SPEECH_REGION: str = "eastus"
 
+    # 科大讯飞语音评测配置 (用于发音评估)
+    XFYUN_APP_ID: Optional[str] = None
+    XFYUN_API_KEY: Optional[str] = None
+    XFYUN_API_SECRET: Optional[str] = None
+
     # 百度智能云语音识别配置 (用于语音转文字 STT)
     BAIDU_API_KEY: Optional[str] = None
     BAIDU_SECRET_KEY: Optional[str] = None
