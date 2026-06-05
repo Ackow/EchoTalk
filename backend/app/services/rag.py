@@ -9,12 +9,6 @@ from openai import OpenAI
 from app.core.config import settings
 from app.core.logger import log_api_call
 
-# 设定 RAG 本地索引与文本存储物理路径
-BACKEND_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-RAG_DIR = os.path.join(BACKEND_DIR, "static", "rag")
-INDEX_DIR = os.path.join(RAG_DIR, "indices")
-os.makedirs(INDEX_DIR, exist_ok=True)
-
 # 向量特征维度（对应 BAAI/bge-large-en-v1.5 默认维度 1024）
 DIMENSION = 1024
 
@@ -130,8 +124,9 @@ def get_index_paths(scene_id: str) -> Tuple[str, str]:
     """
     获取指定场景 RAG 索引文件与文本块 JSON 文件的存储路径。
     """
-    index_file = os.path.join(INDEX_DIR, f"{scene_id}.index")
-    json_file = os.path.join(INDEX_DIR, f"{scene_id}.json")
+    indices_dir = settings.static_rag_indices_dir
+    index_file = os.path.join(indices_dir, f"{scene_id}.index")
+    json_file = os.path.join(indices_dir, f"{scene_id}.json")
     return index_file, json_file
 
 

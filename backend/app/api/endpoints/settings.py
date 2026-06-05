@@ -9,9 +9,8 @@ from app.core.config import settings
 
 router = APIRouter()
 
-# 获取本地静态存储文件夹路径（在 backend 根目录下）
-BACKEND_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-STATIC_AUDIO_DIR = os.path.join(BACKEND_DIR, "static", "audio")
+# 获取本地静态音频缓存路径
+STATIC_AUDIO_DIR = settings.static_audio_dir
 
 @router.get("/cache-info")
 def get_cache_info():

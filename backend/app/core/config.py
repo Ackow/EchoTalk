@@ -38,15 +38,23 @@ class Settings(BaseSettings):
     BAIDU_API_KEY: Optional[str] = None
     BAIDU_SECRET_KEY: Optional[str] = None
 
-    # SQLite 本地数据库配置。采用基于 backend 目录的绝对路径，防止因启动的工作目录（Cwd）不同而产生多个数据库文件分流数据
+    # 获取可写的基础运行目录
     @property
-    def DATABASE_URL(self) -> str:
+    def writeable_base_dir(self) -> str:
         import sys
         if getattr(sys, 'frozen', False):
-            base_dir = os.path.dirname(sys.executable)
+            # 打包生产环境下，写入用户 AppData 目录，保证可写权限
+            appdata = os.environ.get('APPDATA') or os.path.expanduser('~')
+            base_dir = os.path.join(appdata, 'EchoTalk')
+            os.makedirs(base_dir, exist_ok=True)
+            return base_dir
         else:
-            base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-        return f"sqlite:///{os.path.join(base_dir, 'echotalk.db')}"
+            return os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+    # SQLite 本地数据库配置
+    @property
+    def DATABASE_URL(self) -> str:
+        return f"sqlite:///{os.path.join(self.writeable_base_dir, 'echotalk.db')}"
 
     # 读取 backend 目录下的 .env 配置文件
     @property
@@ -59,12 +67,48 @@ class Settings(BaseSettings):
     # 获取 settings.json 路径
     @property
     def settings_json_path(self) -> str:
-        import sys
-        if getattr(sys, 'frozen', False):
-            base_dir = os.path.dirname(sys.executable)
-        else:
-            base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-        return os.path.join(base_dir, 'settings.json')
+        return os.path.join(self.writeable_base_dir, 'settings.json')
+
+    # 获取静态文件存储路径
+    @property
+    def static_dir(self) -> str:
+        s_dir = os.path.join(self.writeable_base_dir, 'static')
+        os.makedirs(s_dir, exist_ok=True)
+        os.makedirs(os.path.join(s_dir, 'audio'), exist_ok=True)
+        os.makedirs(os.path.join(s_dir, 'rag', 'indices'), exist_ok=True)
+        os.makedirs(os.path.join(s_dir, 'rag', 'temp'), exist_ok=True)
+        return s_dir
+
+    # 获取音频存储路径
+    @property
+    def static_audio_dir(self) -> str:
+        audio_dir = os.path.join(self.static_dir, 'audio')
+        os.makedirs(audio_dir, exist_ok=True)
+        return audio_dir
+
+    @property
+    def static_rag_dir(self) -> str:
+        rag_dir = os.path.join(self.static_dir, 'rag')
+        os.makedirs(rag_dir, exist_ok=True)
+        return rag_dir
+
+    @property
+    def static_rag_indices_dir(self) -> str:
+        indices_dir = os.path.join(self.static_rag_dir, 'indices')
+        os.makedirs(indices_dir, exist_ok=True)
+        return indices_dir
+
+    @property
+    def static_rag_temp_dir(self) -> str:
+        temp_dir = os.path.join(self.static_rag_dir, 'temp')
+        os.makedirs(temp_dir, exist_ok=True)
+        return temp_dir
+
+    @property
+    def static_audio_temp_dir(self) -> str:
+        temp_dir = os.path.join(self.static_audio_dir, 'temp_uploads')
+        os.makedirs(temp_dir, exist_ok=True)
+        return temp_dir
 
     def __init__(self, **values):
         super().__init__(**values)

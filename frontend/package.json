@@ -6,10 +6,11 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "build:backend": "cd ../backend && python -m PyInstaller -y echotalk-backend.spec",
     "preview": "vite preview",
     "electron:start": "electron .",
     "electron:dev": "concurrently -k \"npm run dev\" \"wait-on http://127.0.0.1:5173 && npm run electron:start\"",
-    "pack": "npm run build && electron-builder"
+    "pack": "npm run build:backend && npm run build && electron-builder"
   },
   "dependencies": {
     "@element-plus/icons-vue": "^2.3.1",

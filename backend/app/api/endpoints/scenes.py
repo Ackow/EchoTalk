@@ -12,6 +12,7 @@ from typing import List
 from app.api.deps import get_db
 from app.models import Scene, DialogueHistory
 from app.schemas import SceneResponse, SceneCreate, SceneUpdate, SceneQueryRequest, SceneQueryResponse
+from app.core.config import settings
 from app.services.document import get_document_chunks
 from app.services.rag import add_documents_to_scene, query_scene_knowledge, clear_scene_knowledge
 
@@ -26,8 +27,7 @@ def generate_and_upload_greeting_audio(scene_id: str, greeting_text: str) -> str
     if not greeting_text:
         return None
     filename = f"scene_greeting_{scene_id}_{int(time.time())}.mp3"
-    backend_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-    temp_dir = os.path.join(backend_dir, "static", "audio")
+    temp_dir = settings.static_audio_dir
     os.makedirs(temp_dir, exist_ok=True)
     local_path = os.path.join(temp_dir, filename)
     
@@ -158,8 +158,7 @@ def upload_scene_document(
         )
 
     # 创建临时上传目录，写入文件
-    backend_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-    temp_dir = os.path.join(backend_dir, "static", "rag", "temp")
+    temp_dir = settings.static_rag_temp_dir
     os.makedirs(temp_dir, exist_ok=True)
     temp_file_path = os.path.join(temp_dir, filename)
 
@@ -289,8 +288,7 @@ def export_scene(scene_id: str, db: Session = Depends(get_db)):
         zip_file.writestr("scene_config.json", json.dumps(scene_config, indent=4, ensure_ascii=False))
         
         # 2. 写入关联的 RAG 向量索引物理文件 (f"{scene_id}.index" 和 f"{scene_id}.json")
-        backend_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-        indices_dir = os.path.join(backend_dir, "static", "rag", "indices")
+        indices_dir = settings.static_rag_indices_dir
         
         index_file = os.path.join(indices_dir, f"{scene_id}.index")
         json_file = os.path.join(indices_dir, f"{scene_id}.json")
@@ -382,8 +380,7 @@ def import_scene(
                 scene.rag_metadata = scene_config.get("rag_metadata", scene.rag_metadata or [])
                 
             # 3. 解压并写入对应的 RAG 向量物理索引文件
-            backend_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-            indices_dir = os.path.join(backend_dir, "static", "rag", "indices")
+            indices_dir = settings.static_rag_indices_dir
             os.makedirs(indices_dir, exist_ok=True)
             
             index_name = f"{scene_id}.index"
@@ -443,4 +440,3 @@ def delete_scene(scene_id: str, db: Session = Depends(get_db)):
     db.commit()
     
     return {"message": f"场景 '{scene_id}' 及其所有关联练习历史和 RAG 知识库已成功彻底清除"}
-

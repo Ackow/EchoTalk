@@ -14,6 +14,47 @@ from app.api.api import api_router
 from app.services.tts import text_to_speech
 from app.services.storage import upload_audio_to_kodo
 import time
+import threading
+
+# ══════════════════════════════════════════════════════════════════════════════
+# 全局初始化状态追踪器
+# ══════════════════════════════════════════════════════════════════════════════
+class InitStatus:
+    """追踪后端首次启动的初始化进度，供前端 Splash 页面消费"""
+    def __init__(self):
+        self._lock = threading.Lock()
+        self.phase = "pending"        # pending | schema | seeding | user | done | error
+        self.message = "等待初始化..."
+        self.progress = 0             # 0-100
+        self.detail = ""              # 当前正在处理的具体内容
+        self.is_first_launch = False  # 是否为首次启动（需要生成TTS）
+        self.error = None
+    
+    def update(self, phase: str, message: str, progress: int, detail: str = ""):
+        with self._lock:
+            self.phase = phase
+            self.message = message
+            self.progress = min(100, max(0, progress))
+            self.detail = detail
+    
+    def set_error(self, error_msg: str):
+        with self._lock:
+            self.phase = "error"
+            self.error = error_msg
+    
+    def to_dict(self):
+        with self._lock:
+            return {
+                "phase": self.phase,
+                "message": self.message,
+                "progress": self.progress,
+                "detail": self.detail,
+                "is_first_launch": self.is_first_launch,
+                "done": self.phase == "done",
+                "error": self.error,
+            }
+
+init_status = InitStatus()
 
 # 首次启动自动创建 SQLite 所有数据表
 Base.metadata.create_all(bind=engine)
@@ -25,13 +66,7 @@ app = FastAPI(
 )
 
 # 挂载本地音频静态文件目录（供七牛云上传异常或离线开发时回退播放）
-import sys
-if getattr(sys, 'frozen', False):
-    static_dir = os.path.join(os.path.dirname(sys.executable), "static")
-else:
-    current_dir = os.path.dirname(os.path.abspath(__file__))
-    static_dir = os.path.join(current_dir, "..", "static")
-os.makedirs(os.path.join(static_dir, "audio"), exist_ok=True)
+static_dir = settings.static_dir
 app.mount("/static", StaticFiles(directory=static_dir), name="static")
 
 # 配置 CORS 跨域规则，允许桌面端本地 Electron 页面调用
@@ -111,16 +146,24 @@ def seed_default_scenes(db: Session):
         }
     ]
 
-    for scene_data in default_scenes:
+    # 检测是否需要生成新场景（首次启动检测）
+    scenes_to_create = [s for s in default_scenes if not db.query(Scene).filter(Scene.id == s["id"]).first()]
+    init_status.is_first_launch = len(scenes_to_create) > 0
+
+    total_scenes = len(default_scenes)
+    for idx, scene_data in enumerate(default_scenes):
+        scene_name = scene_data["name"]
+        progress_base = 20 + int((idx / total_scenes) * 60)  # 20% ~ 80%
+        
         existing = db.query(Scene).filter(Scene.id == scene_data["id"]).first()
         if not existing:
             # 预生成种子场景打招呼音频
+            init_status.update("seeding", f"正在为「{scene_name}」合成语音...", progress_base, f"生成场景 {idx+1}/{total_scenes}")
             greeting_audio_url = None
             greeting_text = scene_data["greeting_text"]
             if greeting_text:
                 filename = f"scene_greeting_{scene_data['id']}_{int(time.time())}.mp3"
-                backend_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-                temp_dir = os.path.join(backend_dir, "static", "audio")
+                temp_dir = settings.static_audio_dir
                 os.makedirs(temp_dir, exist_ok=True)
                 local_path = os.path.join(temp_dir, filename)
                 try:
@@ -148,7 +191,9 @@ def seed_default_scenes(db: Session):
                 rag_metadata=[]
             )
             db.add(scene)
+            init_status.update("seeding", f"「{scene_name}」已就绪 ✓", progress_base + 15, f"完成场景 {idx+1}/{total_scenes}")
         else:
+            init_status.update("seeding", f"校验「{scene_name}」...", progress_base + 10, f"检查场景 {idx+1}/{total_scenes}")
             # 如果系统提示词或问候语与预置种子不一致，进行自动校准更新，确保用户获得最佳体验
             if existing.system_prompt != scene_data["system_prompt"] or existing.greeting_text != scene_data["greeting_text"]:
                 print(f"[种子自动更新] 场景 '{existing.id}' 配置与种子不一致，正在执行升级校准...")
@@ -156,6 +201,7 @@ def seed_default_scenes(db: Session):
                 existing.description = scene_data["description"]
                 existing.system_prompt = scene_data["system_prompt"]
                 existing.greeting_text = scene_data["greeting_text"]
+                init_status.update("seeding", f"正在升级「{scene_name}」语音...", progress_base + 5, "重新合成问候语")
                 # 重新预合成打招呼语音
                 existing.greeting_audio_url = generate_and_upload_greeting_audio(existing.id, scene_data["greeting_text"])
                 db.add(existing)
@@ -163,11 +209,11 @@ def seed_default_scenes(db: Session):
             elif not existing.greeting_audio_url and existing.greeting_text:
                 print(f"[种子自动修复] 场景 '{existing.id}' 缺少问候语音频，正在执行补偿生成...")
                 filename = f"scene_greeting_{existing.id}_{int(time.time())}.mp3"
-                backend_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-                temp_dir = os.path.join(backend_dir, "static", "audio")
+                temp_dir = settings.static_audio_dir
                 os.makedirs(temp_dir, exist_ok=True)
                 local_path = os.path.join(temp_dir, filename)
                 try:
+                    init_status.update("seeding", f"正在修复「{scene_name}」语音...", progress_base + 5, "补偿生成问候语")
                     text_to_speech(existing.greeting_text, local_path)
                     existing.greeting_audio_url = upload_audio_to_kodo(local_path, filename)
                     db.add(existing)
@@ -183,27 +229,58 @@ def seed_default_scenes(db: Session):
                                 pass
     db.commit()
 
+# ══════════════════════════════════════════════════════════════════════════════
+# 初始化状态查询接口（供前端 Splash 页面消费）
+# ══════════════════════════════════════════════════════════════════════════════
+from fastapi import APIRouter as _AR
+_init_router = _AR()
+
+@_init_router.get("/init-status")
+def get_init_status():
+    """返回后端初始化进度，前端 Splash 页面轮询此接口以决定何时放行"""
+    return init_status.to_dict()
+
+app.include_router(_init_router, prefix="/api", tags=["初始化状态"])
+
 # 在服务启动时自动初始化表与种子场景数据
 @app.on_event("startup")
 def startup_event():
-    db = next(get_db())
-    try:
-        # 1. 运行自适应 Schema 热升级，防止表已经存在缺失新增列崩溃
-        check_and_upgrade_database_schema(db)
-        
-        # 2. 注入种子默认数据
-        seed_default_scenes(db)
-        
-        # 预注册一个默认的本地测试用户
-        test_user = db.query(User).filter(User.username == "default_user").first()
-        if not test_user:
-            db.add(User(username="default_user"))
-            db.commit()
-    except Exception as e:
-        print(f"[种子填充异常] 数据初始化失败: {e}")
-    finally:
-        db.close()
+    def run_db_initialization():
+        db = next(get_db())
+        try:
+            # 阶段 1：数据库 Schema 升级
+            init_status.update("schema", "正在升级数据库结构...", 5, "检查表字段")
+            check_and_upgrade_database_schema(db)
+            init_status.update("schema", "数据库结构已就绪 ✓", 15, "")
+            
+            # 阶段 2：注入种子场景数据（含 TTS 生成，首次启动最耗时）
+            init_status.update("seeding", "正在初始化练习场景...", 20, "检查种子数据")
+            seed_default_scenes(db)
+            init_status.update("seeding", "所有场景已就绪 ✓", 85, "")
+            
+            # 阶段 3：用户注册
+            init_status.update("user", "正在注册默认用户...", 90, "")
+            test_user = db.query(User).filter(User.username == "default_user").first()
+            if not test_user:
+                db.add(User(username="default_user"))
+                db.commit()
+            init_status.update("user", "用户已就绪 ✓", 95, "")
+            
+            # 全部完成
+            init_status.update("done", "初始化完成，欢迎使用 EchoTalk！", 100, "")
+            print("[初始化] 所有后端数据初始化完成")
+        except Exception as e:
+            print(f"[种子填充异常] 数据初始化失败: {e}")
+            init_status.set_error(str(e))
+            # 即使初始化失败，也标记为 done 让前端不会卡死
+            init_status.update("done", "初始化完成（部分场景可能不可用）", 100, "")
+        finally:
+            db.close()
+
+    # 使用后台线程进行数据库升级与种子场景数据生成，避免阻塞主线程启动
+    threading.Thread(target=run_db_initialization, daemon=True).start()
 
 if __name__ == "__main__":
     # 本地启动端口设为 8000
-    uvicorn.run("app.main:app", host="127.0.0.1", port=8000, reload=True)
+    port = int(os.environ.get("ECHOTALK_BACKEND_PORT", "8000"))
+    uvicorn.run("app.main:app", host="127.0.0.1", port=port, reload=True)

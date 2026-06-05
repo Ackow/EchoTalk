@@ -362,8 +362,7 @@ async def run_dialogue_turn_pipeline(
     ai_audio_filename = f"ai_reply_{history_id}_{int(time.time())}.mp3"
     
     # 确定临时存储和托管静态文件目录
-    backend_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-    temp_dir = os.path.join(backend_dir, "static", "audio")
+    temp_dir = settings.static_audio_dir
     os.makedirs(temp_dir, exist_ok=True)
     ai_audio_local_path = os.path.join(temp_dir, ai_audio_filename)
 
@@ -507,8 +506,7 @@ async def run_dialogue_turn_pipeline_stream(
     ai_reply_text = llm_result["reply"]
     ai_audio_filename = f"ai_reply_{history_id}_{int(time.time())}.mp3"
     
-    backend_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-    temp_dir = os.path.join(backend_dir, "static", "audio")
+    temp_dir = settings.static_audio_dir
     os.makedirs(temp_dir, exist_ok=True)
     ai_audio_local_path = os.path.join(temp_dir, ai_audio_filename)
 

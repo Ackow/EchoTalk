@@ -1,5 +1,8 @@
 import { defineStore } from 'pinia'
 
+const defaultBackendBaseUrl = 'http://127.0.0.1:8000'
+const backendBaseUrl = window.electronAPI?.backendBaseUrl || defaultBackendBaseUrl
+
 export const useAppStore = defineStore('app', {
   state: () => ({
     // 当前选择的练习场景配置
@@ -20,7 +23,10 @@ export const useAppStore = defineStore('app', {
     isSpeakingAI: false,
     
     // 后端 API 服务地址
-    backendBaseUrl: 'http://127.0.0.1:8000'
+    backendBaseUrl,
+
+    // 应用是否已完成初始化（splash 结束后置为 true）
+    appReady: false
   }),
   
   actions: {
@@ -48,6 +54,11 @@ export const useAppStore = defineStore('app', {
       this.isRecording = false
       this.isProcessingAudio = false
       this.isSpeakingAI = false
+    },
+
+    // 标记应用初始化已完成
+    setAppReady() {
+      this.appReady = true
     }
   }
 })

@@ -301,7 +301,9 @@ const playAudio = (url, turnId) => {
   }
   
   let fullUrl = url
-  if (!url.startsWith('http')) {
+  if (url.startsWith('http://127.0.0.1:8000/static/') || url.startsWith('http://localhost:8000/static/')) {
+    fullUrl = url.replace(/^http:\/\/(127\.0\.0\.1|localhost):8000/, store.backendBaseUrl)
+  } else if (!url.startsWith('http')) {
     fullUrl = `${store.backendBaseUrl}${url}`
   }
   
@@ -382,7 +384,7 @@ const registerCustomSceneNames = async (histories) => {
 
 <style scoped>
 .history-container {
-  padding: 40px 60px;
+  padding: 32px;
   height: 100%;
   overflow-y: auto;
   display: flex;

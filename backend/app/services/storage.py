@@ -5,10 +5,8 @@ from qiniu import Auth, put_file
 import qiniu.config
 from app.core.config import settings
 
-# 设置本地静态存储文件夹路径（在 backend 根目录下）
-BACKEND_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-STATIC_AUDIO_DIR = os.path.join(BACKEND_DIR, "static", "audio")
-os.makedirs(STATIC_AUDIO_DIR, exist_ok=True)
+# 设置本地静态存储文件夹路径
+STATIC_AUDIO_DIR = settings.static_audio_dir
 
 def upload_audio_to_kodo(local_file_path: str, filename: str) -> str:
     """
@@ -24,7 +22,7 @@ def upload_audio_to_kodo(local_file_path: str, filename: str) -> str:
         if os.path.abspath(local_file_path) != os.path.abspath(dest_path):
             shutil.copy(local_file_path, dest_path)
         print(f"[存储回退] 未配置七牛云凭据，音频文件已保存至本地: {dest_path}")
-        return f"http://127.0.0.1:8000/static/audio/{filename}"
+        return f"/static/audio/{filename}"
 
     try:
         # 显式配置七牛云为 华东-浙江 区域 (zone_z0)
@@ -53,4 +51,4 @@ def upload_audio_to_kodo(local_file_path: str, filename: str) -> str:
         dest_path = os.path.join(STATIC_AUDIO_DIR, filename)
         if os.path.abspath(local_file_path) != os.path.abspath(dest_path):
             shutil.copy(local_file_path, dest_path)
-        return f"http://127.0.0.1:8000/static/audio/{filename}"
+        return f"/static/audio/{filename}"

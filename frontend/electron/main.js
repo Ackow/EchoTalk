@@ -3,6 +3,8 @@ const path = require('path')
 const { spawn } = require('child_process')
 
 let backendProcess = null
+const backendPort = app.isPackaged ? 18765 : 8000
+const backendBaseUrl = `http://127.0.0.1:${backendPort}`
 
 function startBackend() {
   if (!app.isPackaged) {
@@ -15,6 +17,7 @@ function startBackend() {
     console.log(`[Electron] 正在开发环境拉起 Python 后端: ${pythonBin} ${scriptPath}`)
     backendProcess = spawn(pythonBin, [scriptPath], {
       cwd: backendCwd,
+      env: { ...process.env, ECHOTALK_BACKEND_PORT: String(backendPort) },
       stdio: 'pipe'
     })
   } else {
@@ -25,6 +28,7 @@ function startBackend() {
     console.log(`[Electron] 正在生产环境拉起已打包的后端: ${backendBin}`)
     backendProcess = spawn(backendBin, [], {
       cwd: backendCwd,
+      env: { ...process.env, ECHOTALK_BACKEND_PORT: String(backendPort) },
       stdio: 'pipe'
     })
   }
@@ -52,11 +56,18 @@ function killBackend() {
 
 function createWindow() {
   const mainWindow = new BrowserWindow({
-    width: 1200,
+    width: 1400,
     height: 800,
     minWidth: 1000,
     minHeight: 700,
     show: false,
+    icon: path.join(__dirname, '..', 'public', 'favicon.ico'),
+    titleBarStyle: 'hidden',
+    titleBarOverlay: {
+      color: '#0b0f19',
+      symbolColor: '#f3f4f6',
+      height: 36
+    },
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -121,4 +132,6 @@ app.on('will-quit', () => {
 
 // IPC 通信：供前端拉取当前桌面应用版本
 ipcMain.handle('get-app-version', () => app.getVersion())
-
+ipcMain.on('get-backend-base-url', (event) => {
+  event.returnValue = backendBaseUrl
+})

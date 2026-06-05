@@ -1,11 +1,13 @@
 <template>
   <div class="home-container">
-    <!-- Hero Header -->
-    <header class="hero-section">
-      <h1 class="text-gradient logo-text">口语演练场景大厅</h1>
-      <p class="subtitle">选择或定制专属英语角色与演练背景，开启沉浸式口语会话</p>
+    <!-- Page Header -->
+    <header class="home-header">
+      <div class="header-title-area">
+        <h1 class="text-gradient page-title">口语演练场景大厅</h1>
+        <p class="subtitle">选择或定制专属英语角色与演练背景，开启沉浸式口语会话</p>
+      </div>
       <div class="actions-header">
-        <el-button type="primary" size="large" class="create-btn hover-scale" @click="openCreateDialog">
+        <el-button type="primary" class="create-btn hover-scale" @click="openCreateDialog">
           <el-icon><Plus /></el-icon>
           <span>新建自定义场景</span>
         </el-button>
@@ -16,7 +18,7 @@
           accept=".zip"
           class="import-uploader-inline"
         >
-          <el-button size="large" class="import-btn hover-scale">
+          <el-button class="import-btn hover-scale">
             <el-icon><Upload /></el-icon>
             <span>导入场景包</span>
           </el-button>
@@ -291,7 +293,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, reactive } from 'vue'
+import { ref, onMounted, reactive, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAppStore } from '../store/useAppStore'
 import axios from 'axios'
@@ -346,9 +348,18 @@ const createRules = {
   system_prompt: [{ required: true, message: '请输入系统提示词', trigger: 'blur' }]
 }
 
-// Lifecycle
+// Lifecycle: 等待 App 初始化完成后再获取场景列表，
+// 避免 splash 阶段后端尚未就绪时请求失败
 onMounted(() => {
-  fetchScenes()
+  if (store.appReady) {
+    fetchScenes()
+  }
+})
+
+watch(() => store.appReady, (ready) => {
+  if (ready) {
+    fetchScenes()
+  }
 })
 
 // Fetch Scenes
@@ -664,36 +675,44 @@ const handleImportScene = async (options) => {
 <style scoped>
 /* 保持你原本的所有优雅暗黑科技风 CSS 样式不变 */
 .home-container {
-  padding: 40px 60px;
+  padding: 32px;
   height: 100%;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
 }
 
-.hero-section {
-  text-align: center;
-  margin-bottom: 50px;
+.home-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 28px;
+  gap: 24px;
+  flex-wrap: wrap;
 }
 
-.logo-text {
-  font-size: 3.6rem;
+.header-title-area {
+  flex: 1;
+  min-width: 0;
+}
+
+.page-title {
+  font-size: 2.5rem;
   font-family: var(--font-display);
   font-weight: 800;
-  margin-bottom: 8px;
+  margin-bottom: 6px;
 }
 
 .subtitle {
-  font-size: 1.15rem;
-  color: var(--text-secondary);
-  letter-spacing: 0.05em;
-  margin-bottom: 24px;
+  font-size: 1.02rem;
+  color: var(--text-muted);
 }
 
 .actions-header {
   display: flex;
-  justify-content: center;
-  gap: 16px;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
 }
 
 .create-btn {

@@ -11,6 +11,7 @@ from typing import List
 from app.api.deps import get_db
 from app.models import DialogueHistory, Scene, User, DialogueTurn
 from app.schemas import DialogueHistoryResponse, DialogueStartRequest, DialogueTurnResponse
+from app.core.config import settings
 from app.services.pipeline import run_dialogue_turn_pipeline, run_dialogue_turn_pipeline_stream
 from app.services.tts import text_to_speech
 from app.services.storage import upload_audio_to_kodo
@@ -68,8 +69,7 @@ def start_dialogue(req: DialogueStartRequest, db: Session = Depends(get_db)):
         # 否则 (例如因 custom_params 发生了变量替换)，降级为实时重新合成
         print(f"[会话启动降级] 问候语文本发生变量插值改变，正在实时合成定制音轨...")
         ai_audio_filename = f"greeting_{history.id}_{int(time.time())}.mp3"
-        backend_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-        temp_dir = os.path.join(backend_dir, "static", "audio")
+        temp_dir = settings.static_audio_dir
         os.makedirs(temp_dir, exist_ok=True)
         local_path = os.path.join(temp_dir, ai_audio_filename)
         
@@ -147,7 +147,7 @@ async def create_dialogue_turn(
         )
         
     # 保存上传的音频文件至本地临时文件进行处理
-    temp_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "static", "audio", "temp_uploads")
+    temp_dir = settings.static_audio_temp_dir
     os.makedirs(temp_dir, exist_ok=True)
     
     # 保持扩展名为原始扩展名或默认 .wav
@@ -245,4 +245,3 @@ def delete_dialogue(history_id: int, db: Session = Depends(get_db)):
     db.delete(history)
     db.commit()
     return {"message": "会话历史记录已成功删除"}
-
