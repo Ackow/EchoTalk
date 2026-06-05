@@ -26,7 +26,8 @@ def upload_audio_to_kodo(local_file_path: str, filename: str) -> str:
     if not has_credentials:
         # 回退逻辑：直接拷贝文件到本地静态路由托管目录
         dest_path = os.path.join(STATIC_AUDIO_DIR, filename)
-        shutil.copy(local_file_path, dest_path)
+        if os.path.abspath(local_file_path) != os.path.abspath(dest_path):
+            shutil.copy(local_file_path, dest_path)
         print(f"[存储回退] 未配置七牛云凭据，音频文件已保存至本地: {dest_path}")
         return f"http://127.0.0.1:8000/static/audio/{filename}"
 
@@ -55,5 +56,6 @@ def upload_audio_to_kodo(local_file_path: str, filename: str) -> str:
     except Exception as e:
         print(f"[七牛云上传异常] {e}。程序已自动回退到本地静态存储。")
         dest_path = os.path.join(STATIC_AUDIO_DIR, filename)
-        shutil.copy(local_file_path, dest_path)
+        if os.path.abspath(local_file_path) != os.path.abspath(dest_path):
+            shutil.copy(local_file_path, dest_path)
         return f"http://127.0.0.1:8000/static/audio/{filename}"
