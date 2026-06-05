@@ -97,6 +97,7 @@
       width="650px"
       destroy-on-close
       class="custom-dialog"
+      top="5vh"
     >
       <el-tabs v-model="activeTab" class="dialog-tabs">
         <!-- Tab 1: Parameter & Prompt Config -->
@@ -225,6 +226,7 @@
       title="创建自定义口语练习场景"
       width="600px"
       class="custom-dialog"
+      top="5vh"
     >
       <el-form :model="createForm" :rules="createRules" ref="createFormRef" label-position="top">
         <el-form-item label="场景 ID (唯一英文标识)" prop="id">
@@ -588,7 +590,7 @@ const startPractice = (scene) => {
 const deleteScene = (scene) => {
   ElMessageBox.confirm(
     `确定要彻底删除场景【${scene.name}】吗？这将会永久清除该场景的数据库配置、本地 RAG 知识库文档、向量索引，以及该场景下的所有练习历史与发音得分记录，此操作不可恢复！`,
-    '极其严重的警告',
+    '严重的警告',
     {
       confirmButtonText: '确定彻底删除',
       cancelButtonText: '取消',
@@ -781,8 +783,21 @@ const handleImportScene = async (options) => {
 }
 
 .dialog-delete-btn {
-  border-radius: 8px !important;
+  background: rgba(239, 68, 68, 0.08) !important;
+  border: 1px solid rgba(239, 68, 68, 0.25) !important;
+  color: #f87171 !important;
+  border-radius: 20px !important;
   font-weight: 600 !important;
+  padding: 8px 16px !important;
+  height: auto !important;
+  transition: var(--transition-smooth);
+}
+
+.dialog-delete-btn:hover {
+  background: rgba(239, 68, 68, 0.15) !important;
+  border-color: rgba(239, 68, 68, 0.4) !important;
+  color: #fca5a5 !important;
+  filter: drop-shadow(0 0 6px rgba(239, 68, 68, 0.3));
 }
 
 .footer-right-actions {
