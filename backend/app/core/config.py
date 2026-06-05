@@ -32,6 +32,10 @@ class Settings(BaseSettings):
     AZURE_SPEECH_KEY: str = "mock-key"
     AZURE_SPEECH_REGION: str = "eastus"
 
+    # 百度智能云语音识别配置 (用于语音转文字 STT)
+    BAIDU_API_KEY: Optional[str] = None
+    BAIDU_SECRET_KEY: Optional[str] = None
+
     # SQLite 本地数据库配置
     DATABASE_URL: str = "sqlite:///./echotalk.db"
 
