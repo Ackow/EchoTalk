@@ -230,3 +230,19 @@ def settle_dialogue(
     db.refresh(history)
     
     return history
+
+@router.delete("/{history_id}", status_code=status.HTTP_200_OK)
+def delete_dialogue(history_id: int, db: Session = Depends(get_db)):
+    """
+    删除指定的会话历史记录及其关联的 DialogueTurn 记录。
+    """
+    history = db.query(DialogueHistory).filter(DialogueHistory.id == history_id).first()
+    if not history:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"会话记录 ID '{history_id}' 未找到"
+        )
+    db.delete(history)
+    db.commit()
+    return {"message": "会话历史记录已成功删除"}
+

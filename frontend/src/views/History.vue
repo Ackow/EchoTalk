@@ -11,7 +11,17 @@
       <div v-for="item in historyList" :key="item.id" class="history-card glass-card hover-glow" @click="openDetailDrawer(item)">
         <div class="card-top">
           <span class="category-tag">{{ formatCategory(item.scene_id) }}</span>
-          <span class="time-badge">{{ formatDate(item.start_time) }}</span>
+          <div class="card-top-right">
+            <span class="time-badge">{{ formatDate(item.start_time) }}</span>
+            <el-button 
+              type="danger" 
+              link 
+              class="delete-history-btn" 
+              @click.stop="handleDeleteHistory(item)"
+            >
+              <el-icon><Delete /></el-icon>
+            </el-button>
+          </div>
         </div>
         
         <h3 class="scene-title">{{ getSceneName(item.scene_id) }}</h3>
@@ -49,7 +59,7 @@
     <el-drawer
       v-model="drawerVisible"
       title="口语演练历史详情"
-      size="540px"
+      size="720px"
       destroy-on-close
       class="history-drawer"
       @close="handleDrawerClose"
@@ -168,7 +178,7 @@ import { ref, onMounted, onUnmounted } from 'vue'
 import { useAppStore } from '../store/useAppStore'
 import EChartsRadar from '../components/EChartsRadar.vue'
 import axios from 'axios'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 
 const store = useAppStore()
 
@@ -245,6 +255,27 @@ const openDetailDrawer = (historyItem) => {
 
 const handleDrawerClose = () => {
   stopAudio()
+}
+
+const handleDeleteHistory = (item) => {
+  ElMessageBox.confirm(
+    '确定要删除这一条练习历史记录吗？删除后将无法找回。',
+    '删除确认',
+    {
+      confirmButtonText: '确定删除',
+      cancelButtonText: '取消',
+      type: 'warning',
+      customClass: 'custom-message-box'
+    }
+  ).then(async () => {
+    try {
+      await axios.delete(`${store.backendBaseUrl}/api/dialogues/${item.id}`)
+      ElMessage.success('历史记录删除成功')
+      fetchHistory()
+    } catch (err) {
+      ElMessage.error('删除历史记录失败，请检查网络')
+    }
+  }).catch(() => {})
 }
 
 const toggleEvaluatePanel = (idx) => {
@@ -396,6 +427,25 @@ const registerCustomSceneNames = async (histories) => {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 14px;
+}
+
+.card-top-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.delete-history-btn {
+  color: var(--text-muted) !important;
+  font-size: 0.95rem;
+  padding: 0 !important;
+  margin-left: 4px;
+  transition: color 0.2s ease, transform 0.2s ease;
+}
+
+.delete-history-btn:hover {
+  color: var(--danger-color) !important;
+  transform: scale(1.15);
 }
 
 .category-tag {
