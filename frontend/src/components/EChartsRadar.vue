@@ -15,7 +15,7 @@ const props = defineProps({
       accuracy_score: 0,
       fluency_score: 0,
       integrity_score: 0,
-      grammar_score: 100 // 可选，默认为 100 (无语法扣分)
+      grammar_score: 0
     })
   },
   width: {
@@ -76,7 +76,7 @@ const updateChart = () => {
         { name: '综合发音分', max: 100 }
       ],
       shape: 'polygon',
-      radius: '62%',
+      radius: '75%',
       center: ['50%', '50%'],
       axisName: {
         color: '#9ca3af',

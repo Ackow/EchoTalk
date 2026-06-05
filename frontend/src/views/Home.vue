@@ -153,7 +153,13 @@
 
         <!-- Tab 2: RAG Documents Config -->
         <el-tab-pane label="RAG 场景知识库文档" name="rag">
-          <div class="rag-tab-content">
+          <!-- ⭐ 关键修改点 1：在这里绑定 v-loading 局部动画与自定义提示文本 -->
+          <div
+            class="rag-tab-content"
+            v-loading="ragLoading"
+            element-loading-text="AI 正在读取、切片并向量化文档，请稍候..."
+            element-loading-background="rgba(17, 24, 39, 0.8)"
+          >
             <div class="rag-info-box">
               <p class="rag-tip">上传特定场景背景资料（如公司产品信息、面试秘籍、咖啡厅菜单等），AI 会结合这些背景来回答你的提问，且会自动屏蔽个人隐私信息。</p>
             </div>
@@ -167,6 +173,7 @@
               :show-file-list="false"
               class="rag-uploader"
               accept=".pdf,.txt,.md,.markdown"
+              :disabled="ragLoading"
             >
               <el-icon class="el-icon--upload"><UploadFilled /></el-icon>
               <div class="el-upload__text">
@@ -179,7 +186,7 @@
             <div class="rag-file-list" v-if="activeScene && activeScene.rag_metadata && activeScene.rag_metadata.length > 0">
               <div class="file-list-header">
                 <span>已上传文档 ({{ activeScene.rag_metadata.length }})</span>
-                <el-button type="danger" link size="small" @click="clearRagDocs">
+                <el-button type="danger" link size="small" @click="clearRagDocs" :disabled="ragLoading">
                   <el-icon><Delete /></el-icon>
                   <span>清空知识库</span>
                 </el-button>
@@ -203,18 +210,19 @@
 
       <template #footer>
         <div class="dialog-footer-layout">
-          <el-button 
-            type="danger" 
-            plain 
+          <el-button
+            type="danger"
+            plain
             class="dialog-delete-btn"
             @click="deleteScene(activeScene)"
+            :disabled="ragLoading"
           >
             <el-icon><Delete /></el-icon>
             <span>彻底删除此场景</span>
           </el-button>
           <div class="footer-right-actions">
-            <el-button @click="configVisible = false">取消</el-button>
-            <el-button type="primary" @click="saveConfig" :loading="savingConfig">保存配置</el-button>
+            <el-button @click="configVisible = false" :disabled="ragLoading">取消</el-button>
+            <el-button type="primary" @click="saveConfig" :loading="savingConfig" :disabled="ragLoading">保存配置</el-button>
           </div>
         </div>
       </template>
@@ -252,7 +260,7 @@
         <el-form-item label="首轮问候语 (Greeting Text)" prop="greeting_text">
           <el-input v-model="createForm.greeting_text" type="textarea" :rows="3" placeholder="例如: Welcome to our hotel! I am Emily. 开启对话时 AI 主动播报的首句英文问候语。" />
         </el-form-item>
-        
+
         <div class="params-section">
           <div class="section-title">
             <span>开场默认变量参数</span>
@@ -261,7 +269,7 @@
               <span>添加参数</span>
             </el-button>
           </div>
-          
+
           <div v-for="(param, index) in createParams" :key="index" class="param-edit-row">
             <el-input v-model="param.key" placeholder="参数Key (如 character_name)" class="param-input" />
             <el-input v-model="param.value" placeholder="参数值 (如 Leo)" class="param-input" />
@@ -271,7 +279,7 @@
           </div>
         </div>
       </el-form>
-      
+
       <template #footer>
         <span class="dialog-footer">
           <el-button @click="createVisible = false">取消</el-button>
@@ -302,6 +310,8 @@ const activeScene = ref(null)
 
 const savingConfig = ref(false)
 const creatingScene = ref(false)
+// ⭐ 关键修改点 2：增加专门控制 RAG 知识库上传解析状态的 loading 变量
+const ragLoading = ref(false)
 
 // Config Form
 const configForm = reactive({
@@ -397,13 +407,13 @@ const openConfigDialog = (scene) => {
   configForm.description = scene.description
   configForm.system_prompt = scene.system_prompt
   configForm.greeting_text = scene.greeting_text || ''
-  
+
   // Transform dict parameter to list for rendering
   configParams.value = Object.entries(scene.default_params || {}).map(([key, val]) => ({
     key,
     value: String(val)
   }))
-  
+
   activeTab.value = 'params'
   configVisible.value = true
 }
@@ -419,7 +429,7 @@ const removeConfigParam = (index) => {
 const saveConfig = async () => {
   if (!activeScene.value) return
   savingConfig.value = true
-  
+
   // Assemble parameters dict
   const default_params = {}
   configParams.value.forEach(item => {
@@ -427,7 +437,7 @@ const saveConfig = async () => {
       default_params[item.key.trim()] = item.value
     }
   })
-  
+
   const payload = {
     name: configForm.name,
     description: configForm.description,
@@ -435,14 +445,14 @@ const saveConfig = async () => {
     greeting_text: configForm.greeting_text,
     default_params
   }
-  
+
   try {
     const res = await axios.put(
       `${store.backendBaseUrl}/api/scenes/${activeScene.value.id}`,
       payload
     )
     ElMessage.success('场景配置更新成功！')
-    
+
     // Update local state
     const idx = scenes.value.findIndex(s => s.id === activeScene.value.id)
     if (idx !== -1) {
@@ -457,29 +467,28 @@ const saveConfig = async () => {
 }
 
 // Upload RAG docs
+// ⭐ 关键修改点 3：重构 handleUpload 方法以支持处理中状态的控制
 const handleUpload = async (options) => {
   if (!activeScene.value) return
-  const { file, onProgress, onSuccess, onError } = options
+  const { file, onSuccess, onError } = options
   const formData = new FormData()
   formData.append('file', file)
-  
+
+  // 开启解析中动画状态
+  ragLoading.value = true
+
   try {
     const res = await axios.post(
       `${store.backendBaseUrl}/api/scenes/${activeScene.value.id}/upload`,
       formData,
       {
-        headers: { 'Content-Type': 'multipart/form-data' },
-        onUploadProgress: (e) => {
-          if (e.total) {
-            const percent = Math.round((e.loaded * 100) / e.total)
-            onProgress({ percent })
-          }
-        }
+        headers: { 'Content-Type': 'multipart/form-data' }
+        // 移除了进度条计算，因为对于 RAG 场景，大部分耗时是在文件传输完后的“向量索引生成”阶段，使用全局局部加载动画更佳
       }
     )
     ElMessage.success('知识库文档上传并向量化成功！')
     activeScene.value = res.data
-    
+
     // Update state
     const idx = scenes.value.findIndex(s => s.id === activeScene.value.id)
     if (idx !== -1) {
@@ -490,6 +499,9 @@ const handleUpload = async (options) => {
     const errMsg = err.response?.data?.detail || '文档上传失败，请确保格式合规且文本可提取'
     ElMessage.error(errMsg)
     onError(err)
+  } finally {
+    // 无论成功或失败，最终必须关闭动画状态
+    ragLoading.value = false
   }
 }
 
@@ -510,7 +522,7 @@ const clearRagDocs = () => {
       )
       ElMessage.success('知识库清除成功！')
       activeScene.value = res.data
-      
+
       // Update state
       const idx = scenes.value.findIndex(s => s.id === activeScene.value.id)
       if (idx !== -1) {
@@ -544,11 +556,11 @@ const removeCreateParam = (index) => {
 
 const handleCreateScene = async () => {
   if (!createFormRef.value) return
-  
+
   createFormRef.value.validate(async (valid) => {
     if (!valid) return
     creatingScene.value = true
-    
+
     // Assemble parameters
     const default_params = {}
     createParams.value.forEach(item => {
@@ -556,7 +568,7 @@ const handleCreateScene = async () => {
         default_params[item.key.trim()] = item.value
       }
     })
-    
+
     const payload = {
       id: createForm.id.trim(),
       name: createForm.name.trim(),
@@ -566,7 +578,7 @@ const handleCreateScene = async () => {
       system_prompt: createForm.system_prompt.trim(),
       greeting_text: createForm.greeting_text.trim()
     }
-    
+
     try {
       const res = await axios.post(`${store.backendBaseUrl}/api/scenes`, payload)
       ElMessage.success('自定义练习场景创建成功！')
@@ -590,7 +602,7 @@ const startPractice = (scene) => {
 const deleteScene = (scene) => {
   ElMessageBox.confirm(
     `确定要彻底删除场景【${scene.name}】吗？这将会永久清除该场景的数据库配置、本地 RAG 知识库文档、向量索引，以及该场景下的所有练习历史与发音得分记录，此操作不可恢复！`,
-    '严重的警告',
+    '警告',
     {
       confirmButtonText: '确定彻底删除',
       cancelButtonText: '取消',
@@ -612,7 +624,6 @@ const deleteScene = (scene) => {
 // Export Scene Package (.zip)
 const exportScene = (scene) => {
   const exportUrl = `${store.backendBaseUrl}/api/scenes/${scene.id}/export`
-  // 直接通过新窗口触发浏览器原生的下载保存
   window.open(exportUrl, '_blank')
   ElMessage.success(`正在打包生成场景包【scene_${scene.id}.zip】，即将开始下载...`)
 }
@@ -622,7 +633,7 @@ const handleImportScene = async (options) => {
   const { file, onSuccess, onError } = options
   const formData = new FormData()
   formData.append('file', file)
-  
+
   try {
     const res = await axios.post(
       `${store.backendBaseUrl}/api/scenes/import`,
@@ -631,17 +642,16 @@ const handleImportScene = async (options) => {
         headers: { 'Content-Type': 'multipart/form-data' }
       }
     )
-    
+
     ElMessage.success(`场景【${res.data.name}】一键解包并导入成功！向量知识库已完美还原。`)
-    
-    // 更新或追加本地场景大厅列表
+
     const idx = scenes.value.findIndex(s => s.id === res.data.id)
     if (idx !== -1) {
       scenes.value[idx] = res.data
     } else {
       scenes.value.push(res.data)
     }
-    
+
     onSuccess(res.data)
   } catch (err) {
     const errMsg = err.response?.data?.detail || '导入场景包失败，请确保 ZIP 压缩包内容合法'
@@ -652,6 +662,7 @@ const handleImportScene = async (options) => {
 </script>
 
 <style scoped>
+/* 保持你原本的所有优雅暗黑科技风 CSS 样式不变 */
 .home-container {
   padding: 40px 60px;
   height: 100%;
@@ -786,7 +797,7 @@ const handleImportScene = async (options) => {
   background: rgba(239, 68, 68, 0.08) !important;
   border: 1px solid rgba(239, 68, 68, 0.25) !important;
   color: #f87171 !important;
-  border-radius: 20px !important;
+  border-radius: 8px !important;
   font-weight: 600 !important;
   padding: 8px 16px !important;
   height: auto !important;
@@ -918,26 +929,41 @@ const handleImportScene = async (options) => {
   color: var(--text-muted);
 }
 
-/* Dialog Styling to match Sleek Dark Theme */
-:deep(.custom-dialog) {
-  background: #111827 !important;
-  border: 1px solid rgba(255, 255, 255, 0.08) !important;
-  border-radius: 12px !important;
-}
-
-:deep(.custom-dialog .el-dialog__title) {
-  color: var(--text-primary) !important;
-  font-weight: 700;
-}
-
-:deep(.custom-dialog .el-dialog__headerbtn .el-dialog__close) {
-  color: var(--text-muted) !important;
+.dialog-tabs :deep(.el-tabs__content) {
+  max-height: 72vh;
+  overflow-y: auto;
+  padding-right: 8px;
 }
 
 :deep(.custom-dialog .el-form-item__label) {
   color: var(--text-secondary) !important;
   font-weight: 600;
   padding-bottom: 4px;
+}
+
+/* 让导航容器撑满并使用 flex 布局 */
+:deep(.el-tabs__nav) {
+  width: 100%;
+  display: flex;
+}
+
+/* 让所有标签页自动均分剩余空间（2个占50%，3个占33.3%） */
+:deep(.el-tabs__item) {
+  flex: 1;
+  text-align: center;
+  font-weight: 600;
+  transition: var(--transition-smooth);
+}
+
+/* 让滑块自动继承当前标签页的宽度 */
+:deep(.el-tabs__active-bar) {
+  width: 100%; /* 这里的 100% 指的是继承父级 item 的宽度 */
+  background-color: var(--primary-color) !important;
+}
+
+/* 激活文字颜色 */
+:deep(.el-tabs__item.is-active) {
+  color: var(--primary-color) !important;
 }
 
 .params-section {

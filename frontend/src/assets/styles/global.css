@@ -248,3 +248,50 @@ h1, h2, h3, h4, h5, h6 {
 .el-tabs__active-bar {
   background-color: #6366f1 !important;
 }
+
+/* 全局 Element Plus 对话框暗黑主题覆盖 (el-dialog) */
+.el-dialog {
+  background: #111827 !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  border-radius: 12px !important;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6) !important;
+}
+
+.el-dialog__title {
+  color: var(--text-primary) !important;
+  font-weight: 700 !important;
+  font-size: 1.15rem !important;
+}
+
+.el-dialog__body {
+  color: var(--text-secondary) !important;
+}
+
+.el-dialog__headerbtn .el-dialog__close {
+  color: var(--text-muted) !important;
+}
+
+.el-dialog__headerbtn:hover .el-message-box__close,
+.el-dialog__headerbtn:hover .el-dialog__close {
+  color: var(--text-primary) !important;
+}
+
+.el-dialog__footer {
+  border-top: 1px solid rgba(255, 255, 255, 0.06) !important;
+  padding-top: 16px !important;
+}
+
+/* For inputs inside dialog */
+.el-dialog .el-input__wrapper, 
+.el-dialog .el-textarea__inner {
+  background-color: rgba(17, 24, 39, 0.6) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  box-shadow: none !important;
+  color: var(--text-primary) !important;
+}
+
+.el-dialog .el-input__wrapper.is-focus, 
+.el-dialog .el-textarea__inner:focus {
+  border-color: var(--primary-color) !important;
+}
+

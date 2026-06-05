@@ -12,6 +12,16 @@
           <h2 class="scene-title">{{ scene?.name || '口语演练' }}</h2>
           <p class="scene-desc">{{ formatCategory(scene?.category) }} · 智能口语对话</p>
         </div>
+        <template v-if="isProcessing">
+          <div class="header-status-divider"></div>
+          <div class="header-status-panel">
+            <div class="status-title-row">
+              <el-icon class="status-icon voice-icon-spinning"><Loading /></el-icon>
+              <span class="status-big-title">{{ currentBigStatus }}</span>
+            </div>
+            <span class="status-playful-remark">{{ currentPlayfulRemark }}</span>
+          </div>
+        </template>
       </div>
       <div class="header-right">
         <!-- Params Status Panel -->
@@ -48,32 +58,35 @@
               <!-- AI 消息模块 -->
               <template v-if="turn.role === 'assistant'">
                 <div class="avatar ai-avatar">AI</div>
-                <div class="bubble-wrapper" @click="toggleTurnExpanded(idx, turn)">
-                  <!-- 始终显示的灰色语音胶囊 -->
-                  <div class="voice-capsule ai-voice-capsule">
-                    <el-icon class="voice-icon" v-if="playingTurnId === (turn.id || idx)"><VideoPlay /></el-icon>
-                    <el-icon class="voice-icon" v-else><Headset /></el-icon>
-                    <span class="voice-duration">{{ getWavDuration(turn) }}</span>
-                    <span class="voice-playing-text" v-if="playingTurnId === (turn.id || idx)">播报中...</span>
+                <div class="bubble-wrapper">
+                  <div class="bubble-row">
+                    <!-- 始终显示的灰色语音胶囊 (点击播放原音) -->
+                    <div class="voice-capsule ai-voice-capsule" :style="{ width: getCapsuleWidth(turn) }" @click="playAudio(turn.audio_url, turn.id || idx)">
+                      <div 
+                        class="voice-capsule-progress-bar" 
+                        v-if="playingTurnId === (turn.id || idx) && currentPlaybackDuration > 0"
+                        :style="{ width: (currentPlaybackTime / currentPlaybackDuration * 100) + '%' }"
+                      ></div>
+                      <el-icon class="voice-icon" v-if="playingTurnId === (turn.id || idx)"><VideoPause /></el-icon>
+                      <el-icon class="voice-icon" v-else><Headset /></el-icon>
+                      <span class="voice-duration" v-if="playingTurnId === (turn.id || idx)">
+                        {{ Math.round(currentPlaybackTime) }}" / {{ Math.round(currentPlaybackDuration || getWavDurationSeconds(turn)) }}"
+                      </span>
+                      <span class="voice-duration" v-else>{{ getWavDuration(turn) }}</span>
+                    </div>
+                    <!-- 文本折叠按钮 -->
+                    <el-button type="primary" link class="translate-toggle-btn" @click="toggleTurnExpanded(idx, turn)">
+                      <el-icon><Document /></el-icon>
+                      <span>{{ expandedTurns[turn.id || idx] ? '收起' : '译文' }}</span>
+                    </el-button>
                   </div>
 
                   <!-- 点击展开后的翻译文本解析框 (平滑展开) -->
                   <el-collapse-transition>
-                    <div v-show="expandedTurns[turn.id || idx]" class="bubble-translation-panel ai-bubble glass-card" @click.stop>
+                    <div v-show="expandedTurns[turn.id || idx]" class="bubble-translation-panel ai-bubble glass-card">
                       <p class="message-text">{{ turn.text }}</p>
-                      <div class="bubble-actions">
-                        <el-button type="primary" link class="audio-play-btn" @click.stop="playAudio(turn.audio_url, turn.id || idx)">
-                          <el-icon v-if="playingTurnId === (turn.id || idx)"><VideoPlay /></el-icon>
-                          <el-icon v-else><Headset /></el-icon>
-                          <span>{{ playingTurnId === (turn.id || idx) ? '播报中...' : '播放原声' }}</span>
-                        </el-button>
-                      </div>
                     </div>
                   </el-collapse-transition>
-                  
-                  <div class="bubble-tips">
-                    {{ expandedTurns[turn.id || idx] ? '点击可重新折叠语音' : '点击可展开文本' }}
-                  </div>
                 </div>
               </template>
 
@@ -87,60 +100,82 @@
                       <p class="message-text">{{ turn.text }}</p>
                     </div>
                   </el-collapse-transition>
-                  <div class="voice-capsule temp-capsule">
+                  <div class="voice-capsule temp-capsule" :style="{ width: getCapsuleWidth(turn) }">
                     <el-icon class="voice-icon-spinning"><Loading /></el-icon>
                     <span class="voice-duration">{{ turn.recordingDuration || 2 }}"</span>
                   </div>
-                  <div class="bubble-tips-always">{{ processingStatusText }}</div>
+                  <!-- <div class="bubble-tips-always">{{ processingStatusText }}</div> -->
                 </div>
 
-                <!-- 2. 已合成评估完毕的用户正式气泡 -->
-                <div v-else class="bubble-wrapper" @click="toggleTurnExpanded(idx, turn)">
-                  <!-- 始终显示的绿色语音胶囊 -->
-                  <div class="voice-capsule">
-                    <el-icon class="voice-icon"><PhoneFilled /></el-icon>
-                    <span class="voice-duration">{{ getWavDuration(turn) }}</span>
-                    <!-- 评分标签 -->
-                    <span class="voice-capsule-score" v-if="turn.pronunciation_score">
-                      {{ Math.round(turn.pronunciation_score.total_score) }}分
-                    </span>
+                <!-- 2. 已合成评估完毕或正在评估的用户气泡 -->
+                <div v-else :class="['bubble-wrapper', { 'is-selected': selectedTurnIndex === idx }]">
+                  <div class="bubble-row">
+                    <!-- 展开/折叠文本按钮 -->
+                    <el-button type="success" link class="translate-toggle-btn-user" @click="toggleTurnExpanded(idx, turn)">
+                      <el-icon><Document /></el-icon>
+                      <span>{{ expandedTurns[turn.id || idx] ? '收起' : '文本' }}</span>
+                    </el-button>
+
+                    <!-- 始终显示的绿色语音胶囊：点击播放原音并选中 -->
+                    <div class="voice-capsule" :style="{ width: getCapsuleWidth(turn) }" @click="selectAndPlayUserTurn(idx, turn)">
+                      <div 
+                        class="voice-capsule-progress-bar" 
+                        v-if="playingTurnId === (turn.id || idx) && currentPlaybackDuration > 0"
+                        :style="{ width: (currentPlaybackTime / currentPlaybackDuration * 100) + '%' }"
+                      ></div>
+                      <el-icon class="voice-icon" v-if="playingTurnId === (turn.id || idx)"><VideoPause /></el-icon>
+                      <el-icon class="voice-icon" v-else><Mic /></el-icon>
+                      <span class="voice-duration" v-if="playingTurnId === (turn.id || idx)">
+                        {{ Math.round(currentPlaybackTime) }}" / {{ Math.round(currentPlaybackDuration || getWavDurationSeconds(turn)) }}"
+                      </span>
+                      <span class="voice-duration" v-else>{{ getWavDuration(turn) }}</span>
+                      
+                      <!-- 评分标签 (只有在没有评估中状态，且有评分数据时显示) -->
+                      <span class="voice-capsule-score" v-if="turn.pronunciation_score && !turn.isEvaluating">
+                        {{ Math.round(turn.pronunciation_score.total_score) }}分
+                      </span>
+                      <!-- 评估中闪烁状态 -->
+                      <span class="voice-capsule-score-loading" v-else-if="turn.isEvaluating">
+                        <el-icon class="voice-icon-spinning"><Loading /></el-icon> 测评中
+                      </span>
+                    </div>
                   </div>
 
                   <!-- 选中展开状态：显示完整文字与发音面板 -->
                   <el-collapse-transition>
-                    <div v-show="expandedTurns[turn.id || idx]" class="bubble-translation-panel user-bubble glass-card selected-bubble" @click.stop>
+                    <!-- 点击文字区域时选中本行进行右侧评测分析 -->
+                    <div 
+                      v-show="expandedTurns[turn.id || idx]" 
+                      class="bubble-translation-panel user-bubble glass-card selected-bubble" 
+                      @click="selectUserTurnOnly(idx)"
+                    >
                       <p class="message-text">{{ turn.text }}</p>
-                      <div class="bubble-score" v-if="turn.pronunciation_score">
-                        <el-tag size="small" type="success" effect="dark" class="score-tag">
-                          {{ turn.pronunciation_score.total_score }}分
-                        </el-tag>
-                      </div>
                       
-                      <div class="bubble-actions-user">
-                        <el-button type="primary" link class="user-audio-play-btn" @click.stop="playAudio(turn.audio_url, turn.id || idx)">
-                          <el-icon v-if="playingTurnId === (turn.id || idx)"><VideoPlay /></el-icon>
-                          <el-icon v-else><Mic /></el-icon>
-                          <span>{{ playingTurnId === (turn.id || idx) ? '播放中...' : '回放发音' }}</span>
-                        </el-button>
-                      </div>
+                      <!-- 显示正在评估的详细状态 -->
+                      <!-- <div class="evaluating-status-text" v-if="turn.isEvaluating">
+                        <el-icon class="voice-icon-spinning"><Loading /></el-icon>
+                        <span>{{ turn.evaluationStatusText || '正在评测发音与语法...' }}</span>
+                      </div> -->
+
+<!--                      <div class="bubble-score" v-if="turn.pronunciation_score && !turn.isEvaluating">-->
+<!--                        <el-tag size="small" type="success" effect="dark" class="score-tag">-->
+<!--                          {{ Math.round(turn.pronunciation_score.total_score) }}分-->
+<!--                        </el-tag>-->
+<!--                      </div>-->
                     </div>
                   </el-collapse-transition>
-                  
-                  <div class="bubble-tips">
-                    {{ expandedTurns[turn.id || idx] ? '点击可重新折叠语音' : '点击可展开转文字与评测' }}
-                  </div>
                 </div>
                 <div class="avatar user-avatar">ME</div>
               </template>
             </div>
 
             <!-- Loading AI Thinking -->
-            <div v-if="isProcessing && !hasTempUserBubble" class="message-row ai-row">
+            <div v-if="showAiThinking" class="message-row ai-row">
               <div class="avatar ai-avatar">AI</div>
               <div class="bubble-wrapper">
                 <div class="bubble ai-bubble glass-card thinking-bubble">
                   <div class="dot-flashing"></div>
-                  <span class="thinking-text">AI 正在转译并测评你的发音，请稍候...</span>
+                  <span class="thinking-text">{{ aiThinkingStatusText }}</span>
                 </div>
               </div>
             </div>
@@ -160,7 +195,7 @@
               <!-- Rate controller -->
               <div class="rate-controller">
                 <span class="label">播放语速:</span>
-                <el-radio-group v-model="playbackRate" size="small" @change="changePlaybackRate">
+                <el-radio-group v-model="playbackRate" size="default" @change="changePlaybackRate">
                   <el-radio-button :value="0.8">0.8x</el-radio-button>
                   <el-radio-button :value="1.0">1.0x</el-radio-button>
                   <el-radio-button :value="1.2">1.2x</el-radio-button>
@@ -192,7 +227,7 @@
       <section class="feedback-panel glass-panel">
         <h3 class="panel-title">发音与语法实时评估</h3>
         
-        <div v-if="selectedUserTurn" class="feedback-content">
+        <div v-if="selectedUserTurn" class="feedback-content" v-loading="selectedUserTurn.isEvaluating" element-loading-text="正在评估发音与语法中..." element-loading-background="rgba(17, 24, 39, 0.7)">
           <!-- Radar Chart container -->
           <div class="radar-section">
             <div class="section-subtitle">发音能力五维雷达图</div>
@@ -259,6 +294,8 @@
       :show-close="false"
       :close-on-click-modal="false"
       top="5vh"
+      @opened="onSettleDialogOpen"
+      @closed="onSettleDialogClose"
     >
       <div class="settlement-report" v-if="settlementReport">
         <div class="report-header">
@@ -277,6 +314,10 @@
             <span class="m-lbl">练习总句数</span>
           </div>
           <div class="metric-card">
+            <span class="m-val primary-text">{{ totalWords }} 字</span>
+            <span class="m-lbl">练习发言总词数</span>
+          </div>
+          <div class="metric-card">
             <span class="m-val success-text">{{ averageScores.accuracy_score }} 分</span>
             <span class="m-lbl">发音准确度</span>
           </div>
@@ -285,7 +326,11 @@
             <span class="m-lbl">发音流利度</span>
           </div>
           <div class="metric-card">
-            <span class="m-val primary-text">{{ grammarIssuesCount }} 处</span>
+            <span class="m-val info-text">{{ averageScores.integrity_score }} 分</span>
+            <span class="m-lbl">发音完整度</span>
+          </div>
+          <div class="metric-card">
+            <span class="m-val danger-text">{{ grammarIssuesCount }} 处</span>
             <span class="m-lbl">语法优化建议</span>
           </div>
         </div>
@@ -297,12 +342,12 @@
         </div>
 
         <div class="radar-wrapper-settle">
-          <EChartsRadar :score-data="averageScores" height="360px" />
+          <EChartsRadar v-if="settleRadarReady" :score-data="averageScores" height="360px" />
         </div>
 
         <div class="report-footer-tips">
           <el-icon><Opportunity /></el-icon>
-          <p class="tips-text">你做得非常好！在本次对话中，你积极完成了口语表达。多尝试不同的场景，对你的语感会有显著提升！</p>
+          <p class="tips-text">{{ getEvaluationTips }}</p>
         </div>
       </div>
       <template #footer>
@@ -337,15 +382,35 @@ const startingSession = ref(false)
 const isRecording = ref(false)
 const isProcessing = ref(false)
 const isSettleOpen = ref(false)
+const settleRadarReady = ref(false)
+
+const onSettleDialogOpen = () => {
+  settleRadarReady.value = true
+}
+
+const onSettleDialogClose = () => {
+  settleRadarReady.value = false
+}
+
 const selectedTurnIndex = ref(null)
 // 存储所有 Turn 的展开/折叠状态，键是 turn.id || idx，值为 true 表示展开，false 表示折叠
 const expandedTurns = ref({})
 // 存储流式数据包的处理提示文案
 const processingStatusText = ref('发音评估与思考中...')
+const currentBigStatus = ref('上传语音')
+const currentPlayfulRemark = ref('正在安全上传您的音频...')
+
+// SSE 实时控制 AI 气泡的展现与文案
+const showAiThinking = ref(false)
+const aiThinkingStatusText = ref('AI 正在组织语言，撰写角色回复~')
 
 const playbackRate = ref(1.0)
 const playingTurnId = ref(null)
 const activeAudio = ref(null)
+
+// 跟踪音频播放进度状态
+const currentPlaybackTime = ref(0)
+const currentPlaybackDuration = ref(0)
 
 const settlementReport = ref(null)
 const averageScores = ref({
@@ -379,6 +444,65 @@ const selectedUserTurn = computed(() => {
   const turn = turns.value[selectedTurnIndex.value]
   return turn && turn.role === 'user' && !turn.isTemp ? turn : null
 })
+
+// 计算发言总词数
+const totalWords = computed(() => {
+  const userTurns = turns.value.filter(t => t.role === 'user' && !t.isTemp)
+  let count = 0
+  userTurns.forEach(t => {
+    if (t.text) {
+      count += t.text.split(/\s+/).filter(Boolean).length
+    }
+  })
+  return count
+})
+
+// 根据总结报告评分给出段位评价
+const getEvaluationTips = computed(() => {
+  const score = averageScores.value.total_score || 0
+  if (score >= 85) {
+    return '口语大师 (Oral Master)！在本次练习中，你的发音流利度和准确度均达到了极高水准。你表现得非常完美，请继续保持这股学习劲头，迎接更多挑战！'
+  } else if (score >= 70) {
+    return '口语良才 (Good Speaker)！你的发音和表达基础非常扎实。可以尝试在接下来的对话中更多关注词汇连读与流利度，多做跟读练习，工作与社交上将更加游刃有余！'
+  } else {
+    return '口语新星 (Rising Star)！你的表达十分勇敢，这是学好英语口语最重要的一步。建议根据AI给出的口音分析，多回放并修正单句发音，加油！'
+  }
+})
+
+// 播放原音并且选中本行进行详细分析
+const selectAndPlayUserTurn = (idx, turn) => {
+  selectedTurnIndex.value = idx
+  playAudio(turn.audio_url, turn.id || idx)
+}
+
+// 仅选中本行，不重新播报原音
+const selectUserTurnOnly = (idx) => {
+  selectedTurnIndex.value = idx
+}
+
+// 计算语音胶囊的宽度，时长越长气泡越长
+const getCapsuleWidth = (turn) => {
+  let seconds = 3
+  if (turn.recordingDuration) {
+    seconds = turn.recordingDuration
+  } else if (turn.text) {
+    const words = turn.text.split(' ').length
+    seconds = Math.max(2, Math.round(words / 2))
+  }
+  // 时长每多一秒，宽度加 9px，范围限制在 120px 到 320px
+  const width = Math.min(320, Math.max(120, 110 + seconds * 9))
+  return `${width}px`
+}
+
+// 获取以秒为单位的语音时长
+const getWavDurationSeconds = (turn) => {
+  if (turn.recordingDuration) return turn.recordingDuration
+  if (turn.text) {
+    const words = turn.text.split(' ').length
+    return Math.max(2, Math.round(words / 2))
+  }
+  return 3
+}
 
 // Lifecycle
 onMounted(async () => {
@@ -432,17 +556,92 @@ const startDialogueSession = async () => {
   startingSession.value = true
   
   try {
+    // 1. 获取用户所有的历史会话
+    const res = await axios.get(`${store.backendBaseUrl}/api/dialogues/?user_id=1`)
+    const historyList = res.data
+    
+    // 2. 查找本场景下未结算的会话 (end_time 为 null)
+    const unsettled = historyList.find(
+      h => h.scene_id === scene.value.id && h.end_time === null
+    )
+    
+    if (unsettled) {
+      startingSession.value = false // 暂停 loading 以便用户操作弹窗
+      
+      ElMessageBox.confirm(
+        '检测到您在该场景下有未完成的练习，是否继续上一次的对话？',
+        '恢复上次练习',
+        {
+          confirmButtonText: '继续上次练习',
+          cancelButtonText: '开始新练习',
+          type: 'info',
+          distinguishCancelAndClose: true
+        }
+      ).then(() => {
+        // 用户选择继续上次练习
+        resumeDialogueSession(unsettled.id)
+      }).catch((action) => {
+        if (action === 'cancel') {
+          // 用户选择开始新练习
+          startNewDialogueSession()
+        }
+      })
+    } else {
+      // 没有未结算的会话，直接创建新练习
+      await startNewDialogueSession()
+    }
+  } catch (err) {
+    console.error('检查未结算会话失败:', err)
+    // 降级：直接创建新会话
+    await startNewDialogueSession()
+  } finally {
+    startingSession.value = false
+  }
+}
+
+// 恢复上次练习会话
+const resumeDialogueSession = async (historyId) => {
+  startingSession.value = true
+  try {
+    const res = await axios.get(`${store.backendBaseUrl}/api/dialogues/${historyId}`)
+    
+    // 载入历史记录数据
+    store.setActiveHistoryId(res.data.id)
+    sessionStarted.value = true
+    
+    if (res.data.turns && res.data.turns.length > 0) {
+      res.data.turns.forEach(turn => {
+        store.addDialogueTurn(turn)
+      })
+    }
+    
+    ElMessage.success('成功恢复上一次的练习会话！')
+    
+    nextTick(() => {
+      drawWave()
+      scrollToBottom()
+    })
+  } catch (err) {
+    ElMessage.error('恢复会话失败，将为您开启新练习')
+    await startNewDialogueSession()
+  } finally {
+    startingSession.value = false
+  }
+}
+
+// 开启新练习的独立逻辑
+const startNewDialogueSession = async () => {
+  startingSession.value = true
+  try {
     const res = await axios.post(`${store.backendBaseUrl}/api/dialogues/start`, {
       user_id: 1, // 默认 ID=1 预注册用户
       scene_id: scene.value.id,
       custom_params: activeParams.value
     })
     
-    // 后端会在 /start 创建会话历史，同时将带有 TTS 合成语音的欢迎语作为第一个 turn 存入并返回在 res.data.turns 中！
     store.setActiveHistoryId(res.data.id)
     sessionStarted.value = true
     
-    // 加载后端返回的所有初始 turns（主要即是 Turn 0：AI 问候语）
     if (res.data.turns && res.data.turns.length > 0) {
       res.data.turns.forEach(turn => {
         store.addDialogueTurn(turn)
@@ -457,7 +656,6 @@ const startDialogueSession = async () => {
       }
     }
     
-    // 启动 Canvas Siri 缓动音波
     nextTick(() => {
       drawWave()
     })
@@ -517,6 +715,8 @@ const finishRecordingAndUpload = async () => {
   if (!isRecording.value) return
   isRecording.value = false
   isProcessing.value = true
+  currentBigStatus.value = '上传语音'
+  currentPlayfulRemark.value = '正在安全上传您的音频...'
   
   // 计算录音秒数
   const durationSec = Math.max(1, Math.round(recordingLength / 16000))
@@ -529,10 +729,14 @@ const finishRecordingAndUpload = async () => {
     text: '',
     audio_url: null,
     isTemp: true,
+    isEvaluating: false,
+    evaluationStatusText: '正在认真聆听您说了什么~',
     recordingDuration: durationSec
   }
   store.addDialogueTurn(tempBubble)
   scrollToBottom()
+  
+  showAiThinking.value = false
   
   try {
     const mergedBuffer = mergeBuffers(leftchannel, recordingLength)
@@ -586,29 +790,71 @@ const finishRecordingAndUpload = async () => {
             
             if (data.status === 'asr') {
               processingStatusText.value = '正在认真聆听您说了什么~'
+              currentBigStatus.value = '语音解析'
+              currentPlayfulRemark.value = '正在认真聆听您说了什么~'
+              const idx = store.dialogueTurns.findIndex(t => t.id === tempTurnId)
+              if (idx !== -1) {
+                store.dialogueTurns[idx].evaluationStatusText = '正在认真聆听您说了什么~'
+              }
             } else if (data.status === 'asr_done') {
-              // ASR 转译完毕，提前在用户加载气泡上呈现转译出的英文文本
+              // ASR 转译完毕，提前在用户加载气泡上呈现转译出的英文文本，并变绿正常渲染，同时设定为口音评测中
+              currentBigStatus.value = '安全检测'
+              currentPlayfulRemark.value = '转译成功，准备开始分析~'
               const idx = store.dialogueTurns.findIndex(t => t.id === tempTurnId)
               if (idx !== -1) {
                 store.dialogueTurns[idx].text = data.text
+                store.dialogueTurns[idx].isTemp = false // 转为绿色气泡，用户体验连贯
+                store.dialogueTurns[idx].isEvaluating = true
+                store.dialogueTurns[idx].evaluationStatusText = '转译成功，开始发音与隐私分析~'
+                
+                // 自动选中并平滑展开文本
+                selectedTurnIndex.value = idx
+                expandedTurns.value[tempTurnId] = true
               }
+              scrollToBottom()
             } else if (data.status === 'pii') {
               processingStatusText.value = '正在保护您的隐私，进行敏感信息脱敏~'
+              currentBigStatus.value = '隐私保护'
+              currentPlayfulRemark.value = '正在保护您的隐私，进行敏感信息脱敏~'
+              const idx = store.dialogueTurns.findIndex(t => t.id === tempTurnId || t.text === data.text)
+              if (idx !== -1) {
+                store.dialogueTurns[idx].isEvaluating = true
+                store.dialogueTurns[idx].evaluationStatusText = '正在保护您的隐私，进行敏感信息脱敏~'
+              }
             } else if (data.status === 'ise') {
               processingStatusText.value = '正在检测您的口音，分析发音表现~'
+              currentBigStatus.value = '口音分析'
+              currentPlayfulRemark.value = '正在检测您的口音，分析发音表现~'
+              const idx = store.dialogueTurns.findIndex(t => t.id === tempTurnId || t.text === data.text)
+              if (idx !== -1) {
+                store.dialogueTurns[idx].isEvaluating = true
+                store.dialogueTurns[idx].evaluationStatusText = '正在检测您的口音，分析发音表现~'
+              }
             } else if (data.status === 'llm') {
+              // 口语分析结束，开启 AI 气泡展示
               processingStatusText.value = 'AI 正在组织语言，撰写角色回复~'
+              currentBigStatus.value = '生成回复'
+              currentPlayfulRemark.value = 'AI 正在组织语言，撰写角色回复~'
+              const idx = store.dialogueTurns.findIndex(t => t.id === tempTurnId || t.text === data.text)
+              if (idx !== -1) {
+                store.dialogueTurns[idx].isEvaluating = false
+              }
+              showAiThinking.value = true
+              aiThinkingStatusText.value = '正在组织语言，撰写角色回复~'
+              scrollToBottom()
             } else if (data.status === 'done') {
               const [userTurn, aiTurn] = data.result
               userTurn.recordingDuration = durationSec
               
-              const tempIdx = store.dialogueTurns.findIndex(t => t.id === tempTurnId)
+              const tempIdx = store.dialogueTurns.findIndex(t => t.id === tempTurnId || t.text === userTurn.text)
               if (tempIdx !== -1) {
                 store.dialogueTurns.splice(tempIdx, 1)
               }
               
               store.addDialogueTurn(userTurn)
               store.addDialogueTurn(aiTurn)
+              
+              showAiThinking.value = false
               
               const lastUserIdx = turns.value.length - 2
               selectedTurnIndex.value = lastUserIdx >= 0 ? lastUserIdx : null
@@ -640,6 +886,7 @@ const finishRecordingAndUpload = async () => {
     }
   } finally {
     isProcessing.value = false
+    showAiThinking.value = false
     processingStatusText.value = '发音评估与思考中...'
   }
 }
@@ -790,15 +1037,15 @@ const drawWave = () => {
 
 // Audio player management
 const playAudio = (url, turnId) => {
+  const isSame = (playingTurnId.value === turnId)
   stopAudio()
   
-  if (!url) {
-    ElMessage.info('当前播放链接失效或本轮次无合成语音。')
+  if (isSame) {
     return
   }
   
-  if (playingTurnId.value === turnId) {
-    playingTurnId.value = null
+  if (!url) {
+    ElMessage.info('当前播放链接失效或本轮次无合成语音。')
     return
   }
   
@@ -810,15 +1057,35 @@ const playAudio = (url, turnId) => {
   const audio = new Audio(fullUrl)
   audio.playbackRate = playbackRate.value
   
+  currentPlaybackTime.value = 0
+  currentPlaybackDuration.value = 0
+  
+  audio.ontimeupdate = () => {
+    currentPlaybackTime.value = audio.currentTime
+    if (audio.duration && !isNaN(audio.duration)) {
+      currentPlaybackDuration.value = audio.duration
+    }
+  }
+  
+  audio.onloadedmetadata = () => {
+    if (audio.duration && !isNaN(audio.duration)) {
+      currentPlaybackDuration.value = audio.duration
+    }
+  }
+  
   audio.onended = () => {
     playingTurnId.value = null
     activeAudio.value = null
+    currentPlaybackTime.value = 0
+    currentPlaybackDuration.value = 0
   }
   
   audio.onerror = () => {
     ElMessage.error('音频加载播放失败，可能已被云端清空')
     playingTurnId.value = null
     activeAudio.value = null
+    currentPlaybackTime.value = 0
+    currentPlaybackDuration.value = 0
   }
   
   playingTurnId.value = turnId
@@ -832,6 +1099,8 @@ const stopAudio = () => {
     activeAudio.value = null
   }
   playingTurnId.value = null
+  currentPlaybackTime.value = 0
+  currentPlaybackDuration.value = 0
 }
 
 const changePlaybackRate = (val) => {
@@ -1024,9 +1293,9 @@ const getWavDuration = (turn) => {
 
 /* Header styling */
 .practice-header {
-  min-height: 70px;
+  min-height: 85px;
   height: auto;
-  padding: 12px 24px;
+  padding: 16px 28px;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -1041,7 +1310,7 @@ const getWavDuration = (turn) => {
 
 .back-btn {
   color: var(--text-secondary) !important;
-  font-size: 0.95rem;
+  font-size: 1.05rem;
   font-weight: 500;
   display: flex;
   align-items: center;
@@ -1064,14 +1333,14 @@ const getWavDuration = (turn) => {
 }
 
 .scene-title {
-  font-size: 1.4rem;
+  font-size: 1.85rem;
   font-weight: 700;
   color: var(--text-primary);
   line-height: 1.2;
 }
 
 .scene-desc {
-  font-size: 0.9rem;
+  font-size: 1.05rem;
   color: var(--text-muted);
 }
 
@@ -1091,10 +1360,12 @@ const getWavDuration = (turn) => {
 }
 
 .param-tag {
-  border-radius: 6px;
-  padding: 4px 8px;
-  font-size: 0.75rem;
+  border-radius: 8px;
+  padding: 6px 12px;
+  font-size: 0.88rem;
   white-space: nowrap;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
 }
 
 .param-tag .key {
@@ -1109,28 +1380,28 @@ const getWavDuration = (turn) => {
 
 /* 多彩提示参数药丸样式 */
 .tag-blue {
-  background: rgba(59, 130, 246, 0.12) !important;
-  border: 1px solid rgba(59, 130, 246, 0.25) !important;
-  color: #93c5fd !important;
+  background: rgba(59, 130, 246, 0.2) !important;
+  border: 1px solid rgba(59, 130, 246, 0.45) !important;
+  color: #a5f3fc !important;
 }
 .tag-purple {
-  background: rgba(168, 85, 247, 0.12) !important;
-  border: 1px solid rgba(168, 85, 247, 0.25) !important;
-  color: #c084fc !important;
+  background: rgba(168, 85, 247, 0.2) !important;
+  border: 1px solid rgba(168, 85, 247, 0.45) !important;
+  color: #e9d5ff !important;
 }
 .tag-orange {
-  background: rgba(249, 115, 22, 0.12) !important;
-  border: 1px solid rgba(249, 115, 22, 0.25) !important;
-  color: #fdba74 !important;
+  background: rgba(249, 115, 22, 0.2) !important;
+  border: 1px solid rgba(249, 115, 22, 0.45) !important;
+  color: #ffedd5 !important;
 }
 .tag-green {
-  background: rgba(16, 185, 129, 0.12) !important;
-  border: 1px solid rgba(16, 185, 129, 0.25) !important;
-  color: #6ee7b7 !important;
+  background: rgba(16, 185, 129, 0.2) !important;
+  border: 1px solid rgba(16, 185, 129, 0.45) !important;
+  color: #d1fae5 !important;
 }
 .tag-default {
-  background: rgba(255, 255, 255, 0.03) !important;
-  border: 1px solid rgba(255, 255, 255, 0.05) !important;
+  background: rgba(255, 255, 255, 0.06) !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
   color: var(--text-secondary) !important;
 }
 
@@ -1152,7 +1423,7 @@ const getWavDuration = (turn) => {
   cursor: not-allowed !important;
 }
 
-/* Grid layout with adjusted desktop proportions */
+/* Grid layout with adjusted desktop proportions (72% and 28%) */
 .practice-grid {
   display: flex;
   flex-grow: 1;
@@ -1161,9 +1432,9 @@ const getWavDuration = (turn) => {
   height: calc(100vh - 118px);
 }
 
-/* Dialogue Box (63%) */
+/* Dialogue Box (72%) */
 .dialogue-box {
-  width: 63%;
+  width: 72%;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -1230,6 +1501,14 @@ const getWavDuration = (turn) => {
   justify-content: flex-end;
 }
 
+.user-row .bubble-wrapper {
+  align-items: flex-end;
+}
+
+.user-row .bubble-row {
+  justify-content: flex-end;
+}
+
 .ai-row {
   justify-content: flex-start;
 }
@@ -1282,6 +1561,18 @@ const getWavDuration = (turn) => {
   transition: var(--transition-smooth);
   border-top-right-radius: 2px;
   position: relative;
+  overflow: hidden;
+}
+
+/* 语音播放进度条 */
+.voice-capsule-progress-bar {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  height: 3px;
+  background-color: rgba(255, 255, 255, 0.65);
+  box-shadow: 0 0 4px rgba(255, 255, 255, 0.8);
+  transition: width 0.1s linear;
 }
 
 .voice-capsule:hover {
@@ -1346,6 +1637,19 @@ const getWavDuration = (turn) => {
   font-weight: bold;
 }
 
+.voice-capsule-score-loading {
+  font-size: 0.7rem;
+  background: rgba(251, 191, 36, 0.25);
+  color: #fbbf24;
+  padding: 1px 6px;
+  border-radius: 10px;
+  margin-left: auto;
+  font-weight: bold;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
 /* Bubble style when expanded */
 .bubble {
   padding: 12px 18px;
@@ -1370,6 +1674,11 @@ const getWavDuration = (turn) => {
   border-color: var(--primary-color) !important;
   box-shadow: 0 0 16px rgba(99, 102, 241, 0.35);
   background: rgba(99, 102, 241, 0.18) !important;
+}
+
+.bubble-wrapper.is-selected .voice-capsule {
+  box-shadow: 0 0 14px rgba(16, 185, 129, 0.45);
+  border-color: rgba(16, 185, 129, 0.6) !important;
 }
 
 .message-text {
@@ -1435,17 +1744,71 @@ const getWavDuration = (turn) => {
   transition: var(--transition-smooth);
 }
 
+.bubble-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.translate-toggle-btn,
+.translate-toggle-btn-user {
+  font-size: 0.8rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 10px !important;
+  height: auto !important;
+  border-radius: 6px !important;
+  background: rgba(255, 255, 255, 0.03) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  transition: var(--transition-smooth);
+}
+
+.translate-toggle-btn {
+  color: #818cf8 !important;
+}
+
+.translate-toggle-btn:hover {
+  background: rgba(129, 140, 248, 0.1) !important;
+  border-color: rgba(129, 140, 248, 0.3) !important;
+}
+
+.translate-toggle-btn-user {
+  color: #34d399 !important;
+}
+
+.translate-toggle-btn-user:hover {
+  background: rgba(52, 211, 153, 0.1) !important;
+  border-color: rgba(52, 211, 153, 0.3) !important;
+}
+
+.evaluating-status-text {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.8rem;
+  color: #fbbf24;
+  margin-top: 8px;
+  background: rgba(251, 191, 36, 0.06);
+  border: 1px dashed rgba(251, 191, 36, 0.2);
+  padding: 6px 10px;
+  border-radius: 6px;
+}
+
 /* 微信式胶囊下方滑动滑出的解析面板 */
 .bubble-translation-panel {
   margin-top: 8px;
   width: 100%;
+  padding: 14px 18px;
+  box-sizing: border-box;
 }
 
 .temp-text-bubble {
   background: rgba(255, 255, 255, 0.02) !important;
   border: 1px dashed rgba(255, 255, 255, 0.1) !important;
   border-radius: 12px;
-  padding: 10px 14px;
+  padding: 10px 14px !important;
   margin-bottom: 8px;
 }
 
@@ -1456,10 +1819,6 @@ const getWavDuration = (turn) => {
   margin-top: 4px;
   padding-right: 4px;
   opacity: 0.8;
-}
-
-.bubble-wrapper:hover .bubble-tips {
-  opacity: 1;
 }
 
 /* Thinking Bubble */
@@ -1525,16 +1884,16 @@ const getWavDuration = (turn) => {
   }
 }
 
-/* Controls Box */
+/* Controls Box (magnified height and grid centered) */
 .dialogue-controls {
-  height: 170px;
+  height: 205px;
   margin: 16px;
   background: rgba(17, 24, 39, 0.8) !important;
   border: 1px solid rgba(255, 255, 255, 0.06);
-  padding: 16px 24px;
+  padding: 18px 24px;
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 20px;
   flex-shrink: 0;
 }
 
@@ -1565,8 +1924,8 @@ const getWavDuration = (turn) => {
 }
 
 .control-actions {
-  display: flex;
-  justify-content: space-between;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
   align-items: center;
   width: 100%;
 }
@@ -1575,13 +1934,13 @@ const getWavDuration = (turn) => {
   display: flex;
   align-items: center;
   gap: 8px;
-  flex: 1;
+  justify-self: start;
 }
 
 .rate-controller .label {
-  font-size: 0.8rem;
+  font-size: 0.92rem;
   color: var(--text-muted);
-  font-weight: 500;
+  font-weight: 600;
 }
 
 :deep(.rate-controller .el-radio-button__inner) {
@@ -1601,15 +1960,16 @@ const getWavDuration = (turn) => {
   flex-direction: column;
   align-items: center;
   z-index: 10;
+  justify-self: center;
 }
 
 .mic-btn {
-  width: 60px !important;
-  height: 60px !important;
+  width: 72px !important;
+  height: 72px !important;
   background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%) !important;
   border: none !important;
-  box-shadow: 0 4px 18px 0 rgba(99, 102, 241, 0.45);
-  font-size: 1.6rem !important;
+  box-shadow: 0 4px 20px 0 rgba(99, 102, 241, 0.45);
+  font-size: 2.0rem !important;
   color: #fff !important;
 }
 
@@ -1642,14 +2002,12 @@ const getWavDuration = (turn) => {
 }
 
 .placeholder-action {
-  flex: 1;
-  display: flex;
-  justify-content: flex-end;
+  justify-self: end;
 }
 
-/* Feedback Panel (37%) */
+/* Feedback Panel (28%) */
 .feedback-panel {
-  width: 37%;
+  width: 28%;
   padding: 24px;
   display: flex;
   flex-direction: column;
@@ -1853,6 +2211,10 @@ const getWavDuration = (turn) => {
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6) !important;
 }
 
+:deep(.custom-dialog .el-dialog__header) {
+  text-align: center;
+}
+
 :deep(.custom-dialog .el-dialog__title) {
   color: var(--text-primary) !important;
   font-weight: 700;
@@ -1866,11 +2228,11 @@ const getWavDuration = (turn) => {
   width: 100%;
 }
 
-/* 结算多维报表 CSS */
+/* 结算多维报表 CSS (3 Columns Grid) */
 .settle-metrics-grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 12px;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
   width: 100%;
   margin-bottom: 20px;
 }
@@ -2009,5 +2371,71 @@ const getWavDuration = (turn) => {
   padding: 12px 0;
   border-radius: 8px;
   font-size: 0.95rem;
+}
+
+.info-text {
+  color: #06b6d4 !important;
+}
+
+.danger-text {
+  color: #fca5a5 !important;
+}
+
+/* Header Status Panel next to Scene Meta */
+.header-status-divider {
+  width: 1px;
+  height: 28px;
+  background-color: rgba(255, 255, 255, 0.08);
+  margin: 0 8px;
+}
+
+.header-status-panel {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 6px 16px;
+  background: rgba(99, 102, 241, 0.06);
+  border: 1px dashed rgba(99, 102, 241, 0.15);
+  border-radius: 8px;
+  animation: pulse-border 2s infinite ease-in-out;
+}
+
+.status-title-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.status-icon {
+  color: var(--primary-color);
+  font-size: 0.95rem;
+}
+
+.status-big-title {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--primary-color);
+  letter-spacing: 0.5px;
+}
+
+.status-playful-remark {
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  margin-top: 2px;
+}
+
+@keyframes pulse-border {
+  0% {
+    border-color: rgba(99, 102, 241, 0.15);
+    background: rgba(99, 102, 241, 0.06);
+  }
+  50% {
+    border-color: rgba(99, 102, 241, 0.35);
+    background: rgba(99, 102, 241, 0.1);
+  }
+  100% {
+    border-color: rgba(99, 102, 241, 0.15);
+    background: rgba(99, 102, 241, 0.06);
+  }
 }
 </style>
