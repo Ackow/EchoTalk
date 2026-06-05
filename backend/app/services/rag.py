@@ -7,6 +7,7 @@ import faiss
 from typing import List, Dict, Any, Tuple, Optional
 from openai import OpenAI
 from app.core.config import settings
+from app.core.logger import log_api_call
 
 # 设定 RAG 本地索引与文本存储物理路径
 BACKEND_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -63,6 +64,15 @@ def get_embedding(text: str) -> List[float]:
     
     if not has_credentials:
         # 无需联网的本地哈希生成
+        log_api_call(
+            api_type="向量嵌入 (Embedding)",
+            provider="本地离线引擎",
+            url="None (Offline)",
+            model=model_name,
+            action="RAG 知识库向量化 (get_embedding)",
+            status="success",
+            extra_info=f"未配置有效密钥，已安全降级为本地哈希向量生成器（输入文本前40字: '{text[:40]}...'）。"
+        )
         return hash_text_to_vector(text).tolist()
 
     try:
@@ -80,14 +90,39 @@ def get_embedding(text: str) -> List[float]:
             "model": model_name
         }
 
+        log_api_call(
+            api_type="向量嵌入 (Embedding)",
+            provider="Siliconflow / OpenAI 兼容端点",
+            url=url,
+            model=model_name,
+            action="RAG 知识库向量化 (get_embedding)",
+            status="pending"
+        )
+
         # 调用 requests.post 提取嵌入向量
         response = requests.post(url, headers=headers, json=payload, timeout=10)
         response.raise_for_status()
         res_data = response.json()
-        print(f"[RAG API] 成功从 {url} 提取模型 '{model_name}' 的向量。")
+        log_api_call(
+            api_type="向量嵌入 (Embedding)",
+            provider="Siliconflow / OpenAI 兼容端点",
+            url=url,
+            model=model_name,
+            action="RAG 知识库向量化 (get_embedding)",
+            status="success",
+            extra_info=f"生成向量成功，输入文本前 40 字: {text[:40]}..."
+        )
         return res_data["data"][0]["embedding"]
     except Exception as e:
-        print(f"[RAG 向量提取异常] {e}。程序已自动降级为本地哈希向量。")
+        log_api_call(
+            api_type="向量嵌入 (Embedding)",
+            provider="Siliconflow / OpenAI 兼容端点",
+            url=url,
+            model=model_name,
+            action="RAG 知识库向量化 (get_embedding)",
+            status="failed",
+            extra_info=str(e)
+        )
         return hash_text_to_vector(text).tolist()
 
 

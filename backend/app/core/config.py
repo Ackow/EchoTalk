@@ -9,14 +9,24 @@ class Settings(BaseSettings):
     QINIU_BUCKET_NAME: str = "echotalk-bucket"
     QINIU_DOMAIN: str = "http://mock.qiniu.com"
 
-    # 大语言模型配置
+    # 大语言模型配置 (支持 DeepSeek, 小米 MiMo 或 OpenAI)
+    DEEPSEEK_API_KEY: Optional[str] = None
+    DEEPSEEK_BASE_URL: str = "https://api.deepseek.com/v1"
+    DEEPSEEK_MODEL: str = "deepseek-chat"
+
+    XIAOMI_API_KEY: Optional[str] = None
+    XIAOMI_BASE_URL: str = "https://api.ai.mi.com/v1"
+    XIAOMI_MODEL: str = "mimo-chat"
+
+    # 原 OpenAI 配置（用作兼容性底座）
     OPENAI_API_KEY: str = "mock-key"
     OPENAI_BASE_URL: str = "https://api.openai.com/v1"
+    OPENAI_MODEL: str = "gpt-4o-mini"
 
     # 向量嵌入模型配置 (BAAI/bge-large-en-v1.5)
-    EMBEDDING_API_KEY: Optional[str] = None
-    EMBEDDING_BASE_URL: Optional[str] = None
-    EMBEDDING_MODEL: str = None
+    EMBEDDING_API_KEY: Optional[str] = None # 如果不填，默认共用大模型 Key
+    EMBEDDING_BASE_URL: Optional[str] = None # 如果不填，默认共用大模型 BaseURL
+    EMBEDDING_MODEL: str = "BAAI/bge-large-en-v1.5"
 
     # 微软 Azure 语音配置 (用于发音评估)
     AZURE_SPEECH_KEY: str = "mock-key"
