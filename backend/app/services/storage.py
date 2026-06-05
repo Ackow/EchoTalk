@@ -16,12 +16,7 @@ def upload_audio_to_kodo(local_file_path: str, filename: str) -> str:
     如果未配置七牛云密钥，则会自动回退为本地静态文件夹存储，并返回 Localhost 的静态访问 URL。
     """
     # 检查是否配置了有效的七牛云凭证
-    has_credentials = (
-        settings.QINIU_ACCESS_KEY 
-        and settings.QINIU_ACCESS_KEY != "your_qiniu_access_key"
-        and settings.QINIU_SECRET_KEY 
-        and settings.QINIU_SECRET_KEY != "your_qiniu_secret_key"
-    )
+    has_credentials = bool(settings.QINIU_ACCESS_KEY and settings.QINIU_SECRET_KEY)
     
     if not has_credentials:
         # 回退逻辑：直接拷贝文件到本地静态路由托管目录

@@ -4,7 +4,9 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
+from sqlalchemy import text
 
+from app.api.endpoints.scenes import generate_and_upload_greeting_audio
 from app.core.database import engine, Base, get_db
 from app.models import Scene, User
 from app.core.config import settings
@@ -23,8 +25,12 @@ app = FastAPI(
 )
 
 # 挂载本地音频静态文件目录（供七牛云上传异常或离线开发时回退播放）
-current_dir = os.path.dirname(os.path.abspath(__file__))
-static_dir = os.path.join(current_dir, "..", "static")
+import sys
+if getattr(sys, 'frozen', False):
+    static_dir = os.path.join(os.path.dirname(sys.executable), "static")
+else:
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    static_dir = os.path.join(current_dir, "..", "static")
 os.makedirs(os.path.join(static_dir, "audio"), exist_ok=True)
 app.mount("/static", StaticFiles(directory=static_dir), name="static")
 
@@ -45,11 +51,11 @@ def check_and_upgrade_database_schema(db: Session):
     自适应数据库热升级：如果已存在的 scenes 表没有 greeting_audio_url 字段，则通过 ALTER TABLE 命令热增加该字段。
     """
     try:
-        cursor = db.execute("PRAGMA table_info(scenes)")
+        cursor = db.execute(text("PRAGMA table_info(scenes)"))
         columns = [row[1] for row in cursor.fetchall()]
         if "greeting_audio_url" not in columns:
             print("[数据库热升级] scenes 表缺失 greeting_audio_url 字段，正在执行热注入...")
-            db.execute("ALTER TABLE scenes ADD COLUMN greeting_audio_url VARCHAR(255)")
+            db.execute(text("ALTER TABLE scenes ADD COLUMN greeting_audio_url VARCHAR(255)"))
             db.commit()
             print("[数据库热升级] scenes 表成功注入 greeting_audio_url 字段！")
     except Exception as e:
@@ -74,7 +80,7 @@ def seed_default_scenes(db: Session):
                 "job_title": "Senior Frontend Developer",
                 "interviewer_name": "Sarah"
             },
-            "system_prompt": "You are Sarah, a professional and slightly strict Senior engineering manager at Global Tech Inc. You are conducting an English interview for a Senior Frontend Developer position. The candidate is the user. Speak naturally as an interviewer, keep your questions clear, ask one technical or behavioral question at a time. Keep your turns concise (1-2 sentences). Start by welcoming the candidate and asking them to briefly introduce themselves.",
+            "system_prompt": "You are Sarah, an experienced, professional, and slightly strict Senior engineering manager at Global Tech Inc. You are conducting a technical and behavioral English interview for a Senior Frontend Developer position. The candidate is the user. You must behave like a real interviewer: listen carefully to the candidate's answers, follow up on their specific points, challenge their assumptions, and ask deep technical or behavioral questions. Avoid generic or overly polite filler phrases. Ask one targeted question at a time and keep your replies concise (1-2 sentences). Start by welcoming the candidate and asking them to briefly introduce themselves.",
             "greeting_text": "Hello! I am Sarah, the Senior Engineering Manager at Global Tech Inc. Thank you for coming today. Let's start the interview. Can you please introduce yourself and tell me about your experience with React Native?"
         },
         {
@@ -87,7 +93,7 @@ def seed_default_scenes(db: Session):
                 "store_name": "Metro Cafe",
                 "cashier_name": "Leo"
             },
-            "system_prompt": "You are Leo, a busy but friendly barista at Metro Cafe in New York. The customer (user) wants to order coffee or breakfast. Speak naturally, ask for preferences (size, milk type, sugar, dine-in or to-go). Keep responses very brief (1 sentence) to match the fast-paced environment. Start by greeting the customer warmly and asking what they would like today.",
+            "system_prompt": "You are Leo, a friendly but very busy barista at the popular Metro Cafe in New York. The customer (user) wants to order coffee or breakfast. Act like a real barista: speak naturally, be fast-paced, and ask conversational follow-ups based on what they order (e.g., asking about cup size, milk options like oat or soy, sweetener preferences, and whether it is dine-in or to-go). Avoid sounding like a textbook robot; instead, use casual, natural barista phrases. Keep your responses short (1-2 sentences) to keep up with the queue. Start by greeting them warmly and asking what they want today.",
             "greeting_text": "Welcome to Metro Cafe! I'm Leo, what can I get started for you today?"
         },
         {
@@ -100,7 +106,7 @@ def seed_default_scenes(db: Session):
                 "chairperson_name": "David",
                 "topic": "Frontend delay for the Q3 product launch"
             },
-            "system_prompt": "You are David, the Product Manager leading a product alignment alignment meeting. The user is a frontend developer on the team. We are discussing the Q3 product launch delay. Speak professionally, ask questions about their progress, blockages, and ask for an updated estimation. Keep your replies concise (1-2 sentences) and collaborative. Start the meeting by greeting the developer and stating the agenda.",
+            "system_prompt": "You are David, a result-oriented and collaborative Product Manager leading an urgent product alignment meeting. The user is a developer on the team. We are discussing a critical delay in the Q3 product launch. Act like a real manager: listen to the developer's status, ask realistic follow-ups about technical blockages or resource constraints, challenge their timeline if it is too vague, and collaboratively work out an updated estimation. Keep your tone professional, constructive, and direct. Keep your responses concise (1-2 sentences) to mimic a real business meeting. Start the meeting by greeting the team, stating the agenda, and asking the developer for their update.",
             "greeting_text": "Hi team, thanks for joining. Today we are aligning on the Q3 product launch delays. Let's start with your updates. How is the React Native frontend progress?"
         }
     ]
@@ -143,8 +149,18 @@ def seed_default_scenes(db: Session):
             )
             db.add(scene)
         else:
+            # 如果系统提示词或问候语与预置种子不一致，进行自动校准更新，确保用户获得最佳体验
+            if existing.system_prompt != scene_data["system_prompt"] or existing.greeting_text != scene_data["greeting_text"]:
+                print(f"[种子自动更新] 场景 '{existing.id}' 配置与种子不一致，正在执行升级校准...")
+                existing.name = scene_data["name"]
+                existing.description = scene_data["description"]
+                existing.system_prompt = scene_data["system_prompt"]
+                existing.greeting_text = scene_data["greeting_text"]
+                # 重新预合成打招呼语音
+                existing.greeting_audio_url = generate_and_upload_greeting_audio(existing.id, scene_data["greeting_text"])
+                db.add(existing)
             # 如果存在但缺失问候语音频 (针对老库热升级的兼容性填充)
-            if not existing.greeting_audio_url and existing.greeting_text:
+            elif not existing.greeting_audio_url and existing.greeting_text:
                 print(f"[种子自动修复] 场景 '{existing.id}' 缺少问候语音频，正在执行补偿生成...")
                 filename = f"scene_greeting_{existing.id}_{int(time.time())}.mp3"
                 backend_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))

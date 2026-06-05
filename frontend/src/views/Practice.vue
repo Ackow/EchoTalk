@@ -430,7 +430,8 @@ const currentPlayfulRemark = ref('正在安全上传您的音频...')
 const showAiThinking = ref(false)
 const aiThinkingStatusText = ref('AI 正在组织语言，撰写角色回复~')
 
-const playbackRate = ref(1.0)
+const savedRate = localStorage.getItem('playback_rate')
+const playbackRate = ref(savedRate ? parseFloat(savedRate) : 1.0)
 const playingTurnId = ref(null)
 const activeAudio = ref(null)
 

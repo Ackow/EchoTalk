@@ -23,7 +23,11 @@
       </nav>
 
       <div class="sidebar-footer">
-        <div class="version">Version 1.0.0 (MVP)</div>
+        <router-link to="/settings" class="menu-item settings-link" active-class="active">
+          <el-icon><Setting /></el-icon>
+          <span>设置与管理</span>
+        </router-link>
+        <div class="version" style="margin-top: 12px;">Version 1.0.0 (MVP)</div>
       </div>
     </aside>
 
@@ -142,6 +146,16 @@ const isPracticeMode = computed(() => route.name === 'Practice')
 .version {
   font-size: 0.75rem;
   color: var(--text-muted);
+}
+
+.settings-link {
+  border: 1px solid rgba(255, 255, 255, 0.04) !important;
+  background: rgba(255, 255, 255, 0.02) !important;
+  margin-bottom: 8px;
+}
+
+.settings-link:hover {
+  background: rgba(255, 255, 255, 0.06) !important;
 }
 
 .content-view {

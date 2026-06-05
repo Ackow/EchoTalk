@@ -1,4 +1,5 @@
 import os
+import sys
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from typing import Optional
 
@@ -28,10 +29,6 @@ class Settings(BaseSettings):
     EMBEDDING_BASE_URL: Optional[str] = None # 如果不填，默认共用大模型 BaseURL
     EMBEDDING_MODEL: str = "BAAI/bge-large-en-v1.5"
 
-    # 微软 Azure 语音配置 (用于发音评估)
-    AZURE_SPEECH_KEY: str = "mock-key"
-    AZURE_SPEECH_REGION: str = "eastus"
-
     # 科大讯飞语音评测配置 (用于发音评估)
     XFYUN_APP_ID: Optional[str] = None
     XFYUN_API_KEY: Optional[str] = None
@@ -42,13 +39,56 @@ class Settings(BaseSettings):
     BAIDU_SECRET_KEY: Optional[str] = None
 
     # SQLite 本地数据库配置。采用基于 backend 目录的绝对路径，防止因启动的工作目录（Cwd）不同而产生多个数据库文件分流数据
-    DATABASE_URL: str = f"sqlite:///{os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), 'echotalk.db')}"
+    @property
+    def DATABASE_URL(self) -> str:
+        import sys
+        if getattr(sys, 'frozen', False):
+            base_dir = os.path.dirname(sys.executable)
+        else:
+            base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        return f"sqlite:///{os.path.join(base_dir, 'echotalk.db')}"
 
     # 读取 backend 目录下的 .env 配置文件
+    @property
+    def env_file_path(self) -> str:
+        import sys
+        if getattr(sys, 'frozen', False):
+            return os.path.join(os.path.dirname(sys.executable), ".env")
+        return os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), ".env")
+
+    # 获取 settings.json 路径
+    @property
+    def settings_json_path(self) -> str:
+        import sys
+        if getattr(sys, 'frozen', False):
+            base_dir = os.path.dirname(sys.executable)
+        else:
+            base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        return os.path.join(base_dir, 'settings.json')
+
+    def __init__(self, **values):
+        super().__init__(**values)
+        self.load_from_json()
+
+    def load_from_json(self):
+        import json
+        path = self.settings_json_path
+        if os.path.exists(path):
+            try:
+                with open(path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    for key, val in data.items():
+                        if hasattr(self, key) and val is not None:
+                            setattr(self, key, val)
+            except Exception as e:
+                print(f"Error loading settings.json: {e}")
+
     model_config = SettingsConfigDict(
-        env_file=os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), ".env"),
+        env_file=os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), ".env") if not getattr(sys, 'frozen', False) else os.path.join(os.path.dirname(sys.executable), ".env"),
         env_file_encoding="utf-8",
         extra="ignore"
     )
+
+
 
 settings = Settings()
