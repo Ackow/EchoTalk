@@ -25,6 +25,8 @@ class SceneBase(BaseModel):
     category: str = "custom"
     default_params: Dict[str, Any] = Field(default_factory=dict)
     system_prompt: str
+    greeting_text: Optional[str] = "Hello! Let's start practicing."
+    greeting_audio_url: Optional[str] = None
 
 class SceneCreate(SceneBase):
     pass
@@ -35,6 +37,8 @@ class SceneUpdate(BaseModel):
     category: Optional[str] = None
     default_params: Optional[Dict[str, Any]] = None
     system_prompt: Optional[str] = None
+    greeting_text: Optional[str] = None
+    greeting_audio_url: Optional[str] = None
     rag_metadata: Optional[List[Dict[str, Any]]] = None
 
 class SceneResponse(SceneBase):

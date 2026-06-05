@@ -36,6 +36,12 @@ class Scene(Base):
     
     # RAG 文档库元数据：记录用户上传的文件列表信息
     rag_metadata = Column(JSON, default=list)
+    
+    # 场景的第一句打招呼首发文本，用于持久化问候语
+    greeting_text = Column(Text, nullable=True, default="Hello! Let's start practicing.")
+    
+    # 场景的第一句打招呼首发音频托管地址，预先生成好以加速会话启动
+    greeting_audio_url = Column(String(255), nullable=True)
 
     # 关联关系
     dialogues = relationship("DialogueHistory", back_populates="scene")

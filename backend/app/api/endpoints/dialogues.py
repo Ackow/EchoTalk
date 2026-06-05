@@ -10,6 +10,8 @@ from app.api.deps import get_db
 from app.models import DialogueHistory, Scene, User, DialogueTurn
 from app.schemas import DialogueHistoryResponse, DialogueStartRequest, DialogueTurnResponse
 from app.services.pipeline import run_dialogue_turn_pipeline
+from app.services.tts import text_to_speech
+from app.services.storage import upload_audio_to_kodo
 
 router = APIRouter()
 
@@ -17,6 +19,7 @@ router = APIRouter()
 def start_dialogue(req: DialogueStartRequest, db: Session = Depends(get_db)):
     """
     启动一轮新的口语交互练习会话。如果指定了 custom_params，将覆盖默认场景的属性配置。
+    并在启动时同步生成第一句场景问候语的文本及 TTS 托管语音，作为第 0 轮对话存入数据库。
     """
     # 验证场景与用户是否存在
     scene = db.query(Scene).filter(Scene.id == req.scene_id).first()
@@ -42,6 +45,60 @@ def start_dialogue(req: DialogueStartRequest, db: Session = Depends(get_db)):
     db.add(history)
     db.commit()
     db.refresh(history)
+    
+    # 1. 组合默认参数与传入的 custom_params 进行欢迎语参数插值渲染
+    params = dict(scene.default_params or {})
+    if req.custom_params:
+        params.update(req.custom_params)
+        
+    greeting_rendered = scene.greeting_text or "Hello! Let's start practicing."
+    for k, v in params.items():
+        placeholder = f"{{{k}}}"
+        if placeholder in greeting_rendered:
+            greeting_rendered = greeting_rendered.replace(placeholder, str(v))
+            
+    # 2. 检查渲染后的打招呼文本是否与原场景问候语完全等值
+    # 如果完全等值且数据库中已存在预合成音频地址，则直接复用，免去合成耗时以实现会话启动零延迟！
+    if greeting_rendered == scene.greeting_text and scene.greeting_audio_url:
+        greeting_audio_url = scene.greeting_audio_url
+        print(f"[会话启动加速] 问候语文本未改变，成功直通复用预合成音轨: {greeting_audio_url}")
+    else:
+        # 否则 (例如因 custom_params 发生了变量替换)，降级为实时重新合成
+        print(f"[会话启动降级] 问候语文本发生变量插值改变，正在实时合成定制音轨...")
+        ai_audio_filename = f"greeting_{history.id}_{int(time.time())}.mp3"
+        backend_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        temp_dir = os.path.join(backend_dir, "static", "audio")
+        os.makedirs(temp_dir, exist_ok=True)
+        local_path = os.path.join(temp_dir, ai_audio_filename)
+        
+        try:
+            text_to_speech(greeting_rendered, local_path)
+            greeting_audio_url = upload_audio_to_kodo(local_path, ai_audio_filename)
+        except Exception as e:
+            print(f"[问候语 TTS 合成异常警告] {str(e)}。降级为无语音。")
+            greeting_audio_url = None
+        finally:
+            # 物理清理本地冗余文件
+            if greeting_audio_url and "static/audio" not in greeting_audio_url:
+                if os.path.exists(local_path):
+                    try:
+                        os.remove(local_path)
+                    except Exception:
+                        pass
+
+    # 3. 创建第 0 轮 DialogueTurn 写入数据库
+    turn0 = DialogueTurn(
+        dialogue_history_id=history.id,
+        role="assistant",
+        text=greeting_rendered,
+        audio_url=greeting_audio_url,
+        pronunciation_score=None,
+        grammar_correction=None
+    )
+    db.add(turn0)
+    db.commit()
+    db.refresh(history)
+    
     return history
 
 @router.get("/{history_id}", response_model=DialogueHistoryResponse)

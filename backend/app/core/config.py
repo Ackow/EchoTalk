@@ -41,8 +41,8 @@ class Settings(BaseSettings):
     BAIDU_API_KEY: Optional[str] = None
     BAIDU_SECRET_KEY: Optional[str] = None
 
-    # SQLite 本地数据库配置
-    DATABASE_URL: str = "sqlite:///./echotalk.db"
+    # SQLite 本地数据库配置。采用基于 backend 目录的绝对路径，防止因启动的工作目录（Cwd）不同而产生多个数据库文件分流数据
+    DATABASE_URL: str = f"sqlite:///{os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), 'echotalk.db')}"
 
     # 读取 backend 目录下的 .env 配置文件
     model_config = SettingsConfigDict(

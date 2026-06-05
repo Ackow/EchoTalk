@@ -1,7 +1,7 @@
 <template>
   <div class="app-layout">
     <!-- Sidebar Navigation -->
-    <aside class="sidebar glass-panel">
+    <aside :class="['sidebar glass-panel', { 'sidebar-hidden': isPracticeMode }]">
       <div class="logo-area">
         <h2 class="text-gradient">EchoTalk</h2>
         <span class="tag">云音口语</span>
@@ -35,7 +35,10 @@
 </template>
 
 <script setup>
-// Icons are registered globally in main.js, so we can use them directly
+import { computed } from 'vue'
+import { useRoute } from 'vue-router'
+const route = useRoute()
+const isPracticeMode = computed(() => route.name === 'Practice')
 </script>
 
 <style scoped>
@@ -56,6 +59,20 @@
   padding: 32px 20px;
   border-radius: 16px;
   z-index: 10;
+  transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+              margin 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+              padding 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+              opacity 0.2s ease;
+  overflow: hidden;
+}
+
+.sidebar-hidden {
+  width: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  opacity: 0 !important;
+  pointer-events: none;
+  border: none !important;
 }
 
 .logo-area {

@@ -49,7 +49,7 @@
     <el-drawer
       v-model="drawerVisible"
       title="口语演练历史详情"
-      size="520px"
+      size="540px"
       destroy-on-close
       class="history-drawer"
       @close="handleDrawerClose"
@@ -91,6 +91,15 @@
                   <div :class="['bubble user-bubble glass-card', { 'active-user-bubble': expandedTurnIndex === idx }]">
                     <p class="message-text">{{ turn.text }}</p>
                     
+                    <!-- 语法纠错常驻简易对比气泡 (解决漏看修改评语的UX痛点) -->
+                    <div 
+                      class="bubble-correction-snippet" 
+                      v-if="turn.grammar_correction && turn.grammar_correction.original !== turn.grammar_correction.corrected"
+                    >
+                      <el-icon class="warning-icon"><Warning /></el-icon>
+                      <span class="polished-hint">优化建议: "{{ turn.grammar_correction.corrected }}"</span>
+                    </div>
+
                     <div class="bubble-score" v-if="turn.pronunciation_score">
                       <el-tag size="small" type="success" effect="dark" class="score-tag">
                         {{ turn.pronunciation_score.total_score }}分
@@ -104,7 +113,7 @@
                       <span>{{ playingTurnId === (turn.id || idx) ? '播放中...' : '回放原声' }}</span>
                     </el-button>
                     <span class="details-toggle-btn">
-                      {{ expandedTurnIndex === idx ? '收起测评 ▲' : '查看评测与纠错 ▼' }}
+                      {{ expandedTurnIndex === idx ? '收起详情 ▲' : '发音五维/纠错原因 ▼' }}
                     </span>
                   </div>
                 </div>
@@ -122,7 +131,7 @@
                 </div>
                 
                 <!-- Grammar -->
-                <div class="inline-section-title" style="margin-top: 16px;">语法建议</div>
+                <div class="inline-section-title" style="margin-top: 16px;">语法建议详情</div>
                 <div class="grammar-container" v-if="turn.grammar_correction">
                   <!-- No corrections needed -->
                   <div v-if="turn.grammar_correction.original === turn.grammar_correction.corrected" class="grammar-ok">
@@ -140,7 +149,7 @@
                       <p class="text-block green-text">{{ turn.grammar_correction.corrected }}</p>
                     </div>
                     <div class="explanation-box">
-                      <span class="exp-title">修改说明:</span>
+                      <span class="exp-title">修改说明 (Chinese Explanation):</span>
                       <p class="exp-content">{{ turn.grammar_correction.explanation }}</p>
                     </div>
                   </div>
@@ -176,7 +185,7 @@ const expandedTurnIndex = ref(null)
 const playingTurnId = ref(null)
 const activeAudio = ref(null)
 
-// Scene metadata mappings
+// Predefined scene metadata mappings
 const sceneMetaMap = ref({
   interview: { name: '软件工程师面试', category: 'interview' },
   ordering: { name: '咖啡厅英文点餐', category: 'ordering' },
@@ -201,7 +210,7 @@ const fetchHistory = async () => {
     })
     historyList.value = res.data
     
-    // Scan unique custom scenes from history to register their names if they are not in the predefined map
+    // Register custom scenes from history records
     registerCustomSceneNames(res.data)
   } catch (err) {
     ElMessage.error('拉取历史记录失败，请确保后端服务正常')
@@ -605,6 +614,23 @@ const registerCustomSceneNames = async (histories) => {
   color: var(--text-primary);
   word-wrap: break-word;
   white-space: pre-wrap;
+}
+
+.bubble-correction-snippet {
+  margin-top: 8px;
+  padding-top: 6px;
+  border-top: 1px dashed rgba(239, 68, 68, 0.2);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.8rem;
+  color: #34d399; /* 浅绿色 */
+  font-weight: 500;
+}
+
+.warning-icon {
+  color: #f87171;
+  font-size: 0.9rem;
 }
 
 .bubble-actions {

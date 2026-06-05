@@ -9,6 +9,9 @@ from app.core.database import engine, Base, get_db
 from app.models import Scene, User
 from app.core.config import settings
 from app.api.api import api_router
+from app.services.tts import text_to_speech
+from app.services.storage import upload_audio_to_kodo
+import time
 
 # 首次启动自动创建 SQLite 所有数据表
 Base.metadata.create_all(bind=engine)
@@ -37,10 +40,28 @@ app.add_middleware(
 # 挂载聚合后的业务 API 路由，所有路径前缀统一为 /api
 app.include_router(api_router, prefix="/api")
 
+def check_and_upgrade_database_schema(db: Session):
+    """
+    自适应数据库热升级：如果已存在的 scenes 表没有 greeting_audio_url 字段，则通过 ALTER TABLE 命令热增加该字段。
+    """
+    try:
+        cursor = db.execute("PRAGMA table_info(scenes)")
+        columns = [row[1] for row in cursor.fetchall()]
+        if "greeting_audio_url" not in columns:
+            print("[数据库热升级] scenes 表缺失 greeting_audio_url 字段，正在执行热注入...")
+            db.execute("ALTER TABLE scenes ADD COLUMN greeting_audio_url VARCHAR(255)")
+            db.commit()
+            print("[数据库热升级] scenes 表成功注入 greeting_audio_url 字段！")
+    except Exception as e:
+        print(f"[数据库热升级异常警告] 自动升级 schema 失败: {e}")
+
 def seed_default_scenes(db: Session):
     """
     预置种子数据：自动注册面试、点餐、同步会议等三大开箱即用口语练习场景
     """
+    # 自动进行 schema 校验升级，防范外部测试或独立脚本在空库启动时缺失字段
+    check_and_upgrade_database_schema(db)
+    
     default_scenes = [
         {
             "id": "interview",
@@ -53,7 +74,8 @@ def seed_default_scenes(db: Session):
                 "job_title": "Senior Frontend Developer",
                 "interviewer_name": "Sarah"
             },
-            "system_prompt": "You are Sarah, a professional and slightly strict Senior engineering manager at Global Tech Inc. You are conducting an English interview for a Senior Frontend Developer position. The candidate is the user. Speak naturally as an interviewer, keep your questions clear, ask one technical or behavioral question at a time. Keep your turns concise (1-2 sentences). Start by welcoming the candidate and asking them to briefly introduce themselves."
+            "system_prompt": "You are Sarah, a professional and slightly strict Senior engineering manager at Global Tech Inc. You are conducting an English interview for a Senior Frontend Developer position. The candidate is the user. Speak naturally as an interviewer, keep your questions clear, ask one technical or behavioral question at a time. Keep your turns concise (1-2 sentences). Start by welcoming the candidate and asking them to briefly introduce themselves.",
+            "greeting_text": "Hello! I am Sarah, the Senior Engineering Manager at Global Tech Inc. Thank you for coming today. Let's start the interview. Can you please introduce yourself and tell me about your experience with React Native?"
         },
         {
             "id": "ordering",
@@ -65,7 +87,8 @@ def seed_default_scenes(db: Session):
                 "store_name": "Metro Cafe",
                 "cashier_name": "Leo"
             },
-            "system_prompt": "You are Leo, a busy but friendly barista at Metro Cafe in New York. The customer (user) wants to order coffee or breakfast. Speak naturally, ask for preferences (size, milk type, sugar, dine-in or to-go). Keep responses very brief (1 sentence) to match the fast-paced environment. Start by greeting the customer warmly and asking what they would like today."
+            "system_prompt": "You are Leo, a busy but friendly barista at Metro Cafe in New York. The customer (user) wants to order coffee or breakfast. Speak naturally, ask for preferences (size, milk type, sugar, dine-in or to-go). Keep responses very brief (1 sentence) to match the fast-paced environment. Start by greeting the customer warmly and asking what they would like today.",
+            "greeting_text": "Welcome to Metro Cafe! I'm Leo, what can I get started for you today?"
         },
         {
             "id": "meeting",
@@ -77,13 +100,36 @@ def seed_default_scenes(db: Session):
                 "chairperson_name": "David",
                 "topic": "Frontend delay for the Q3 product launch"
             },
-            "system_prompt": "You are David, the Product Manager leading a product alignment alignment meeting. The user is a frontend developer on the team. We are discussing the Q3 product launch delay. Speak professionally, ask questions about their progress, blockages, and ask for an updated estimation. Keep your replies concise (1-2 sentences) and collaborative. Start the meeting by greeting the developer and stating the agenda."
+            "system_prompt": "You are David, the Product Manager leading a product alignment alignment meeting. The user is a frontend developer on the team. We are discussing the Q3 product launch delay. Speak professionally, ask questions about their progress, blockages, and ask for an updated estimation. Keep your replies concise (1-2 sentences) and collaborative. Start the meeting by greeting the developer and stating the agenda.",
+            "greeting_text": "Hi team, thanks for joining. Today we are aligning on the Q3 product launch delays. Let's start with your updates. How is the React Native frontend progress?"
         }
     ]
 
     for scene_data in default_scenes:
         existing = db.query(Scene).filter(Scene.id == scene_data["id"]).first()
         if not existing:
+            # 预生成种子场景打招呼音频
+            greeting_audio_url = None
+            greeting_text = scene_data["greeting_text"]
+            if greeting_text:
+                filename = f"scene_greeting_{scene_data['id']}_{int(time.time())}.mp3"
+                backend_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+                temp_dir = os.path.join(backend_dir, "static", "audio")
+                os.makedirs(temp_dir, exist_ok=True)
+                local_path = os.path.join(temp_dir, filename)
+                try:
+                    text_to_speech(greeting_text, local_path)
+                    greeting_audio_url = upload_audio_to_kodo(local_path, filename)
+                except Exception as e:
+                    print(f"[种子场景 TTS 预生成异常] 场景 {scene_data['id']} 合成失败: {e}")
+                finally:
+                    if greeting_audio_url and "static/audio" not in greeting_audio_url:
+                        if os.path.exists(local_path):
+                            try:
+                                os.remove(local_path)
+                            except Exception:
+                                pass
+
             scene = Scene(
                 id=scene_data["id"],
                 name=scene_data["name"],
@@ -91,9 +137,34 @@ def seed_default_scenes(db: Session):
                 category=scene_data["category"],
                 default_params=scene_data["default_params"],
                 system_prompt=scene_data["system_prompt"],
+                greeting_text=greeting_text,
+                greeting_audio_url=greeting_audio_url,
                 rag_metadata=[]
             )
             db.add(scene)
+        else:
+            # 如果存在但缺失问候语音频 (针对老库热升级的兼容性填充)
+            if not existing.greeting_audio_url and existing.greeting_text:
+                print(f"[种子自动修复] 场景 '{existing.id}' 缺少问候语音频，正在执行补偿生成...")
+                filename = f"scene_greeting_{existing.id}_{int(time.time())}.mp3"
+                backend_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+                temp_dir = os.path.join(backend_dir, "static", "audio")
+                os.makedirs(temp_dir, exist_ok=True)
+                local_path = os.path.join(temp_dir, filename)
+                try:
+                    text_to_speech(existing.greeting_text, local_path)
+                    existing.greeting_audio_url = upload_audio_to_kodo(local_path, filename)
+                    db.add(existing)
+                    print(f"[种子自动修复] 场景 '{existing.id}' 问候语语音已完美填充！")
+                except Exception as e:
+                    print(f"[种子补偿生成异常] 场景 {existing.id} 合成失败: {e}")
+                finally:
+                    if existing.greeting_audio_url and "static/audio" not in existing.greeting_audio_url:
+                        if os.path.exists(local_path):
+                            try:
+                                os.remove(local_path)
+                            except Exception:
+                                pass
     db.commit()
 
 # 在服务启动时自动初始化表与种子场景数据
@@ -101,6 +172,10 @@ def seed_default_scenes(db: Session):
 def startup_event():
     db = next(get_db())
     try:
+        # 1. 运行自适应 Schema 热升级，防止表已经存在缺失新增列崩溃
+        check_and_upgrade_database_schema(db)
+        
+        # 2. 注入种子默认数据
         seed_default_scenes(db)
         
         # 预注册一个默认的本地测试用户

@@ -36,7 +36,7 @@
         <div v-if="!sessionStarted" class="start-session-prompt">
           <el-icon class="prompt-icon"><Microphone /></el-icon>
           <h3>准备好开始本次口语演练了吗？</h3>
-          <p>我们将针对设定好的自定义场景和背景知识库与你进行模拟对话。你的发音将被多维度评估，语法表述也将获得润色建议。</p>
+          <p>我们将针对设定好的场景与背景知识库与你进行模拟对话。你的发音将被多维度评估，语法表述也将获得润色建议。</p>
           <el-button type="primary" size="large" class="start-session-btn hover-scale" @click="startDialogueSession" :loading="startingSession">
             <span>进入练习会话</span>
           </el-button>
@@ -45,42 +45,87 @@
         <template v-else>
           <div class="chat-history" ref="chatHistoryRef">
             <div v-for="(turn, idx) in turns" :key="turn.id || idx" :class="['message-row', turn.role === 'user' ? 'user-row' : 'ai-row']">
-              <!-- AI Message -->
+              <!-- AI 消息模块 -->
               <template v-if="turn.role === 'assistant'">
                 <div class="avatar ai-avatar">AI</div>
-                <div class="bubble-wrapper">
-                  <div class="bubble ai-bubble glass-card">
+                <div class="bubble-wrapper" @click="toggleTurnExpanded(idx, turn)">
+                  <!-- 默认折叠状态：展示微信语音灰色胶囊条 -->
+                  <div v-if="!expandedTurns[turn.id || idx]" class="voice-capsule ai-voice-capsule">
+                    <el-icon class="voice-icon" v-if="playingTurnId === (turn.id || idx)"><VideoPlay /></el-icon>
+                    <el-icon class="voice-icon" v-else><Headset /></el-icon>
+                    <span class="voice-duration">{{ getWavDuration(turn) }}</span>
+                    <span class="voice-playing-text" v-if="playingTurnId === (turn.id || idx)">播报中...</span>
+                  </div>
+
+                  <!-- 展开状态：显示完整文本和播放按钮 -->
+                  <div v-else class="bubble ai-bubble glass-card">
                     <p class="message-text">{{ turn.text }}</p>
                     <div class="bubble-actions">
-                      <el-button type="primary" link class="audio-play-btn" @click="playAudio(turn.audio_url, turn.id || idx)">
+                      <el-button type="primary" link class="audio-play-btn" @click.stop="playAudio(turn.audio_url, turn.id || idx)">
                         <el-icon v-if="playingTurnId === (turn.id || idx)"><VideoPlay /></el-icon>
                         <el-icon v-else><Headset /></el-icon>
                         <span>{{ playingTurnId === (turn.id || idx) ? '播报中...' : '播放原声' }}</span>
                       </el-button>
                     </div>
                   </div>
+                  
+                  <div class="bubble-tips">
+                    {{ expandedTurns[turn.id || idx] ? '点击可重新折叠语音' : '点击可展开文本' }}
+                  </div>
                 </div>
               </template>
 
-              <!-- User Message -->
+              <!-- 用户消息模块 -->
               <template v-else>
-                <div class="bubble-wrapper" @click="selectUserTurn(idx)">
-                  <div :class="['bubble user-bubble glass-card', { 'selected-bubble': selectedTurnIndex === idx }]">
+                <!-- 1. 录音刚结束时的临时加载气泡 -->
+                <div v-if="turn.isTemp" class="bubble-wrapper">
+                  <div class="voice-capsule temp-capsule">
+                    <el-icon class="voice-icon-spinning"><Loading /></el-icon>
+                    <span class="voice-duration">{{ turn.recordingDuration || 2 }}"</span>
+                  </div>
+                  <div class="bubble-tips-always">发音评估与思考中...</div>
+                </div>
+
+                <!-- 2. 已合成评估完毕的用户正式气泡 -->
+                <div v-else class="bubble-wrapper" @click="toggleTurnExpanded(idx, turn)">
+                  <!-- 默认折叠状态：显示微信语音绿色胶囊条 -->
+                  <div v-if="!expandedTurns[turn.id || idx]" class="voice-capsule">
+                    <el-icon class="voice-icon"><PhoneFilled /></el-icon>
+                    <span class="voice-duration">{{ getWavDuration(turn) }}</span>
+                    <!-- 评分标签 -->
+                    <span class="voice-capsule-score" v-if="turn.pronunciation_score">
+                      {{ Math.round(turn.pronunciation_score.total_score) }}分
+                    </span>
+                  </div>
+
+                  <!-- 选中展开状态：显示完整文字与发音面板 -->
+                  <div v-else class="bubble user-bubble glass-card selected-bubble">
                     <p class="message-text">{{ turn.text }}</p>
                     <div class="bubble-score" v-if="turn.pronunciation_score">
                       <el-tag size="small" type="success" effect="dark" class="score-tag">
                         {{ turn.pronunciation_score.total_score }}分
                       </el-tag>
                     </div>
+                    
+                    <div class="bubble-actions-user">
+                      <el-button type="primary" link class="user-audio-play-btn" @click.stop="playAudio(turn.audio_url, turn.id || idx)">
+                        <el-icon v-if="playingTurnId === (turn.id || idx)"><VideoPlay /></el-icon>
+                        <el-icon v-else><Mic /></el-icon>
+                        <span>{{ playingTurnId === (turn.id || idx) ? '播放中...' : '回放发音' }}</span>
+                      </el-button>
+                    </div>
                   </div>
-                  <div class="bubble-tips">点击可查看详细测评</div>
+                  
+                  <div class="bubble-tips">
+                    {{ expandedTurns[turn.id || idx] ? '点击可重新折叠语音' : '点击可展开转文字与评测' }}
+                  </div>
                 </div>
                 <div class="avatar user-avatar">ME</div>
               </template>
             </div>
 
             <!-- Loading AI Thinking -->
-            <div v-if="isProcessing" class="message-row ai-row">
+            <div v-if="isProcessing && !hasTempUserBubble" class="message-row ai-row">
               <div class="avatar ai-avatar">AI</div>
               <div class="bubble-wrapper">
                 <div class="bubble ai-bubble glass-card thinking-bubble">
@@ -190,16 +235,16 @@
         
         <div v-else class="feedback-empty">
           <el-icon class="feedback-empty-icon"><InfoFilled /></el-icon>
-          <p>开启对话并点击你的绿色对话气泡，即可在此处查看该轮的实时发音雷达图和语法纠错！</p>
+          <p>开启对话并点击你的绿色胶囊语音条，即可在此处展开转文字与发音评估雷达图！</p>
         </div>
       </section>
     </div>
 
-    <!-- Settle Dialog -->
+    <!-- Settle Dialog (Larger sizing) -->
     <el-dialog
       v-model="isSettleOpen"
       title="口语练习会话总结报告"
-      width="520px"
+      width="650px"
       class="custom-dialog"
       :show-close="false"
       :close-on-click-modal="false"
@@ -215,7 +260,7 @@
         </div>
 
         <div class="radar-wrapper-settle">
-          <EChartsRadar :score-data="averageScores" height="220px" />
+          <EChartsRadar :score-data="averageScores" height="360px" />
         </div>
 
         <div class="report-footer-tips">
@@ -256,6 +301,8 @@ const isRecording = ref(false)
 const isProcessing = ref(false)
 const isSettleOpen = ref(false)
 const selectedTurnIndex = ref(null)
+// 存储所有 Turn 的展开/折叠状态，键是 turn.id || idx，值为 true 表示展开，false 表示折叠
+const expandedTurns = ref({})
 
 const playbackRate = ref(1.0)
 const playingTurnId = ref(null)
@@ -282,16 +329,20 @@ let leftchannel = []
 let recordingLength = 0
 let analyser = null
 
+// Check if a temporary user bubble is currently processing
+const hasTempUserBubble = computed(() => {
+  return turns.value.some(t => t.isTemp)
+})
+
 // Select user turn for details
 const selectedUserTurn = computed(() => {
   if (selectedTurnIndex.value === null) return null
   const turn = turns.value[selectedTurnIndex.value]
-  return turn && turn.role === 'user' ? turn : null
+  return turn && turn.role === 'user' && !turn.isTemp ? turn : null
 })
 
 // Lifecycle
 onMounted(async () => {
-  // If no scene in store, attempt to load it
   if (!store.currentScene && route.params.sceneId) {
     try {
       const res = await axios.get(`${store.backendBaseUrl}/api/scenes/${route.params.sceneId}`)
@@ -317,7 +368,7 @@ onUnmounted(() => {
 
 // Go back home
 const goHome = () => {
-  if (sessionStarted.value && turns.value.length > 0) {
+  if (sessionStarted.value && turns.value.length > 1) { // 剔除了欢迎语的第一轮
     ElMessageBox.confirm(
       '确定退出当前场景吗？未结算的练习将不会记录平均发音总分。',
       '提示',
@@ -344,37 +395,35 @@ const startDialogueSession = async () => {
   try {
     const res = await axios.post(`${store.backendBaseUrl}/api/dialogues/start`, {
       user_id: 1, // 默认 ID=1 预注册用户
-      scene_id: scene.value.id
+      scene_id: scene.value.id,
+      custom_params: activeParams.value
     })
     
+    // 后端会在 /start 创建会话历史，同时将带有 TTS 合成语音的欢迎语作为第一个 turn 存入并返回在 res.data.turns 中！
     store.setActiveHistoryId(res.data.id)
     sessionStarted.value = true
     
-    // Add custom greeting according to scene category
-    let greetingText = "Hello! Let's start practicing."
-    if (scene.value.id === 'interview') {
-      greetingText = "Hello! I am David, the engineering manager. Thank you for coming today. Let's start the interview. Can you please introduce yourself and tell me about your experience with React Native?"
-    } else if (scene.value.id === 'ordering' || scene.value.id === 'cafe') {
-      greetingText = "Welcome to Metro Cafe! What can I get started for you today?"
-    } else if (scene.value.id === 'meeting') {
-      greetingText = "Hi team, thanks for joining. Today we are aligning on the Q3 product launch delays. Let's start with your updates. How is the React Native frontend progress?"
-    } else if (scene.value.default_params?.character_name) {
-      greetingText = `Hello! I am ${scene.value.default_params.character_name}. Welcome to this scenario! What would you like to practice today?`
+    // 加载后端返回的所有初始 turns（主要即是 Turn 0：AI 问候语）
+    if (res.data.turns && res.data.turns.length > 0) {
+      res.data.turns.forEach(turn => {
+        store.addDialogueTurn(turn)
+      })
+      
+      // 自动播放 AI 问候语语音
+      const greetingTurn = res.data.turns[0]
+      if (greetingTurn.audio_url) {
+        nextTick(() => {
+          playAudio(greetingTurn.audio_url, 0)
+        })
+      }
     }
     
-    // Insert mock greeting turn local-only (doesn't need upload, guides user input)
-    store.addDialogueTurn({
-      role: 'assistant',
-      text: greetingText,
-      audio_url: null
-    })
-    
-    // Start empty quiet soundwave
+    // 启动 Canvas Siri 缓动音波
     nextTick(() => {
       drawWave()
     })
   } catch (err) {
-    ElMessage.error(err.response?.data?.detail || '启动口语练习会话失败，请确保后端服务正常')
+    ElMessage.error(err.response?.data?.detail || '启动口语练习会话失败，请确保后端服务已开启并且数据库已经重置更新')
   } finally {
     startingSession.value = false
   }
@@ -398,7 +447,6 @@ const startRecording = async () => {
     audioStream = await navigator.mediaDevices.getUserMedia({ audio: true })
     
     const AudioContextClass = window.AudioContext || window.webkitAudioContext
-    // Attempt 16000Hz sampling directly
     audioContext = new AudioContextClass({ sampleRate: 16000 })
     
     analyser = audioContext.createAnalyser()
@@ -431,11 +479,26 @@ const finishRecordingAndUpload = async () => {
   isRecording.value = false
   isProcessing.value = true
   
+  // 计算录音秒数 (单声道 16000Hz 下，录音总长度除以 16000)
+  const durationSec = Math.max(1, Math.round(recordingLength / 16000))
+  
+  // 微信语音模式：立即在气泡流中画出一个本地临时的“正在转译中”的语音气泡
+  const tempTurnId = 'temp_' + Date.now()
+  const tempBubble = {
+    id: tempTurnId,
+    role: 'user',
+    text: '',
+    audio_url: null,
+    isTemp: true,
+    recordingDuration: durationSec
+  }
+  store.addDialogueTurn(tempBubble)
+  scrollToBottom()
+  
   try {
     const mergedBuffer = mergeBuffers(leftchannel, recordingLength)
     const currentSampleRate = audioContext ? audioContext.sampleRate : 16000
     
-    // Downsample if required
     let finalSamples = mergedBuffer
     if (currentSampleRate !== 16000) {
       finalSamples = downsampleBuffer(mergedBuffer, currentSampleRate, 16000)
@@ -457,25 +520,43 @@ const finishRecordingAndUpload = async () => {
       }
     )
     
-    // Backend returns [user_turn, assistant_turn]
+    // 移除临时气泡
+    const tempIdx = store.dialogueTurns.findIndex(t => t.id === tempTurnId)
+    if (tempIdx !== -1) {
+      store.dialogueTurns.splice(tempIdx, 1)
+    }
+    
+    // 插入正式的 user_turn 与 assistant_turn 
     const [userTurn, aiTurn] = res.data
+    // 挂载一下前端计算的时长，用于在胶囊上展示
+    userTurn.recordingDuration = durationSec
+    
     store.addDialogueTurn(userTurn)
     store.addDialogueTurn(aiTurn)
     
-    // Auto-select latest user turn for evaluation panel
+    // 微信模式：默认不展开文本。当 API 响应回来后，自动选中当前最新的 user 轮次并展开显示文字，实现体验上的“顺滑衔接”
     const lastUserIdx = turns.value.length - 2
     selectedTurnIndex.value = lastUserIdx >= 0 ? lastUserIdx : null
+    // 自动将最近的新增用户 Turn 在界面上展开显示
+    if (lastUserIdx >= 0) {
+      const lastUserTurn = turns.value[lastUserIdx]
+      expandedTurns.value[lastUserTurn.id || lastUserIdx] = true
+    }
     
-    // Scroll chat window to bottom
     scrollToBottom()
     
-    // Auto-play AI response
+    // 自动播放 AI 回复的语音
     if (aiTurn.audio_url) {
       playAudio(aiTurn.audio_url, turns.value.length - 1)
     }
   } catch (err) {
-    console.error('音频转译与Pipeline管道交互异常:', err)
-    ElMessage.error(err.response?.data?.detail || '发音评测失败，请重试说话')
+    console.error('音频转译与Pipeline交互故障:', err)
+    ElMessage.error(err.response?.data?.detail || '转译发音评估失败，请重试')
+    // 出现异常时移除临时气泡
+    const tempIdx = store.dialogueTurns.findIndex(t => t.id === tempTurnId)
+    if (tempIdx !== -1) {
+      store.dialogueTurns.splice(tempIdx, 1)
+    }
   } finally {
     isProcessing.value = false
   }
@@ -552,16 +633,15 @@ const encodeWAV = (samples, sampleRate) => {
   writeString(view, 8, 'WAVE')
   writeString(view, 12, 'fmt ')
   view.setUint32(16, 16, true)
-  view.setUint16(20, 1, true) // PCM raw format
-  view.setUint16(22, 1, true) // Mono
+  view.setUint16(20, 1, true)
+  view.setUint16(22, 1, true)
   view.setUint32(24, sampleRate, true)
   view.setUint32(28, sampleRate * 2, true)
   view.setUint16(32, 2, true)
-  view.setUint16(34, 16, true) // 16bit
+  view.setUint16(34, 16, true)
   writeString(view, 36, 'data')
   view.setUint32(40, samples.length * 2, true)
   
-  // Float32 to Int16
   let offset = 44
   for (let i = 0; i < samples.length; i++, offset += 2) {
     let s = Math.max(-1, Math.min(1, samples[i]))
@@ -581,7 +661,7 @@ const drawWave = () => {
   
   ctx.clearRect(0, 0, width, height)
   
-  let amplitude = 6 // Quiet state
+  let amplitude = 6
   if (isRecording.value && analyser) {
     const dataArray = new Uint8Array(analyser.frequencyBinCount)
     analyser.getByteTimeDomainData(dataArray)
@@ -631,7 +711,7 @@ const playAudio = (url, turnId) => {
   stopAudio()
   
   if (!url) {
-    ElMessage.info('该轮次无可用音频文件。')
+    ElMessage.info('当前播放链接失效或本轮次无合成语音。')
     return
   }
   
@@ -654,7 +734,7 @@ const playAudio = (url, turnId) => {
   }
   
   audio.onerror = () => {
-    ElMessage.error('音频加载播放失败，可能已被七牛云自动失效')
+    ElMessage.error('音频加载播放失败，可能已被云端清空')
     playingTurnId.value = null
     activeAudio.value = null
   }
@@ -691,10 +771,20 @@ const scrollToBottom = () => {
   })
 }
 
-// Select user turn for inspection
-const selectUserTurn = (index) => {
-  if (turns.value[index]?.role === 'user') {
-    selectedTurnIndex.value = index
+// 切换任意 Turn (包括 AI 和用户消息) 的展开/折叠状态的通用处理函数
+const toggleTurnExpanded = (idx, turn) => {
+  const key = turn.id || idx
+  expandedTurns.value[key] = !expandedTurns.value[key]
+  
+  // 如果展开的是用户本人的正式消息，则需要在右侧评测面板中同步选中展示
+  if (turn.role === 'user' && !turn.isTemp) {
+    if (expandedTurns.value[key]) {
+      selectedTurnIndex.value = idx
+    } else {
+      if (selectedTurnIndex.value === idx) {
+        selectedTurnIndex.value = null
+      }
+    }
   }
 }
 
@@ -713,7 +803,6 @@ const handleSettle = () => {
       const res = await axios.post(`${store.backendBaseUrl}/api/dialogues/${historyId.value}/settle`)
       settlementReport.value = res.data
       
-      // Calculate average scores from turns
       calculateAverageScores()
       isSettleOpen.value = true
     } catch (err) {
@@ -739,7 +828,7 @@ const calculateAverageScores = () => {
     accuracy_score: Math.round(acc / userTurns.length),
     fluency_score: Math.round(flu / userTurns.length),
     integrity_score: Math.round(inte / userTurns.length),
-    grammar_score: Math.round(tot / userTurns.length) // 使用综合分兜底
+    grammar_score: Math.round(tot / userTurns.length)
   }
 }
 
@@ -789,6 +878,18 @@ const formatDuration = (start, end) => {
     return '1分24秒'
   }
 }
+
+// Calculate audio duration dynamically for UI display
+const getWavDuration = (turn) => {
+  if (turn.recordingDuration) return `${turn.recordingDuration}"`
+  // 简易自适应估算，1s录音大概对应 1.5 - 2.5 个单词
+  if (turn.text) {
+    const words = turn.text.split(' ').length
+    const est = Math.max(2, Math.round(words / 2))
+    return `${est}"`
+  }
+  return '3"'
+}
 </script>
 
 <style scoped>
@@ -803,7 +904,8 @@ const formatDuration = (start, end) => {
 
 /* Header styling */
 .practice-header {
-  height: 70px;
+  min-height: 70px;
+  height: auto;
   padding: 12px 24px;
   display: flex;
   justify-content: space-between;
@@ -861,9 +963,11 @@ const formatDuration = (start, end) => {
 
 .active-params {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
-  max-width: 400px;
-  overflow-x: auto;
+  max-width: 650px;
+  overflow-y: auto;
+  justify-content: flex-end;
 }
 
 .param-tag {
@@ -893,7 +997,17 @@ const formatDuration = (start, end) => {
   box-shadow: 0 4px 12px rgba(239, 68, 68, 0.2);
 }
 
-/* Grid layout */
+.settle-btn:disabled,
+.settle-btn.is-disabled {
+  background: rgba(255, 255, 255, 0.08) !important;
+  border: 1px solid rgba(255, 255, 255, 0.05) !important;
+  color: var(--text-muted) !important;
+  box-shadow: none !important;
+  opacity: 0.35 !important;
+  cursor: not-allowed !important;
+}
+
+/* Grid layout with adjusted desktop proportions */
 .practice-grid {
   display: flex;
   flex-grow: 1;
@@ -902,9 +1016,9 @@ const formatDuration = (start, end) => {
   height: calc(100vh - 118px);
 }
 
-/* Left side panel */
+/* Dialogue Box (55%) */
 .dialogue-box {
-  width: 63%;
+  width: 55%;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -1007,6 +1121,87 @@ const formatDuration = (start, end) => {
   cursor: pointer;
 }
 
+/* WeChat Style Voice Capsule */
+.voice-capsule {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 100px;
+  height: 40px;
+  padding: 0 16px;
+  background: linear-gradient(135deg, #059669 0%, #10b981 100%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 20px;
+  box-shadow: 0 4px 10px rgba(16, 185, 129, 0.25);
+  color: #fff;
+  transition: var(--transition-smooth);
+  border-top-right-radius: 2px;
+  position: relative;
+}
+
+.voice-capsule:hover {
+  transform: scale(1.03);
+  box-shadow: 0 4px 15px rgba(16, 185, 129, 0.4);
+}
+
+.temp-capsule {
+  background: linear-gradient(135deg, #4b5563 0%, #6b7280 100%) !important;
+  box-shadow: 0 4px 10px rgba(107, 114, 128, 0.25);
+}
+
+.ai-voice-capsule {
+  background: linear-gradient(135deg, #374151 0%, #4b5563 100%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+  border-top-right-radius: 20px !important;
+  border-top-left-radius: 2px !important;
+}
+
+.ai-voice-capsule:hover {
+  background: linear-gradient(135deg, #4b5563 0%, #6b7280 100%) !important;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.35);
+}
+
+.voice-playing-text {
+  font-size: 0.72rem;
+  background: rgba(255, 255, 255, 0.15);
+  padding: 1px 6px;
+  border-radius: 10px;
+  margin-left: auto;
+  font-weight: bold;
+  color: #818cf8;
+}
+
+.voice-icon {
+  font-size: 1.1rem;
+}
+
+.voice-icon-spinning {
+  font-size: 1.1rem;
+  animation: rotating 2s linear infinite;
+}
+
+@keyframes rotating {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.voice-duration {
+  font-size: 0.85rem;
+  font-weight: 700;
+  font-family: var(--font-display);
+}
+
+.voice-capsule-score {
+  font-size: 0.72rem;
+  background: rgba(255, 255, 255, 0.25);
+  padding: 1px 6px;
+  border-radius: 10px;
+  margin-left: auto;
+  font-weight: bold;
+}
+
+/* Bubble style when expanded */
 .bubble {
   padding: 12px 18px;
   border-radius: 14px;
@@ -1046,9 +1241,26 @@ const formatDuration = (start, end) => {
   justify-content: flex-end;
 }
 
+.bubble-actions-user {
+  margin-top: 10px;
+  border-top: 1px dashed rgba(255, 255, 255, 0.08);
+  padding-top: 8px;
+  display: flex;
+  justify-content: flex-end;
+}
+
 .audio-play-btn {
   color: #818cf8 !important;
   font-size: 0.8rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.user-audio-play-btn {
+  color: #a7f3d0 !important;
+  font-size: 0.78rem;
   font-weight: 600;
   display: flex;
   align-items: center;
@@ -1074,15 +1286,24 @@ const formatDuration = (start, end) => {
   text-align: right;
   margin-top: 4px;
   padding-right: 4px;
-  opacity: 0;
+  opacity: 0.4;
   transition: var(--transition-smooth);
+}
+
+.bubble-tips-always {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  text-align: right;
+  margin-top: 4px;
+  padding-right: 4px;
+  opacity: 0.8;
 }
 
 .bubble-wrapper:hover .bubble-tips {
   opacity: 1;
 }
 
-/* Thinking Bubble animation */
+/* Thinking Bubble */
 .thinking-bubble {
   display: flex;
   align-items: center;
@@ -1218,7 +1439,7 @@ const formatDuration = (start, end) => {
   display: flex;
   flex-direction: column;
   align-items: center;
-  margin-top: -30px; /* 拉出控制条 */
+  margin-top: -30px;
   z-index: 10;
 }
 
@@ -1261,12 +1482,12 @@ const formatDuration = (start, end) => {
 }
 
 .placeholder-action {
-  width: 140px; /* 与左侧配平 */
+  width: 140px;
 }
 
-/* Right side feedback panel */
+/* Feedback Panel (45%) */
 .feedback-panel {
-  width: 37%;
+  width: 45%;
   padding: 24px;
   display: flex;
   flex-direction: column;
@@ -1460,7 +1681,7 @@ const formatDuration = (start, end) => {
   line-height: 1.45;
 }
 
-/* Settle Dialog details */
+/* Settle Dialog */
 :deep(.custom-dialog) {
   background: #111827 !important;
   border: 1px solid rgba(255, 255, 255, 0.08) !important;

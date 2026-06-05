@@ -6,16 +6,18 @@ from fastapi.testclient import TestClient
 # 将 backend 目录添加到 Python 路径中
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from app.main import app
-from app.core.database import get_db
+from app.main import app, seed_default_scenes
+from app.core.database import get_db, engine, Base
 from app.models import User, Scene, DialogueHistory, DialogueTurn
 
 client = TestClient(app)
+Base.metadata.create_all(bind=engine)
 
 def test_dialogue_pipeline_and_endpoints():
     print("\n--- [对话交互管道 & API 端点整合测试开始] ---")
     
     db = next(get_db())
+    seed_default_scenes(db)
     
     # 1. 确保存在测试用户和练习场景
     test_username = "pipeline_test_user"

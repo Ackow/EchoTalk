@@ -2,13 +2,25 @@
   <div class="home-container">
     <!-- Hero Header -->
     <header class="hero-section">
-      <h1 class="text-gradient logo-text">EchoTalk</h1>
-      <p class="subtitle">云音口语 · 智能英语口语 AI 练习桌面端</p>
+      <h1 class="text-gradient logo-text">口语演练场景大厅</h1>
+      <p class="subtitle">选择或定制专属英语角色与演练背景，开启沉浸式口语会话</p>
       <div class="actions-header">
         <el-button type="primary" size="large" class="create-btn hover-scale" @click="openCreateDialog">
           <el-icon><Plus /></el-icon>
           <span>新建自定义场景</span>
         </el-button>
+        <el-upload
+          action="#"
+          :http-request="handleImportScene"
+          :show-file-list="false"
+          accept=".zip"
+          class="import-uploader-inline"
+        >
+          <el-button size="large" class="import-btn hover-scale">
+            <el-icon><Upload /></el-icon>
+            <span>导入场景包</span>
+          </el-button>
+        </el-upload>
       </div>
     </header>
 
@@ -17,15 +29,26 @@
       <div v-for="scene in scenes" :key="scene.id" class="scene-card glass-card">
         <div class="card-header">
           <span class="category-tag">{{ formatCategory(scene.category) }}</span>
-          <el-button 
-            type="primary" 
-            link 
-            class="config-btn" 
-            @click.stop="openConfigDialog(scene)"
-          >
-            <el-icon><Setting /></el-icon>
-            <span>场景配置</span>
-          </el-button>
+          <div class="header-actions">
+            <el-button 
+              type="primary" 
+              link 
+              class="export-btn hover-scale" 
+              @click.stop="exportScene(scene)"
+            >
+              <el-icon><Download /></el-icon>
+              <span>导出包</span>
+            </el-button>
+            <el-button 
+              type="primary" 
+              link 
+              class="config-btn hover-scale" 
+              @click.stop="openConfigDialog(scene)"
+            >
+              <el-icon><Setting /></el-icon>
+              <span>配置</span>
+            </el-button>
+          </div>
         </div>
         
         <h3 class="scene-title">{{ scene.name }}</h3>
@@ -94,8 +117,16 @@
               <el-input 
                 v-model="configForm.system_prompt" 
                 type="textarea" 
-                :rows="5" 
+                :rows="4" 
                 placeholder="设定 AI 角色性格、开场白及背景规则..." 
+              />
+            </el-form-item>
+            <el-form-item label="首轮问候语 (Greeting Text)">
+              <el-input 
+                v-model="configForm.greeting_text" 
+                type="textarea" 
+                :rows="3" 
+                placeholder="会话启动时由 AI 角色主动发出打招呼的语音和文字。支持变量插值（例如 {interviewer_name}）" 
               />
             </el-form-item>
             
@@ -170,10 +201,21 @@
       </el-tabs>
 
       <template #footer>
-        <span class="dialog-footer">
-          <el-button @click="configVisible = false">取消</el-button>
-          <el-button type="primary" @click="saveConfig" :loading="savingConfig">保存配置</el-button>
-        </span>
+        <div class="dialog-footer-layout">
+          <el-button 
+            type="danger" 
+            plain 
+            class="dialog-delete-btn"
+            @click="deleteScene(activeScene)"
+          >
+            <el-icon><Delete /></el-icon>
+            <span>彻底删除此场景</span>
+          </el-button>
+          <div class="footer-right-actions">
+            <el-button @click="configVisible = false">取消</el-button>
+            <el-button type="primary" @click="saveConfig" :loading="savingConfig">保存配置</el-button>
+          </div>
+        </div>
       </template>
     </el-dialog>
 
@@ -203,7 +245,10 @@
           <el-input v-model="createForm.description" type="textarea" :rows="2" placeholder="展示在首页卡片上的一句话场景描述..." />
         </el-form-item>
         <el-form-item label="系统提示词 (System Prompt)" prop="system_prompt">
-          <el-input v-model="createForm.system_prompt" type="textarea" :rows="5" placeholder="You are Leo, a cashier... 设定AI扮演的人物性格和场景规则。" />
+          <el-input v-model="createForm.system_prompt" type="textarea" :rows="4" placeholder="You are Leo, a cashier... 设定AI扮演的人物性格和场景规则。" />
+        </el-form-item>
+        <el-form-item label="首轮问候语 (Greeting Text)" prop="greeting_text">
+          <el-input v-model="createForm.greeting_text" type="textarea" :rows="3" placeholder="例如: Welcome to our hotel! I am Emily. 开启对话时 AI 主动播报的首句英文问候语。" />
         </el-form-item>
         
         <div class="params-section">
@@ -260,7 +305,8 @@ const creatingScene = ref(false)
 const configForm = reactive({
   name: '',
   description: '',
-  system_prompt: ''
+  system_prompt: '',
+  greeting_text: ''
 })
 const configParams = ref([])
 
@@ -271,7 +317,8 @@ const createForm = reactive({
   name: '',
   description: '',
   category: 'custom',
-  system_prompt: ''
+  system_prompt: '',
+  greeting_text: ''
 })
 const createParams = ref([
   { key: 'character_name', value: 'AI Assistant' }
@@ -347,6 +394,7 @@ const openConfigDialog = (scene) => {
   configForm.name = scene.name
   configForm.description = scene.description
   configForm.system_prompt = scene.system_prompt
+  configForm.greeting_text = scene.greeting_text || ''
   
   // Transform dict parameter to list for rendering
   configParams.value = Object.entries(scene.default_params || {}).map(([key, val]) => ({
@@ -382,6 +430,7 @@ const saveConfig = async () => {
     name: configForm.name,
     description: configForm.description,
     system_prompt: configForm.system_prompt,
+    greeting_text: configForm.greeting_text,
     default_params
   }
   
@@ -478,6 +527,7 @@ const openCreateDialog = () => {
   createForm.description = ''
   createForm.category = 'custom'
   createForm.system_prompt = ''
+  createForm.greeting_text = ''
   createParams.value = [{ key: 'character_name', value: 'AI Assistant' }]
   createVisible.value = true
 }
@@ -511,7 +561,8 @@ const handleCreateScene = async () => {
       description: createForm.description.trim(),
       category: createForm.category,
       default_params,
-      system_prompt: createForm.system_prompt.trim()
+      system_prompt: createForm.system_prompt.trim(),
+      greeting_text: createForm.greeting_text.trim()
     }
     
     try {
@@ -531,6 +582,70 @@ const handleCreateScene = async () => {
 const startPractice = (scene) => {
   store.setCurrentScene(scene)
   router.push({ name: 'Practice', params: { sceneId: scene.id } })
+}
+
+// Delete Scene
+const deleteScene = (scene) => {
+  ElMessageBox.confirm(
+    `确定要彻底删除场景【${scene.name}】吗？这将会永久清除该场景的数据库配置、本地 RAG 知识库文档、向量索引，以及该场景下的所有练习历史与发音得分记录，此操作不可恢复！`,
+    '极其严重的警告',
+    {
+      confirmButtonText: '确定彻底删除',
+      cancelButtonText: '取消',
+      type: 'error',
+      confirmButtonClass: 'el-button--danger'
+    }
+  ).then(async () => {
+    try {
+      await axios.delete(`${store.backendBaseUrl}/api/scenes/${scene.id}`)
+      ElMessage.success(`场景【${scene.name}】已成功彻底删除。`)
+      scenes.value = scenes.value.filter(s => s.id !== scene.id)
+      configVisible.value = false
+    } catch (err) {
+      ElMessage.error(err.response?.data?.detail || '删除场景失败')
+    }
+  }).catch(() => {})
+}
+
+// Export Scene Package (.zip)
+const exportScene = (scene) => {
+  const exportUrl = `${store.backendBaseUrl}/api/scenes/${scene.id}/export`
+  // 直接通过新窗口触发浏览器原生的下载保存
+  window.open(exportUrl, '_blank')
+  ElMessage.success(`正在打包生成场景包【scene_${scene.id}.zip】，即将开始下载...`)
+}
+
+// Import Scene Package (.zip)
+const handleImportScene = async (options) => {
+  const { file, onSuccess, onError } = options
+  const formData = new FormData()
+  formData.append('file', file)
+  
+  try {
+    const res = await axios.post(
+      `${store.backendBaseUrl}/api/scenes/import`,
+      formData,
+      {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      }
+    )
+    
+    ElMessage.success(`场景【${res.data.name}】一键解包并导入成功！向量知识库已完美还原。`)
+    
+    // 更新或追加本地场景大厅列表
+    const idx = scenes.value.findIndex(s => s.id === res.data.id)
+    if (idx !== -1) {
+      scenes.value[idx] = res.data
+    } else {
+      scenes.value.push(res.data)
+    }
+    
+    onSuccess(res.data)
+  } catch (err) {
+    const errMsg = err.response?.data?.detail || '导入场景包失败，请确保 ZIP 压缩包内容合法'
+    ElMessage.error(errMsg)
+    onError(err)
+  }
 }
 </script>
 
@@ -609,18 +724,90 @@ const startPractice = (scene) => {
   font-weight: 600;
 }
 
+.header-actions {
+  display: flex;
+  gap: 12px;
+}
+
 .config-btn {
-  color: var(--text-muted) !important;
-  font-size: 0.85rem;
-  font-weight: 500;
+  background: rgba(255, 255, 255, 0.03) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  color: var(--text-secondary) !important;
+  font-size: 0.78rem;
+  font-weight: 600;
   display: flex;
   align-items: center;
   gap: 4px;
+  padding: 6px 12px !important;
+  height: auto !important;
+  border-radius: 20px !important;
   transition: var(--transition-smooth);
 }
 
 .config-btn:hover {
-  color: var(--primary-color) !important;
+  background: rgba(99, 102, 241, 0.1) !important;
+  border-color: rgba(99, 102, 241, 0.3) !important;
+  color: #818cf8 !important;
+  filter: drop-shadow(0 0 6px rgba(99, 102, 241, 0.35));
+}
+
+.export-btn {
+  background: rgba(255, 255, 255, 0.03) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  color: var(--text-secondary) !important;
+  font-size: 0.78rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 12px !important;
+  height: auto !important;
+  border-radius: 20px !important;
+  transition: var(--transition-smooth);
+}
+
+.export-btn:hover {
+  background: rgba(16, 185, 129, 0.08) !important;
+  border-color: rgba(16, 185, 129, 0.25) !important;
+  color: #34d399 !important;
+  filter: drop-shadow(0 0 6px rgba(16, 185, 129, 0.35));
+}
+
+.dialog-footer-layout {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+}
+
+.dialog-delete-btn {
+  border-radius: 8px !important;
+  font-weight: 600 !important;
+}
+
+.footer-right-actions {
+  display: flex;
+  gap: 12px;
+}
+
+.import-uploader-inline {
+  display: inline-block;
+}
+
+.import-btn {
+  background: rgba(255, 255, 255, 0.03) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  color: var(--text-secondary) !important;
+  font-weight: 600;
+  border-radius: 8px;
+  padding: 12px 24px;
+  transition: var(--transition-smooth);
+}
+
+.import-btn:hover {
+  background: rgba(255, 255, 255, 0.08) !important;
+  border-color: rgba(255, 255, 255, 0.15) !important;
+  color: var(--text-primary) !important;
 }
 
 .scene-title {
