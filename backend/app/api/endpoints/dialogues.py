@@ -1,15 +1,17 @@
 import os
 import time
 import shutil
+import json
 from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, status, File, UploadFile
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from typing import List
 
 from app.api.deps import get_db
 from app.models import DialogueHistory, Scene, User, DialogueTurn
 from app.schemas import DialogueHistoryResponse, DialogueStartRequest, DialogueTurnResponse
-from app.services.pipeline import run_dialogue_turn_pipeline
+from app.services.pipeline import run_dialogue_turn_pipeline, run_dialogue_turn_pipeline_stream
 from app.services.tts import text_to_speech
 from app.services.storage import upload_audio_to_kodo
 
@@ -124,15 +126,17 @@ def list_dialogues(user_id: int, db: Session = Depends(get_db)):
              .order_by(DialogueHistory.start_time.desc())\
              .all()
 
-@router.post("/{history_id}/turn", response_model=List[DialogueTurnResponse])
+@router.post("/{history_id}/turn")
 async def create_dialogue_turn(
     history_id: int,
+    stream: bool = False,
     file: UploadFile = File(...),
     db: Session = Depends(get_db)
 ):
     """
     处理一轮口语交互对话：上传用户音频 ➡️ ASR ➡️ RAG ➡️ 脱敏 ➡️ 并行(发音评测 + LLM 对话) ➡️ TTS ➡️ 托管上传 ➡️ 保存入库。
-    返回当前发生的两轮交互（用户轮次 + AI助手轮次）的列表。
+    若 stream=True，则采用 Server-Sent Events (SSE) 协议分步流式推送处理进度状态和文本；
+    若 stream=False（默认），则采用常规同步阻塞返回。
     """
     # 检查会话记录是否存在
     history = db.query(DialogueHistory).filter(DialogueHistory.id == history_id).first()
@@ -150,27 +154,43 @@ async def create_dialogue_turn(
     ext = os.path.splitext(file.filename)[1] or ".wav"
     temp_file_path = os.path.join(temp_dir, f"upload_{history_id}_{int(time.time())}{ext}")
     
-    try:
-        with open(temp_file_path, "wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
-            
-        # 运行 Pipeline 并获取轮次数据库记录
-        user_turn, assistant_turn = await run_dialogue_turn_pipeline(db, history_id, temp_file_path)
-        
-        return [user_turn, assistant_turn]
-        
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Pipeline 运行失败: {str(e)}"
-        )
-    finally:
-        # 清理临时上传的音频文件
-        if os.path.exists(temp_file_path):
+    with open(temp_file_path, "wb") as buffer:
+        shutil.copyfileobj(file.file, buffer)
+
+    if not stream:
+        try:
+            # 运行原有的同步 Pipeline 并返回列表
+            user_turn, assistant_turn = await run_dialogue_turn_pipeline(db, history_id, temp_file_path)
+            return [user_turn, assistant_turn]
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Pipeline 运行失败: {str(e)}"
+            )
+        finally:
+            # 清理临时上传的音频文件
+            if os.path.exists(temp_file_path):
+                try:
+                    os.remove(temp_file_path)
+                except Exception:
+                    pass
+    else:
+        # 流式返回状态处理器
+        async def event_generator():
             try:
-                os.remove(temp_file_path)
-            except Exception:
-                pass
+                async for step in run_dialogue_turn_pipeline_stream(db, history_id, temp_file_path):
+                    yield f"data: {json.dumps(step, ensure_ascii=False)}\n\n"
+            except Exception as e:
+                yield f"data: {json.dumps({'status': 'error', 'detail': str(e)}, ensure_ascii=False)}\n\n"
+            finally:
+                # 物理清理临时文件
+                if os.path.exists(temp_file_path):
+                    try:
+                        os.remove(temp_file_path)
+                    except Exception:
+                        pass
+
+        return StreamingResponse(event_generator(), media_type="text/event-stream")
 
 @router.post("/{history_id}/settle", response_model=DialogueHistoryResponse)
 def settle_dialogue(

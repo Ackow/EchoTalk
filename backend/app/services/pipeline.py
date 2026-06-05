@@ -349,3 +349,156 @@ async def run_dialogue_turn_pipeline(
     )
 
     return user_turn, assistant_turn
+
+
+async def run_dialogue_turn_pipeline_stream(
+    db: Session,
+    history_id: int,
+    user_audio_path: str
+):
+    """
+    对话管道流式状态推送控制器。
+    分步执行 STT -> RAG -> 脱敏 -> ISE & LLM -> TTS -> Upload -> Save，并向外 yield 当前的进度与识别数据。
+    """
+    log_api_call(
+        api_type="流式管道流程编排 (Pipeline Stream)",
+        provider="EchoTalk Orchestrator",
+        url="N/A",
+        model="N/A",
+        action="执行口语对话流式 Pipeline (run_dialogue_turn_pipeline_stream)",
+        status="pending",
+        extra_info=f"会话 ID: {history_id}, 待评估音频: '{user_audio_path}'"
+    )
+
+    # 1. 验证会话是否存在
+    history = db.query(DialogueHistory).filter(DialogueHistory.id == history_id).first()
+    if not history:
+        raise ValueError(f"指定会话历史记录 ID {history_id} 不存在")
+
+    # 2. 步骤一：开始语音转文字
+    yield {"status": "asr", "message": "正在认真聆听您说了什么~"}
+
+    # 执行语音转文字 (ASR)
+    user_text_raw = speech_to_text(user_audio_path)
+
+    # 3. 步骤一完成：发送识别文字
+    yield {"status": "asr_done", "text": user_text_raw}
+
+    # 4. 步骤二：开启隐私脱敏与 RAG 检索
+    yield {"status": "pii", "message": "正在保护您的隐私，脱敏处理中~"}
+
+    # 提取历史对话
+    turns_db = db.query(DialogueTurn).filter(
+        DialogueTurn.dialogue_history_id == history_id
+    ).order_by(DialogueTurn.timestamp.asc()).all()
+    
+    history_turns_list = []
+    for t in turns_db:
+        history_turns_list.append({
+            "role": "user" if t.role == "user" else "assistant",
+            "text": t.text
+        })
+
+    # 检索匹配 RAG 分块
+    matched_chunks = query_scene_knowledge(history.scene_id, user_text_raw, top_k=2)
+    rag_raw_text = "\n".join(matched_chunks) if matched_chunks else ""
+
+    # 进行敏感信息过滤
+    user_text_safe = anonymize_text_via_llm(user_text_raw)
+    rag_text_safe = anonymize_text_via_llm(rag_raw_text) if rag_raw_text else ""
+
+    # 5. 步骤三：开启口语发音评测
+    yield {"status": "ise", "message": "正在检测您的口音，分析发音表现~"}
+
+    # 并行执行科大讯飞评测与大模型回复生成
+    assessment_task = asyncio.create_task(assess_pronunciation(user_audio_path, user_text_raw))
+    llm_task = asyncio.create_task(generate_llm_response(
+        scene_id=history.scene_id,
+        user_text=user_text_safe,
+        rag_context=rag_text_safe,
+        conversation_history=history_turns_list
+    ))
+
+    # 并发等待结果
+    pronunciation_result, llm_result = await asyncio.gather(assessment_task, llm_task)
+
+    # 6. 步骤四：组织语言，合成 Edge-TTS 回复
+    yield {"status": "llm", "message": "AI 正在组织语言，撰写角色回复~"}
+
+    # 组织回复与合成 TTS
+    ai_reply_text = llm_result["reply"]
+    ai_audio_filename = f"ai_reply_{history_id}_{int(time.time())}.mp3"
+    
+    backend_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    temp_dir = os.path.join(backend_dir, "static", "audio")
+    os.makedirs(temp_dir, exist_ok=True)
+    ai_audio_local_path = os.path.join(temp_dir, ai_audio_filename)
+
+    text_to_speech(ai_reply_text, ai_audio_local_path)
+
+    # 并行将双方录音托管至七牛云或本地
+    user_audio_filename = f"user_voice_{history_id}_{int(time.time())}.wav"
+    loop = asyncio.get_running_loop()
+    upload_user_task = loop.run_in_executor(None, upload_audio_to_kodo, user_audio_path, user_audio_filename)
+    upload_ai_task = loop.run_in_executor(None, upload_audio_to_kodo, ai_audio_local_path, ai_audio_filename)
+    
+    user_audio_url, ai_audio_url = await asyncio.gather(upload_user_task, upload_ai_task)
+
+    # 7. 步骤五：数据库持久化写入
+    user_turn = DialogueTurn(
+        dialogue_history_id=history_id,
+        role="user",
+        text=user_text_raw,
+        audio_url=user_audio_url,
+        pronunciation_score=pronunciation_result,
+        grammar_correction=llm_result["grammar_correction"]
+    )
+    assistant_turn = DialogueTurn(
+        dialogue_history_id=history_id,
+        role="assistant",
+        text=ai_reply_text,
+        audio_url=ai_audio_url,
+        pronunciation_score=None,
+        grammar_correction=None
+    )
+
+    db.add(user_turn)
+    db.add(assistant_turn)
+    db.commit()
+    db.refresh(user_turn)
+    db.refresh(assistant_turn)
+
+    # 序列化结果以防 ORM 对象脱离 session 导致报错
+    user_data = {
+        "id": user_turn.id,
+        "dialogue_history_id": user_turn.dialogue_history_id,
+        "role": user_turn.role,
+        "text": user_turn.text,
+        "audio_url": user_turn.audio_url,
+        "pronunciation_score": user_turn.pronunciation_score,
+        "grammar_correction": user_turn.grammar_correction,
+        "timestamp": user_turn.timestamp.isoformat() if user_turn.timestamp else None
+    }
+    ai_data = {
+        "id": assistant_turn.id,
+        "dialogue_history_id": assistant_turn.dialogue_history_id,
+        "role": assistant_turn.role,
+        "text": assistant_turn.text,
+        "audio_url": assistant_turn.audio_url,
+        "pronunciation_score": assistant_turn.pronunciation_score,
+        "grammar_correction": assistant_turn.grammar_correction,
+        "timestamp": assistant_turn.timestamp.isoformat() if assistant_turn.timestamp else None
+    }
+
+    log_api_call(
+        api_type="流式管道流程编排 (Pipeline Stream)",
+        provider="EchoTalk Orchestrator",
+        url="N/A",
+        model="N/A",
+        action="执行口语对话流式 Pipeline (run_dialogue_turn_pipeline_stream)",
+        status="success",
+        extra_info=f"Pipeline 流式模式顺利通关。会话ID: {history_id}"
+    )
+
+    # 8. 发送完成状态及结果
+    yield {"status": "done", "result": [user_data, ai_data]}
