@@ -100,11 +100,23 @@
                       <p class="message-text">{{ turn.text }}</p>
                     </div>
                   </el-collapse-transition>
-                  <div class="voice-capsule temp-capsule" :style="{ width: getCapsuleWidth(turn) }">
-                    <el-icon class="voice-icon-spinning"><Loading /></el-icon>
-                    <span class="voice-duration">{{ turn.recordingDuration || 2 }}"</span>
+                  <div 
+                    class="voice-capsule temp-capsule" 
+                    :style="{ width: getCapsuleWidth(turn) }"
+                    @click="turn.audio_url && playAudio(turn.audio_url, turn.id)"
+                  >
+                    <div 
+                      class="voice-capsule-progress-bar" 
+                      v-if="playingTurnId === turn.id && currentPlaybackDuration > 0"
+                      :style="{ width: (currentPlaybackTime / currentPlaybackDuration * 100) + '%' }"
+                    ></div>
+                    <el-icon class="voice-icon" v-if="playingTurnId === turn.id"><VideoPause /></el-icon>
+                    <el-icon class="voice-icon-spinning" v-else><Loading /></el-icon>
+                    <span class="voice-duration" v-if="playingTurnId === turn.id">
+                      {{ Math.round(currentPlaybackTime) }}" / {{ Math.round(currentPlaybackDuration || getWavDurationSeconds(turn)) }}"
+                    </span>
+                    <span class="voice-duration" v-else>{{ turn.recordingDuration || 2 }}"</span>
                   </div>
-                  <!-- <div class="bubble-tips-always">{{ processingStatusText }}</div> -->
                 </div>
 
                 <!-- 2. 已合成评估完毕或正在评估的用户气泡 -->
@@ -217,7 +229,21 @@
                 <div class="btn-subtext">{{ isRecording ? '点击结束' : '开始录音' }}</div>
               </div>
 
-              <div class="placeholder-action"></div>
+              <div class="placeholder-action">
+                <el-collapse-transition>
+                  <div v-if="isRecording" class="cancel-recording-wrapper">
+                    <el-button 
+                      type="danger" 
+                      class="cancel-btn hover-scale"
+                      @click="cancelRecording"
+                      circle
+                    >
+                      <el-icon><Delete /></el-icon>
+                    </el-button>
+                    <div class="btn-subtext danger-text">取消录音</div>
+                  </div>
+                </el-collapse-transition>
+              </div>
             </div>
           </div>
         </template>
@@ -675,6 +701,13 @@ const toggleRecording = () => {
   }
 }
 
+const cancelRecording = () => {
+  stopRecordingResources()
+  leftchannel = []
+  recordingLength = 0
+  ElMessage.info('已取消本次录音')
+}
+
 const startRecording = async () => {
   try {
     stopAudio()
@@ -748,6 +781,14 @@ const finishRecordingAndUpload = async () => {
     }
     
     const wavBlob = encodeWAV(finalSamples, 16000)
+    const localAudioUrl = URL.createObjectURL(wavBlob)
+    
+    // 更新临时气泡的音频播放 URL，允许用户在评估未完成前点击播放自己的录音
+    const tempIdx = store.dialogueTurns.findIndex(t => t.id === tempTurnId)
+    if (tempIdx !== -1) {
+      store.dialogueTurns[tempIdx].audio_url = localAudioUrl
+    }
+
     const audioFile = new File([wavBlob], 'recording.wav', { type: 'audio/wav' })
     
     const formData = new FormData()
@@ -1050,7 +1091,7 @@ const playAudio = (url, turnId) => {
   }
   
   let fullUrl = url
-  if (!url.startsWith('http')) {
+  if (!url.startsWith('http') && !url.startsWith('blob:')) {
     fullUrl = `${store.backendBaseUrl}${url}`
   }
   
@@ -1583,6 +1624,12 @@ const getWavDuration = (turn) => {
 .temp-capsule {
   background: linear-gradient(135deg, #4b5563 0%, #6b7280 100%) !important;
   box-shadow: 0 4px 10px rgba(107, 114, 128, 0.25);
+  cursor: pointer;
+}
+
+.temp-capsule:hover {
+  background: linear-gradient(135deg, #4b5563 0%, #6b7280 100%) !important;
+  box-shadow: 0 4px 15px rgba(107, 114, 128, 0.5) !important;
 }
 
 .ai-voice-capsule {
@@ -2003,6 +2050,34 @@ const getWavDuration = (turn) => {
 
 .placeholder-action {
   justify-self: end;
+  min-width: 60px;
+}
+
+.cancel-recording-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.cancel-btn {
+  width: 44px !important;
+  height: 44px !important;
+  background: rgba(239, 68, 68, 0.15) !important;
+  border: 1px solid rgba(239, 68, 68, 0.3) !important;
+  color: #f87171 !important;
+  box-shadow: 0 4px 10px rgba(239, 68, 68, 0.1);
+  font-size: 1.15rem !important;
+}
+
+.cancel-btn:hover {
+  background: #ef4444 !important;
+  border-color: #ef4444 !important;
+  color: #fff !important;
+  box-shadow: 0 4px 15px rgba(239, 68, 68, 0.4);
+}
+
+.danger-text {
+  color: #f87171 !important;
 }
 
 /* Feedback Panel (28%) */
