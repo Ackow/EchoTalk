@@ -13,6 +13,11 @@ class Settings(BaseSettings):
     OPENAI_API_KEY: str = "mock-key"
     OPENAI_BASE_URL: str = "https://api.openai.com/v1"
 
+    # 向量嵌入模型配置 (BAAI/bge-large-en-v1.5)
+    EMBEDDING_API_KEY: Optional[str] = None
+    EMBEDDING_BASE_URL: Optional[str] = None
+    EMBEDDING_MODEL: str = None
+
     # 微软 Azure 语音配置 (用于发音评估)
     AZURE_SPEECH_KEY: str = "mock-key"
     AZURE_SPEECH_REGION: str = "eastus"
