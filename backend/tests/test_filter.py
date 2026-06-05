@@ -10,7 +10,7 @@ def test_local_regex_redaction():
     """
     测试 1：验证常见的个人隐私敏感正则拦截脱敏是否正确
     """
-    print("--- [测试 1: 正则匹配脱敏测试] ---")
+    print("\n--- [测试 1: 正则匹配脱敏测试] ---")
     
     # 各种隐私数据组合文本
     input_text = (
@@ -43,7 +43,7 @@ def test_custom_dictionary_redaction():
     """
     测试 2：验证自定义词表脱敏替换
     """
-    print("--- [测试 2: 自定义词表脱敏测试] ---")
+    print("\n--- [测试 2: 自定义词表脱敏测试] ---")
     
     input_text = "The secret project name is Project Alpha, directed by CEO John Doe from Tesla."
     custom_words = ["Project Alpha", "John Doe", "Tesla"]
@@ -64,7 +64,7 @@ def test_llm_anonymize_fallback():
     """
     测试 3：验证大模型脱敏接口的调用与容错机制
     """
-    print("--- [测试 3: 大模型脱敏容错与调用测试] ---")
+    print("\n--- [测试 3: 大模型脱敏容错与调用测试] ---")
     input_text = "Contact me at 13999999999."
     
     # 调用大模型脱敏（或无 Key 自动降级）

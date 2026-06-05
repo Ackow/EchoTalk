@@ -127,7 +127,23 @@ def anonymize_text_via_llm(text: str) -> str:
             max_tokens=1000
         )
         
-        sanitized_text = response.choices[0].message.content.strip()
+        sanitized_text = response.choices[0].message.content
+        if sanitized_text:
+            sanitized_text = sanitized_text.strip()
+            
+        # 健壮性防空/防吞保护：如果大模型失常返回空，或者因为内容审查返回空，则自动安全回退为本地规则脱敏
+        if not sanitized_text:
+            log_api_call(
+                api_type="大语言模型 (LLM)",
+                provider=provider_name,
+                url=base_url,
+                model=model_name,
+                action="智能脱敏过滤 (anonymize_text_via_llm)",
+                status="failed",
+                extra_info="大模型返回文本为空，可能因为安全审查拦截或模型输出异常。已自动安全回退为本地规则脱敏。"
+            )
+            return redact_pii_local(text)
+
         log_api_call(
             api_type="大语言模型 (LLM)",
             provider=provider_name,
