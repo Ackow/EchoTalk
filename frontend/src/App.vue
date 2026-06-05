@@ -16,6 +16,10 @@
           <el-icon><Clock /></el-icon>
           <span>历史回放</span>
         </router-link>
+        <router-link to="/analytics" class="menu-item" active-class="active">
+          <el-icon><TrendCharts /></el-icon>
+          <span>成长分析</span>
+        </router-link>
       </nav>
 
       <div class="sidebar-footer">
