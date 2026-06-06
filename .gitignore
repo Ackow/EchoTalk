@@ -67,6 +67,7 @@ backend/static/audio/*
 !backend/static/audio/.gitkeep
 backend/static/rag/*
 !backend/static/rag/.gitkeep
+backend/logs/*
 
 # --- 前端桌面端构建与依赖 (Node/Vite/Electron) ---
 node_modules/
