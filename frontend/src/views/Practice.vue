@@ -183,7 +183,15 @@
                       class="bubble-translation-panel user-bubble glass-card selected-bubble" 
                       @click="selectUserTurnOnly(idx)"
                     >
-                      <p class="message-text">{{ turn.text }}</p>
+                      <p class="message-text" v-if="turn.pronunciation_score && turn.pronunciation_score.words && turn.pronunciation_score.words.length > 0">
+                        <span 
+                          v-for="(w, wIdx) in getHighlightedWords(turn)" 
+                          :key="wIdx"
+                          :class="['bubble-word', w.score !== null ? getWordScoreClass(w) : '', w.rawWord ? 'clickable-word' : '']"
+                          @click.stop="w.rawWord ? clickWordDetail(w.rawWord) : null"
+                        >{{ w.word }} </span>
+                      </p>
+                      <p class="message-text" v-else>{{ turn.text }}</p>
                       
                       <!-- 显示正在评估的详细状态 -->
                       <!-- <div class="evaluating-status-text" v-if="turn.isEvaluating">
@@ -335,10 +343,37 @@
               <el-icon class="all-perfect-icon"><SuccessFilled /></el-icon>
               <span class="all-perfect-text">太棒了！该句中所有单词发音均达到优秀标准 (≥80分)！🎉</span>
             </div>
-            <div class="word-legend" v-if="lowScoreWords.length > 0">
-              <span class="legend-item"><span class="dot legend-orange"></span>中 (60-79)</span>
-              <span class="legend-item"><span class="dot legend-red"></span>需改进 (<60)</span>
-              <span class="legend-item"><span class="dot legend-gray"></span>漏读</span>
+          </div>
+
+          <!-- Rhythm & Pause Diagnosis -->
+          <div class="rhythm-analysis-section" v-if="rhythmAnalysis">
+            <div class="section-subtitle">语速与停顿节奏诊断</div>
+            <div class="rhythm-card glass-card">
+              <div class="rhythm-speed-row">
+                <span class="speed-label">当前语速：</span>
+                <span :class="['speed-value font-display', rhythmAnalysis.speedClass]">
+                  {{ rhythmAnalysis.wpm }} WPM ({{ rhythmAnalysis.speedEval }})
+                </span>
+              </div>
+              <p class="rhythm-advice">{{ rhythmAnalysis.speedAdvice }}</p>
+              
+              <!-- 停顿细节 -->
+              <div class="rhythm-pauses" v-if="rhythmAnalysis.longPauses.length > 0">
+                <span class="pause-label-title">检测到的较长停顿：</span>
+                <ul class="pause-list">
+                  <li 
+                    v-for="(p, pIdx) in rhythmAnalysis.longPauses" 
+                    :key="pIdx"
+                    class="pause-item"
+                  >
+                    在 <strong>"{{ p.word1 }}"</strong> 与 <strong>"{{ p.word2 }}"</strong> 之间停顿了 <span>{{ p.duration }} 秒</span>
+                  </li>
+                </ul>
+              </div>
+              <div class="rhythm-pauses-empty" v-else>
+                <el-icon class="all-perfect-icon"><SuccessFilled /></el-icon>
+                <span>整句发音一气呵成，没有检测到不自然的长停顿！</span>
+              </div>
             </div>
           </div>
 
@@ -470,6 +505,24 @@
             >
               <el-icon><Headset /></el-icon>
             </el-button>
+          </div>
+
+          <!-- 音素级别发音诊断 (ISE Phonemes) -->
+          <div class="dict-phonemes-section" v-if="clickedWordObj && clickedWordObj.phonemes && clickedWordObj.phonemes.length > 0">
+            <span class="dict-section-subtitle">发音音素诊断 (Phoneme Breakdown)</span>
+            <div class="dict-phonemes-container">
+              <div 
+                v-for="(p, pIdx) in clickedWordObj.phonemes" 
+                :key="pIdx"
+                :class="['phone-badge', getPhoneScoreClass(p.score)]"
+              >
+                <span class="phone-symbol">/{{ p.phoneme }}/</span>
+                <span class="phone-score">{{ Math.round(p.score) }}</span>
+              </div>
+            </div>
+            <p class="phone-diagnostic-tip" v-if="clickedWordObj.score < 80">
+              * 红橘色标识代表发音较弱的辅音或元音音素，请尝试跟读并纠正。
+            </p>
           </div>
 
           <div class="dict-meanings">
@@ -638,6 +691,55 @@ const getWordScoreClass = (w) => {
   return 'word-bad'
 }
 
+// 获取拼装好的发音高亮单词列表 (保留原始标点与空格)
+const getHighlightedWords = (turn) => {
+  if (!turn.text) return []
+  if (!turn.pronunciation_score || !turn.pronunciation_score.words || turn.pronunciation_score.words.length === 0) {
+    return turn.text.split(/\s+/).map(w => ({ word: w, score: null, dp_message: null, rawWord: null }))
+  }
+  
+  const evalWords = turn.pronunciation_score.words
+  const textTokens = turn.text.split(/\s+/)
+  
+  let evalIdx = 0
+  const result = []
+  
+  for (const token of textTokens) {
+    // 清理首尾的标点符号以进行比对
+    const cleaned = token.replace(/^[.,?!\"();:\[\]{}*#_`~']+|[.,?!\"();:\[\]{}*#_`~']+$/g, '').toLowerCase().trim()
+    
+    if (!cleaned) {
+      result.push({ word: token, score: null, dp_message: null, rawWord: null })
+      continue
+    }
+    
+    // 在评估词列表中进行顺序寻找
+    let matchedWord = null
+    for (let i = evalIdx; i < Math.min(evalIdx + 5, evalWords.length); i++) {
+      if (evalWords[i].word.toLowerCase().trim() === cleaned) {
+        matchedWord = evalWords[i]
+        evalIdx = i + 1
+        break
+      }
+    }
+    
+    if (!matchedWord && evalIdx < evalWords.length) {
+      if (evalWords[evalIdx].word.toLowerCase().trim() === cleaned) {
+        matchedWord = evalWords[evalIdx]
+        evalIdx++
+      }
+    }
+    
+    result.push({
+      word: token,
+      score: matchedWord ? matchedWord.score : null,
+      dp_message: matchedWord ? matchedWord.dp_message : null,
+      rawWord: cleaned
+    })
+  }
+  return result
+}
+
 // 筛选评分较低或存在错误的单词并去重 (分值 < 80 或是漏读/发音不准等)
 const lowScoreWords = computed(() => {
   if (!selectedUserTurn.value || !selectedUserTurn.value.pronunciation_score || !selectedUserTurn.value.pronunciation_score.words) {
@@ -726,6 +828,81 @@ const fetchDictDetails = async (word) => {
 const handleCloseDict = () => {
   isDictOpen.value = false
 }
+
+// 获取当前点击单词的发音评测详情 (包含音素级评分)
+const clickedWordObj = computed(() => {
+  if (!selectedUserTurn.value || !selectedUserTurn.value.pronunciation_score || !selectedUserTurn.value.pronunciation_score.words) {
+    return null
+  }
+  return selectedUserTurn.value.pronunciation_score.words.find(
+    w => w.word.toLowerCase().trim() === dictWord.value.toLowerCase().trim()
+  )
+})
+
+// 音素评分等级分类
+const getPhoneScoreClass = (score) => {
+  if (score >= 80) return 'phone-good'
+  if (score >= 60) return 'phone-average'
+  return 'phone-bad'
+}
+
+// 语速与停顿节奏诊断
+const rhythmAnalysis = computed(() => {
+  if (!selectedUserTurn.value || !selectedUserTurn.value.pronunciation_score || !selectedUserTurn.value.pronunciation_score.words) {
+    return null
+  }
+  
+  const wordsList = selectedUserTurn.value.pronunciation_score.words
+  if (wordsList.length < 2) return null
+  
+  // 1. 计算语速 (WPM). beg_pos 和 end_pos 单位为帧 (1帧=10ms=0.01秒)
+  const firstWord = wordsList[0]
+  const lastWord = wordsList[wordsList.length - 1]
+  const durationFrames = lastWord.end_pos - firstWord.beg_pos
+  const durationSeconds = durationFrames > 0 ? durationFrames * 0.01 : 1.0
+  const wordCount = wordsList.length
+  const wpm = Math.round((wordCount / durationSeconds) * 60)
+  
+  let speedEval = '语速适中'
+  let speedClass = 'success-text'
+  let speedAdvice = '你的语速非常自然，契合标准的英文口语对话节奏！'
+  if (wpm < 95) {
+    speedEval = '语速偏慢'
+    speedClass = 'warning-text'
+    speedAdvice = '朗读节奏较慢或略有迟疑，建议多尝试流畅、连贯地阅读整句。'
+  } else if (wpm > 175) {
+    speedEval = '语速过快'
+    speedClass = 'warning-text'
+    speedAdvice = '说话速度有些急促，可能导致单词发音吞音，建议稍微放缓速度。'
+  }
+  
+  // 2. 停顿分析 (单词之间的长停顿检测)
+  const longPauses = []
+  for (let i = 0; i < wordsList.length - 1; i++) {
+    const curWord = wordsList[i]
+    const nextWord = wordsList[i + 1]
+    if (curWord.end_pos === 0 || nextWord.beg_pos === 0) continue
+    
+    const gapFrames = nextWord.beg_pos - curWord.end_pos
+    // 停顿超过 80 帧 (0.8 秒) 记为长停顿
+    if (gapFrames > 80) {
+      const gapSeconds = (gapFrames * 0.01).toFixed(1)
+      longPauses.push({
+        word1: curWord.word,
+        word2: nextWord.word,
+        duration: gapSeconds
+      })
+    }
+  }
+  
+  return {
+    wpm,
+    speedEval,
+    speedClass,
+    speedAdvice,
+    longPauses
+  }
+})
 
 // 计算语音胶囊的宽度，时长越长气泡越长
 const getCapsuleWidth = (turn) => {
@@ -2625,6 +2802,21 @@ const getWavDuration = (turn) => {
   background: rgba(156, 163, 175, 0.1);
   border: 1px solid rgba(156, 163, 175, 0.2);
 }
+.bubble-word {
+  border-radius: 4px;
+  padding: 0px 4px;
+  margin: 0 1px;
+  display: inline-block;
+  transition: all 0.15s ease;
+}
+.bubble-word.clickable-word {
+  cursor: pointer;
+}
+.bubble-word.clickable-word:hover {
+  transform: scale(1.06);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  filter: brightness(1.15);
+}
 .word-legend {
   display: flex;
   justify-content: flex-start;
@@ -2650,80 +2842,140 @@ const getWavDuration = (turn) => {
 .legend-red { background: #f87171; }
 .legend-gray { background: #9ca3af; }
 
-/* Score Origin Section Styles */
-.score-origin-section {
+/* Rhythm Analysis Section Styles */
+.rhythm-analysis-section {
   margin-top: 5px;
 }
-.score-origin-card {
+.rhythm-card {
   padding: 16px;
   background: rgba(17, 24, 39, 0.4) !important;
   border-radius: 8px;
   border: 1px solid rgba(255, 255, 255, 0.08);
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 10px;
 }
-.origin-formula {
-  background: rgba(255, 255, 255, 0.03);
-  padding: 8px 12px;
-  border-radius: 6px;
-  border: 1px dashed rgba(255, 255, 255, 0.1);
+.rhythm-speed-row {
   display: flex;
-  flex-direction: column;
-  gap: 4px;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.85rem;
 }
-.formula-title {
-  font-size: 0.72rem;
-  color: var(--text-muted);
-}
-.formula-body {
-  font-size: 0.82rem;
-  font-weight: 700;
+.speed-label {
   color: var(--text-secondary);
 }
-.origin-bars {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
+.speed-value {
+  font-weight: 700;
 }
-.origin-bar-item {
+.rhythm-advice {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  line-height: 1.4;
+  margin: 0;
+}
+.rhythm-pauses {
+  border-top: 1px dashed rgba(255, 255, 255, 0.08);
+  padding-top: 10px;
+  margin-top: 2px;
+}
+.pause-label-title {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  font-weight: 600;
+  display: block;
+  margin-bottom: 6px;
+}
+.pause-list {
+  margin: 0;
+  padding-left: 16px;
   display: flex;
   flex-direction: column;
   gap: 6px;
 }
-.bar-info {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
+.pause-item {
   font-size: 0.78rem;
-}
-.bar-label {
   color: var(--text-secondary);
 }
-.bar-value {
+.pause-item strong {
+  color: var(--text-primary);
+}
+.pause-item span {
+  color: #fbbf24;
+  font-weight: 600;
+}
+.rhythm-pauses-empty {
+  border-top: 1px dashed rgba(255, 255, 255, 0.08);
+  padding-top: 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.78rem;
+  color: #34d399;
+}
+
+/* Dictionary Phoneme Diagnosis Styles */
+.dict-phonemes-section {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  padding-bottom: 12px;
+  margin-bottom: 4px;
+}
+.dict-section-subtitle {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+  display: block;
+}
+.dict-phonemes-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  background: rgba(255, 255, 255, 0.03);
+  padding: 8px 12px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+.phone-badge {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  min-width: 42px;
+}
+.phone-symbol {
   font-family: var(--font-display);
 }
-.bar-value strong {
-  font-size: 0.88rem;
-  margin-left: 2px;
+.phone-score {
+  font-size: 0.65rem;
+  opacity: 0.8;
+  margin-top: 2px;
+  background: rgba(0, 0, 0, 0.2);
+  padding: 0 4px;
+  border-radius: 3px;
 }
-.origin-sum {
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
-  padding-top: 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  font-size: 0.78rem;
+.phone-good {
+  color: #34d399;
+  background: rgba(16, 185, 129, 0.08);
+  border: 1px solid rgba(16, 185, 129, 0.15);
 }
-.origin-sum span {
+.phone-average {
+  color: #fbbf24;
+  background: rgba(245, 158, 11, 0.08);
+  border: 1px solid rgba(245, 158, 11, 0.15);
+}
+.phone-bad {
+  color: #f87171;
+  background: rgba(239, 68, 68, 0.12);
+  border: 1px solid rgba(239, 68, 68, 0.2);
+}
+.phone-diagnostic-tip {
+  font-size: 0.72rem;
   color: var(--text-muted);
-}
-.sum-value {
-  font-size: 0.95rem;
-  font-weight: 700;
-}
-.sum-value strong {
-  font-size: 1.25rem;
+  margin-top: 4px;
+  margin-bottom: 0;
 }
 
 /* Dictionary Dialog Styles */

@@ -97,10 +97,42 @@ def _parse_xfyun_xml(xml_str: str) -> Dict[str, Any]:
             except ValueError:
                 pass
 
+            beg_pos = 0
+            end_pos = 0
+            try:
+                if "beg_pos" in word_elem.attrib:
+                    beg_pos = int(word_elem.attrib["beg_pos"])
+                if "end_pos" in word_elem.attrib:
+                    end_pos = int(word_elem.attrib["end_pos"])
+            except ValueError:
+                pass
+
+            # 解析子节点音素 (phoneme)
+            phonemes = []
+            for phone_elem in word_elem.iter("phoneme"):
+                phone_content = phone_elem.attrib.get("content", "")
+                if not phone_content:
+                    continue
+                p_score = 0.0
+                for attr_name in ["total_score", "score"]:
+                    if attr_name in phone_elem.attrib:
+                        try:
+                            p_score = float(phone_elem.attrib[attr_name])
+                            break
+                        except ValueError:
+                            pass
+                phonemes.append({
+                    "phoneme": phone_content,
+                    "score": p_score
+                })
+
             words_list.append({
                 "word": word_content,
                 "score": w_score,
-                "dp_message": dp_message
+                "dp_message": dp_message,
+                "beg_pos": beg_pos,
+                "end_pos": end_pos,
+                "phonemes": phonemes
             })
         
         # 判断是否属于 5 分制系统。由于 total_score 最多 5.0，如果总分 <= 5.0 则判定为 5 分制并需要缩放
@@ -112,12 +144,16 @@ def _parse_xfyun_xml(xml_str: str) -> Dict[str, Any]:
                 scores[key] = round(scores[key] * 20.0, 1)
             for w in words_list:
                 w["score"] = round(w["score"] * 20.0, 1)
+                for p in w["phonemes"]:
+                    p["score"] = round(p["score"] * 20.0, 1)
         else:
             # 百分制下只保留一位小数
             for key in ["total_score", "accuracy_score", "fluency_score", "integrity_score"]:
                 scores[key] = round(scores[key], 1)
             for w in words_list:
                 w["score"] = round(w["score"], 1)
+                for p in w["phonemes"]:
+                    p["score"] = round(p["score"], 1)
                 
         scores["words"] = words_list
                 
@@ -170,11 +206,43 @@ def mock_assess_pronunciation(reference_text: str, reason: str = "") -> Dict[str
         else:
             w_score = 85.0 + (w_hash % 15)  # 优秀发音
             dp_message = 0
+
+        # 模拟发音音素 (phonemes)
+        vowels = "aeiouAEIOU"
+        parts = []
+        current = ""
+        for char in w:
+            if not current:
+                current = char
+            elif (char in vowels) == (current[-1] in vowels):
+                current += char
+            else:
+                parts.append(current)
+                current = char
+        if current:
+            parts.append(current)
+        
+        if len(parts) == 1:
+            parts = list(w)
+            
+        phonemes = []
+        for p_idx, part in enumerate(parts):
+            if w_score < 70 and p_idx == len(parts) // 2:
+                p_score = w_score - 15.0 if w_score > 15.0 else 0.0
+            else:
+                p_score = min(100.0, w_score + (p_idx * 3))
+            phonemes.append({
+                "phoneme": part.lower(),
+                "score": round(float(p_score), 1)
+            })
             
         words_list.append({
             "word": w,
             "score": round(float(w_score), 1),
-            "dp_message": dp_message
+            "dp_message": dp_message,
+            "beg_pos": i * 30,
+            "end_pos": (i + 1) * 30 - 5,
+            "phonemes": phonemes
         })
     
     scores = {
