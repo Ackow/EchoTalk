@@ -82,7 +82,7 @@
         <p>编写一个场景插件（Python），在 EchoTalk 中导出为 .zip 包，发布到社区，帮助更多人练习英语口语。</p>
         <div class="cta-actions">
           <router-link to="/docs#scene-dev" class="btn-primary">📖 开发指南</router-link>
-          <a href="https://github.com/IceColaaa/EchoTalk" target="_blank" class="btn-secondary">🐙 GitHub 仓库</a>
+          <a href="https://github.com/Ackow/EchoTalk" target="_blank" class="btn-secondary">🐙 GitHub 仓库</a>
         </div>
       </div>
     </section>
