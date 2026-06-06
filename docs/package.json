@@ -1,0 +1,21 @@
+{
+  "name": "echotalk-docs",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "generate": "node scripts/generate-manifest.cjs",
+    "build": "npm run generate && vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "vue": "^3.4.0",
+    "vue-router": "^4.3.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^5.0.0",
+    "adm-zip": "^0.5.17",
+    "vite": "^5.4.0"
+  }
+}

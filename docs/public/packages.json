@@ -1,0 +1,44 @@
+[
+  {
+    "id": "interview",
+    "emoji": "💼",
+    "title": "软件工程师面试 (Job Interview)",
+    "author": "EchoTalk Team",
+    "desc": "模拟外企软件工程师英文技术面试，考察专业术语、沟通能力与逻辑表达。",
+    "tags": [
+      "interview"
+    ],
+    "rating": "4.9",
+    "downloads": "内置",
+    "featured": true,
+    "downloadUrl": "/scenes/scene_interview.zip"
+  },
+  {
+    "id": "meeting",
+    "emoji": "🏢",
+    "title": "产品发布会同步会议 (Business Meeting)",
+    "author": "EchoTalk Team",
+    "desc": "参与跨国项目组的产品发布准备会议，讨论进度延误、解决方案与任务分工。",
+    "tags": [
+      "business"
+    ],
+    "rating": "4.8",
+    "downloads": "内置",
+    "featured": true,
+    "downloadUrl": "/scenes/scene_meeting.zip"
+  },
+  {
+    "id": "ordering",
+    "emoji": "🍽️",
+    "title": "繁忙咖啡厅点餐 (Cafe Ordering)",
+    "author": "EchoTalk Team",
+    "desc": "在纽约街头咖啡馆点一份早餐与咖啡，练习日常口语、定制化订单与结账表达。",
+    "tags": [
+      "food"
+    ],
+    "rating": "4.7",
+    "downloads": "内置",
+    "featured": true,
+    "downloadUrl": "/scenes/scene_ordering.zip"
+  }
+]
