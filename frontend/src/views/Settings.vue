@@ -85,14 +85,17 @@
 
                 <el-divider class="group-divider"></el-divider>
 
-                <!-- Baidu STT -->
-                <div class="service-group-title">百度智能云 (语音识别 STT)</div>
-                <div class="form-row">
-                  <el-form-item label="API Key (Client ID)" class="flex-item">
-                    <el-input v-model="configForm.BAIDU_API_KEY" type="password" show-password placeholder="请输入百度 API Key" />
+                <!-- Tencent Cloud Flash ASR -->
+                <div class="service-group-title">腾讯云 Flash ASR (录音文件识别极速版)</div>
+                <div class="form-row-3">
+                  <el-form-item label="AppID" class="flex-item">
+                    <el-input v-model="configForm.TENCENT_APPID" placeholder="请输入腾讯云 AppID" />
                   </el-form-item>
-                  <el-form-item label="Secret Key (Client Secret)" class="flex-item">
-                    <el-input v-model="configForm.BAIDU_SECRET_KEY" type="password" show-password placeholder="请输入百度 Secret Key" />
+                  <el-form-item label="SecretId" class="flex-item">
+                    <el-input v-model="configForm.TENCENT_SECRET_ID" type="password" show-password placeholder="请输入腾讯云 SecretId" />
+                  </el-form-item>
+                  <el-form-item label="SecretKey" class="flex-item">
+                    <el-input v-model="configForm.TENCENT_SECRET_KEY" type="password" show-password placeholder="请输入腾讯云 SecretKey" />
                   </el-form-item>
                 </div>
               </el-form>
@@ -265,8 +268,9 @@ const configForm = ref({
   XFYUN_APP_ID: '',
   XFYUN_API_KEY: '',
   XFYUN_API_SECRET: '',
-  BAIDU_API_KEY: '',
-  BAIDU_SECRET_KEY: '',
+  TENCENT_APPID: '',
+  TENCENT_SECRET_ID: '',
+  TENCENT_SECRET_KEY: '',
   QINIU_ACCESS_KEY: '',
   QINIU_SECRET_KEY: '',
   QINIU_BUCKET_NAME: '',

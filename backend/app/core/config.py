@@ -34,9 +34,10 @@ class Settings(BaseSettings):
     XFYUN_API_KEY: Optional[str] = None
     XFYUN_API_SECRET: Optional[str] = None
 
-    # 百度智能云语音识别配置 (用于语音转文字 STT)
-    BAIDU_API_KEY: Optional[str] = None
-    BAIDU_SECRET_KEY: Optional[str] = None
+    # 腾讯云语音识别配置 (录音文件识别极速版 Flash ASR，用于语音转文字 STT)
+    TENCENT_APPID: Optional[str] = None
+    TENCENT_SECRET_ID: Optional[str] = None
+    TENCENT_SECRET_KEY: Optional[str] = None
 
     # 获取可写的基础运行目录
     @property

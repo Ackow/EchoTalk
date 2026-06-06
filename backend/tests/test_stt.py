@@ -8,7 +8,7 @@ from app.services.stt import speech_to_text
 import app.services.stt as stt
 
 def test_stt_fallback_flow():
-    print("\n--- [百度 ASR (STT) 本地 Mock 与降级测试] ---")
+    print("\n--- [腾讯云 Flash ASR (STT) 本地 Mock 与降级测试] ---")
     
     # 1. 模拟一个非存在的音频路径，验证报错与文件名匹配 Mock 逻辑
     fake_audio_interview = "tests/data/interview_mock.wav"
@@ -33,7 +33,7 @@ def test_stt_fallback_flow():
     # 重置测试状态，防止干扰其他用例
     stt._mock_override_text = None
     
-    print("\n[SUCCESS] 百度 ASR 服务本地降级与控制测试全部通过！")
+    print("\n[SUCCESS] 腾讯云 Flash ASR 服务本地降级与控制测试全部通过！")
 
 
 def test_user_hello_audio():
@@ -49,10 +49,10 @@ def test_user_hello_audio():
     if user_audio:
         print(f"\n--- [用户真实录音 {user_audio} 识别测试开始 >>>] ---")
         result = speech_to_text(user_audio)
-        print(f"  * 百度 ASR 真实转译文字: '{result}'")
+        print(f"  * 腾讯云 Flash ASR 真实转译文字: '{result}'")
         print(f"---------------------------------------------\n")
     else:
-        print("\n(提示 💡: 如果你想直接在测试中识别你录制的音频，可以将录音文件命名为 'hello.wav' 并放入 backend/data 目录下，脚本会自动检测并执行真实转译。)\n")
+        print("\n(提示: 如果你想直接在测试中识别你录制的音频，可以将录音文件命名为 'hello.wav' 并放入 tests/data 目录下，脚本会自动检测并执行真实转译。)\n")
 
 
 if __name__ == "__main__":

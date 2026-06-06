@@ -315,7 +315,7 @@ async def run_dialogue_turn_pipeline(
     upload_user_task = loop.run_in_executor(None, upload_audio_to_kodo, user_audio_path, user_audio_filename)
 
     # 2. 【步骤一】语音转文字 (STT) 识别出用户原声
-    # 百度短语音识别限制，同步阻塞运行
+    # 腾讯云极速语音识别 (Flash ASR)，同步阻塞运行
     user_text_raw = speech_to_text(user_audio_path)
 
     # 【并发启动】科大讯飞流式发音评测 (传入原始音频和 ASR 识别结果)，不等待 RAG/PII 脱敏直接触发

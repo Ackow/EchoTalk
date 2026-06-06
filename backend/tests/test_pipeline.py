@@ -1,5 +1,6 @@
 import os
 import sys
+import json
 import asyncio
 from fastapi.testclient import TestClient
 
@@ -54,17 +55,41 @@ def test_dialogue_pipeline_and_endpoints():
     assert os.path.exists(audio_path), f"测试音频 hello.wav 未找到: {audio_path}"
     print(f"测试音频文件就绪: {audio_path}，大小: {os.path.getsize(audio_path)} 字节")
 
-    # 4. 调用 /api/dialogues/{history_id}/turn 上传音频并运行 Pipeline
-    print(f"\n[步骤 2] 调用 /api/dialogues/{history_id}/turn 发送音频并执行 Pipeline...")
+    # 4. 调用 /api/dialogues/{history_id}/turn?stream=true 上传音频并运行流式 Pipeline
+    print(f"\n[步骤 2] 调用 /api/dialogues/{history_id}/turn?stream=true 发送音频并执行流式 Pipeline...")
     with open(audio_path, "rb") as f:
         turn_resp = client.post(
-            f"/api/dialogues/{history_id}/turn",
+            f"/api/dialogues/{history_id}/turn?stream=true",
             files={"file": ("hello.wav", f, "audio/wav")}
         )
         
-    assert turn_resp.status_code == 200, f"交互 Turn 运行失败: {turn_resp.text}"
-    turns_data = turn_resp.json()
-    assert len(turns_data) == 2, f"应当返回2个轮次信息 (User & Assistant), 实际返回: {len(turns_data)}"
+    assert turn_resp.status_code == 200, f"流式交互 Turn 运行失败: {turn_resp.text}"
+    
+    # 解析 SSE 事件
+    events = []
+    for line in turn_resp.iter_lines():
+        if not line:
+            continue
+        line_str = line.decode("utf-8") if isinstance(line, bytes) else line
+        if line_str.startswith("data: "):
+            event_data = json.loads(line_str[6:])
+            events.append(event_data)
+            print(f"  [SSE Event] status: {event_data.get('status')}, message/text: {event_data.get('message') or event_data.get('text') or '...'}")
+
+    # 校验流式事件状态
+    statuses = [e.get("status") for e in events]
+    print(f"接收到的流式状态序列: {statuses}")
+    assert "asr" in statuses
+    assert "asr_done" in statuses
+    assert "ise" in statuses
+    assert "pii" in statuses
+    assert "llm" in statuses
+    assert "done" in statuses
+
+    # 获取最终结果
+    done_event = [e for e in events if e.get("status") == "done"][0]
+    turns_data = done_event["result"]
+    assert len(turns_data) == 2, f"应当在 done 状态中返回2个轮次信息 (User & Assistant), 实际返回: {len(turns_data)}"
     
     user_turn = turns_data[0]
     assistant_turn = turns_data[1]
