@@ -40,21 +40,23 @@ def _get_websocket_proxy():
     return None, None, None
 
 
-def _parse_xfyun_xml(xml_str: str) -> Dict[str, float]:
+def _parse_xfyun_xml(xml_str: str) -> Dict[str, Any]:
     """
-    解析科大讯飞返回的 XML，鲁棒提取发音评测的各项核心指标分值。
+    解析科大讯飞返回的 XML，鲁棒提取发音评测的各项核心指标分值及单词层级评分。
     提取参数：
     - total_score (综合总分)
     - accuracy_score (发音准确度分)
     - fluency_score (发音流利度分)
     - integrity_score (发音完整度分)
+    - words (单词级发音详情列表)
     若分值范围为 5 分制（即总分 <= 5.0），则自动乘以 20 归一化为百分制。
     """
     scores = {
         "total_score": 0.0,
         "accuracy_score": 0.0,
         "fluency_score": 0.0,
-        "integrity_score": 0.0
+        "integrity_score": 0.0,
+        "words": []
     }
     
     try:
@@ -63,24 +65,61 @@ def _parse_xfyun_xml(xml_str: str) -> Dict[str, float]:
         
         # 鲁棒地全局递归扫描所有节点，一旦节点属性中包含我们想要的指标名称，就提取出来
         for elem in root.iter():
-            for key in scores.keys():
+            for key in ["total_score", "accuracy_score", "fluency_score", "integrity_score"]:
                 if key in elem.attrib and scores[key] == 0.0:
                     try:
                         scores[key] = float(elem.attrib[key])
                     except ValueError:
                         pass
         
+        # 解析单词层级的评分
+        words_list = []
+        for word_elem in root.iter("word"):
+            word_content = word_elem.attrib.get("content", "") or ""
+            # 过滤掉标点符号、静音标识 (sil) 以及语气填充词 (fil) 等控制占位符
+            clean_word = word_content.strip().lower()
+            ignored_tokens = {
+                "[snt]", "[cs]", "[gap]", "sil", "[sil]", "<sil>", 
+                "fil", "[fil]", "<fil>", "silence"
+            }
+            if not word_content or clean_word in ignored_tokens:
+                continue
+            
+            w_score = 0.0
+            try:
+                w_score = float(word_elem.attrib.get("total_score", 0.0))
+            except ValueError:
+                pass
+            
+            dp_message = 0
+            try:
+                dp_message = int(word_elem.attrib.get("dp_message", 0))
+            except ValueError:
+                pass
+
+            words_list.append({
+                "word": word_content,
+                "score": w_score,
+                "dp_message": dp_message
+            })
+        
         # 判断是否属于 5 分制系统。由于 total_score 最多 5.0，如果总分 <= 5.0 则判定为 5 分制并需要缩放
         is_five_point_scale = scores["total_score"] <= 5.0
         
         if is_five_point_scale:
             # 乘以 20 归一化为百分制
-            for key in scores.keys():
+            for key in ["total_score", "accuracy_score", "fluency_score", "integrity_score"]:
                 scores[key] = round(scores[key] * 20.0, 1)
+            for w in words_list:
+                w["score"] = round(w["score"] * 20.0, 1)
         else:
             # 百分制下只保留一位小数
-            for key in scores.keys():
+            for key in ["total_score", "accuracy_score", "fluency_score", "integrity_score"]:
                 scores[key] = round(scores[key], 1)
+            for w in words_list:
+                w["score"] = round(w["score"], 1)
+                
+        scores["words"] = words_list
                 
     except Exception as e:
         print(f"[XML解析警告] 解析科大讯飞 XML 评分失败: {str(e)}")
@@ -88,12 +127,13 @@ def _parse_xfyun_xml(xml_str: str) -> Dict[str, float]:
     return scores
 
 
-def mock_assess_pronunciation(reference_text: str, reason: str = "") -> Dict[str, float]:
+def mock_assess_pronunciation(reference_text: str, reason: str = "") -> Dict[str, Any]:
     """
     发音评测的本地 Mock 降级打分机制。
     在未配置科大讯飞 AppID/APIKey/APISecret 或网络请求发生报错时，自动触发进行兜底。
     通过对待评测文本的字符 hash 运算生成高真实度且保证“单文本幂等确定”的拟真分数，以配合单元测试。
     """
+    import re
     # 基于待评测文本的字符序列计算累加 Hash
     text_hash = sum(ord(c) for c in reference_text)
     
@@ -108,11 +148,41 @@ def mock_assess_pronunciation(reference_text: str, reason: str = "") -> Dict[str
     # 按照权重计算总分：40% 准确度 + 40% 流利度 + 20% 完整度
     total_score = round(accuracy * 0.4 + fluency * 0.4 + integrity * 0.2, 1)
     
+    # 模拟单词级别的发音详情，方便前端展示
+    # 按照空格分词，并去除首尾标点符号，这样可以完整保留 don't, I'd 等缩写词不被拆分
+    raw_words = reference_text.split()
+    words = []
+    for w in raw_words:
+        cleaned = w.strip(".,?!\"();:[]{}*#_")
+        if cleaned:
+            words.append(cleaned)
+    words_list = []
+    for i, w in enumerate(words):
+        w_hash = sum(ord(c) for c in w)
+        # 绝大多数单词发音合格 (85 - 99)，但基于 Hash 特征，某些特定单词故意生成低分 (比如低于 60)
+        # 以模拟“发音不准确的单词”
+        if w_hash % 7 == 0:
+            w_score = 45.0 + (w_hash % 15)  # 不及格，模拟发音不准
+            dp_message = 64  # 模拟替换/错误
+        elif w_hash % 13 == 0:
+            w_score = 0.0
+            dp_message = 16  # 模拟漏读
+        else:
+            w_score = 85.0 + (w_hash % 15)  # 优秀发音
+            dp_message = 0
+            
+        words_list.append({
+            "word": w,
+            "score": round(float(w_score), 1),
+            "dp_message": dp_message
+        })
+    
     scores = {
         "total_score": total_score,
         "accuracy_score": round(float(accuracy), 1),
         "fluency_score": round(float(fluency), 1),
-        "integrity_score": round(float(integrity), 1)
+        "integrity_score": round(float(integrity), 1),
+        "words": words_list
     }
     
     log_api_call(
@@ -128,7 +198,7 @@ def mock_assess_pronunciation(reference_text: str, reason: str = "") -> Dict[str
     return scores
 
 
-def assess_pronunciation_sync(audio_path: str, reference_text: str) -> Dict[str, float]:
+def assess_pronunciation_sync(audio_path: str, reference_text: str) -> Dict[str, Any]:
     """
     同步口语发音评测。
     使用 WebSocket 建立连接，分片（每 40ms/1280 字节）读取并推送 16k 16bit 单声道 WAV 音频（过滤 WAV 头部）。
@@ -403,7 +473,7 @@ def assess_pronunciation_sync(audio_path: str, reference_text: str) -> Dict[str,
         return mock_assess_pronunciation(reference_text, f"WebSocket 异常: {str(e)}")
 
 
-async def assess_pronunciation(audio_path: str, reference_text: str) -> Dict[str, float]:
+async def assess_pronunciation(audio_path: str, reference_text: str) -> Dict[str, Any]:
     """
     异步口语发音评测入口：
     利用事件循环的 run_in_executor 将同步阻塞的 WebSocket 网络连接流式发送投递至子线程执行，

@@ -317,6 +317,31 @@
             </div>
           </div>
 
+          <!-- Word-level Pronunciation Details (Only show low scores / missing) -->
+          <div class="words-analysis-section" v-if="selectedUserTurn.pronunciation_score && selectedUserTurn.pronunciation_score.words && selectedUserTurn.pronunciation_score.words.length > 0">
+            <div class="section-subtitle">发音待改进单词 (点击听标准音 & 查词典)</div>
+            <div class="words-container glass-card" v-if="lowScoreWords.length > 0">
+              <span 
+                v-for="(w, wIdx) in lowScoreWords" 
+                :key="wIdx"
+                :class="['word-badge clickable-word-badge', getWordScoreClass(w)]"
+                @click="clickWordDetail(w.word)"
+              >
+                {{ w.word }}
+                <span class="word-score-tip">{{ Math.round(w.score) }}分</span>
+              </span>
+            </div>
+            <div class="all-perfect-box" v-else>
+              <el-icon class="all-perfect-icon"><SuccessFilled /></el-icon>
+              <span class="all-perfect-text">太棒了！该句中所有单词发音均达到优秀标准 (≥80分)！🎉</span>
+            </div>
+            <div class="word-legend" v-if="lowScoreWords.length > 0">
+              <span class="legend-item"><span class="dot legend-orange"></span>中 (60-79)</span>
+              <span class="legend-item"><span class="dot legend-red"></span>需改进 (<60)</span>
+              <span class="legend-item"><span class="dot legend-gray"></span>漏读</span>
+            </div>
+          </div>
+
           <!-- Grammar correction container -->
           <div class="grammar-section" v-if="selectedUserTurn.grammar_correction">
             <div class="section-subtitle">语法及表达优化建议</div>
@@ -419,6 +444,62 @@
       <template #footer>
         <span class="dialog-footer">
           <el-button type="primary" @click="closeSettleAndGoHome" class="settle-go-home-btn">返回大厅</el-button>
+        </span>
+      </template>
+    </el-dialog>
+
+    <!-- Dictionary Details Dialog -->
+    <el-dialog
+      v-model="isDictOpen"
+      :title="'单词释义: ' + dictWord"
+      width="450px"
+      class="custom-dialog dict-dialog"
+      :before-close="handleCloseDict"
+    >
+      <div v-loading="dictLoading" element-loading-text="正在查询在线词典..." element-loading-background="rgba(17, 24, 39, 0.7)">
+        <div v-if="dictDetails" class="dict-content">
+          <div class="dict-header-row">
+            <span class="dict-word-title font-display">{{ dictDetails.word }}</span>
+            <span class="dict-phonetic font-display" v-if="dictDetails.phonetic">{{ dictDetails.phonetic }}</span>
+            <el-button 
+              type="primary" 
+              circle 
+              size="small" 
+              class="dict-audio-btn hover-scale"
+              @click="playWordTts(dictDetails.word)"
+            >
+              <el-icon><Headset /></el-icon>
+            </el-button>
+          </div>
+
+          <div class="dict-meanings">
+            <div 
+              v-for="(meaning, mIdx) in dictDetails.meanings.slice(0, 3)" 
+              :key="mIdx"
+              class="dict-meaning-item"
+            >
+              <span class="dict-pos font-display">{{ meaning.partOfSpeech }}</span>
+              <ul class="dict-defs">
+                <li 
+                  v-for="(def, dIdx) in meaning.definitions.slice(0, 2)" 
+                  :key="dIdx"
+                  class="dict-def-li"
+                >
+                  <p class="def-text">{{ def.definition }}</p>
+                  <p class="def-example" v-if="def.example">例: <em>"{{ def.example }}"</em></p>
+                </li>
+              </ul>
+            </div>
+          </div>
+        </div>
+        <div v-else-if="!dictLoading" class="dict-empty">
+          <el-icon><Warning /></el-icon>
+          <p>未能找到该词的详细解释。</p>
+        </div>
+      </div>
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button @click="isDictOpen = false">关闭</el-button>
         </span>
       </template>
     </el-dialog>
@@ -547,6 +628,103 @@ const selectAndPlayUserTurn = (idx, turn) => {
 // 仅选中本行，不重新播报原音
 const selectUserTurnOnly = (idx) => {
   selectedTurnIndex.value = idx
+}
+
+// 获取单词发音等级样式类
+const getWordScoreClass = (w) => {
+  if (w.dp_message === 16) return 'word-missing'
+  if (w.score >= 80) return 'word-good'
+  if (w.score >= 60) return 'word-average'
+  return 'word-bad'
+}
+
+// 筛选评分较低或存在错误的单词并去重 (分值 < 80 或是漏读/发音不准等)
+const lowScoreWords = computed(() => {
+  if (!selectedUserTurn.value || !selectedUserTurn.value.pronunciation_score || !selectedUserTurn.value.pronunciation_score.words) {
+    return []
+  }
+  const rawWords = selectedUserTurn.value.pronunciation_score.words.filter(w => w.score < 80 || w.dp_message !== 0)
+  
+  // 单词内容去重 (不区分大小写，保留第一次出现的信息)
+  const seen = new Set()
+  const uniqueWords = []
+  for (const w of rawWords) {
+    const norm = w.word.toLowerCase().trim()
+    if (!seen.has(norm)) {
+      seen.add(norm)
+      uniqueWords.push(w)
+    }
+  }
+  return uniqueWords
+})
+
+// 词典查询状态
+const isDictOpen = ref(false)
+const dictWord = ref('')
+const dictLoading = ref(false)
+const dictDetails = ref(null)
+
+const clickWordDetail = async (word) => {
+  isDictOpen.value = true
+  playWordTts(word)
+  await fetchDictDetails(word)
+}
+
+const playWordTts = (word) => {
+  window.speechSynthesis.cancel()
+  const utterance = new SpeechSynthesisUtterance(word)
+  const targetLang = speakingAccent.value === 'uk' ? 'en-GB' : 'en-US'
+  utterance.lang = targetLang
+  
+  if (window.speechSynthesis) {
+    const voices = window.speechSynthesis.getVoices()
+    // 优先寻找完全匹配的语音包 (如 en-GB 或 en-US)
+    let bestVoice = voices.find(v => v.lang === targetLang)
+    if (!bestVoice) {
+      // 备选：前缀匹配的语音包 (如 en-GB-xxxx 或 en-US-xxxx)
+      bestVoice = voices.find(v => v.lang.startsWith(targetLang))
+    }
+    if (!bestVoice) {
+      // 再次备选：包含英/美国家代码标识的语音包
+      const countryCode = speakingAccent.value === 'uk' ? 'gb' : 'us'
+      bestVoice = voices.find(v => v.lang.toLowerCase().includes(countryCode))
+    }
+    if (bestVoice) {
+      utterance.voice = bestVoice
+    }
+  }
+  
+  window.speechSynthesis.speak(utterance)
+}
+
+const fetchDictDetails = async (word) => {
+  dictLoading.value = true
+  dictDetails.value = null
+  const cleanWord = word.toLowerCase().replace(/[^a-z]/g, '')
+  try {
+    const res = await axios.get(`https://api.dictionaryapi.dev/api/v2/entries/en/${cleanWord}`)
+    if (res.data && res.data.length > 0) {
+      dictDetails.value = res.data[0]
+    }
+  } catch (err) {
+    console.error('获取词典失败:', err)
+    dictDetails.value = {
+      word: word,
+      phonetic: `/${word}/`,
+      meanings: [
+        {
+          partOfSpeech: 'n./v.',
+          definitions: [{ definition: '未能从网络词典加载该词的详细释义，点击上方喇叭可听朗读。' }]
+        }
+      ]
+    };
+  } finally {
+    dictLoading.value = false
+  }
+}
+
+const handleCloseDict = () => {
+  isDictOpen.value = false
 }
 
 // 计算语音胶囊的宽度，时长越长气泡越长
@@ -2389,6 +2567,275 @@ const getWavDuration = (turn) => {
 
 .primary-text {
   color: #818cf8 !important;
+}
+
+/* Word Pronunciation Details Styles */
+.words-analysis-section {
+  margin-top: 5px;
+}
+.words-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 12px;
+  background: rgba(17, 24, 39, 0.4) !important;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+.word-badge {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 6px;
+  border-radius: 4px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  transition: all 0.2s ease;
+  cursor: help;
+}
+.word-badge:hover {
+  transform: translateY(-1px);
+}
+.word-score-tip {
+  font-size: 0.65rem;
+  margin-left: 4px;
+  opacity: 0.8;
+  background: rgba(0, 0, 0, 0.2);
+  padding: 1px 3px;
+  border-radius: 3px;
+}
+.word-good {
+  color: #34d399;
+  background: rgba(16, 185, 129, 0.1);
+  border: 1px solid rgba(16, 185, 129, 0.2);
+}
+.word-average {
+  color: #fbbf24;
+  background: rgba(245, 158, 11, 0.1);
+  border: 1px solid rgba(245, 158, 11, 0.2);
+}
+.word-bad {
+  color: #f87171;
+  background: rgba(239, 68, 68, 0.15);
+  border: 1px solid rgba(239, 68, 68, 0.2);
+}
+.word-missing {
+  color: #9ca3af;
+  text-decoration: line-through;
+  background: rgba(156, 163, 175, 0.1);
+  border: 1px solid rgba(156, 163, 175, 0.2);
+}
+.word-legend {
+  display: flex;
+  justify-content: flex-start;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 8px;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  display: inline-block;
+}
+.legend-green { background: #34d399; }
+.legend-orange { background: #fbbf24; }
+.legend-red { background: #f87171; }
+.legend-gray { background: #9ca3af; }
+
+/* Score Origin Section Styles */
+.score-origin-section {
+  margin-top: 5px;
+}
+.score-origin-card {
+  padding: 16px;
+  background: rgba(17, 24, 39, 0.4) !important;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.origin-formula {
+  background: rgba(255, 255, 255, 0.03);
+  padding: 8px 12px;
+  border-radius: 6px;
+  border: 1px dashed rgba(255, 255, 255, 0.1);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.formula-title {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+.formula-body {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--text-secondary);
+}
+.origin-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.origin-bar-item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.bar-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.78rem;
+}
+.bar-label {
+  color: var(--text-secondary);
+}
+.bar-value {
+  font-family: var(--font-display);
+}
+.bar-value strong {
+  font-size: 0.88rem;
+  margin-left: 2px;
+}
+.origin-sum {
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  padding-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.78rem;
+}
+.origin-sum span {
+  color: var(--text-muted);
+}
+.sum-value {
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+.sum-value strong {
+  font-size: 1.25rem;
+}
+
+/* Dictionary Dialog Styles */
+.clickable-word-badge {
+  cursor: pointer !important;
+}
+.clickable-word-badge:hover {
+  background: rgba(255, 255, 255, 0.08);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+.all-perfect-box {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  background: rgba(16, 185, 129, 0.05) !important;
+  border: 1px solid rgba(16, 185, 129, 0.15);
+  border-radius: 8px;
+  width: 100%;
+}
+.all-perfect-icon {
+  font-size: 1.4rem;
+  color: #34d399;
+}
+.all-perfect-text {
+  font-size: 0.85rem;
+  color: #34d399;
+  line-height: 1.4;
+}
+.dict-dialog :deep(.el-dialog__body) {
+  padding-top: 0 !important;
+}
+.dict-content {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 10px 0;
+}
+.dict-header-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  padding-bottom: 12px;
+}
+.dict-word-title {
+  font-size: 1.6rem;
+  font-weight: 800;
+  color: var(--text-primary);
+}
+.dict-phonetic {
+  font-size: 0.95rem;
+  color: var(--text-muted);
+  background: rgba(255, 255, 255, 0.05);
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+.dict-audio-btn {
+  margin-left: auto;
+}
+.dict-meanings {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.dict-meaning-item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.dict-pos {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #818cf8;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  align-self: flex-start;
+  background: rgba(129, 140, 248, 0.1);
+  padding: 1px 6px;
+  border-radius: 4px;
+}
+.dict-defs {
+  margin: 0;
+  padding-left: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.dict-def-li {
+  color: var(--text-secondary);
+}
+.def-text {
+  font-size: 0.85rem;
+  line-height: 1.45;
+  margin: 0 0 2px 0;
+}
+.def-example {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  margin: 0;
+}
+.dict-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 30px 0;
+  color: var(--text-muted);
+}
+.dict-empty p {
+  font-size: 0.85rem;
 }
 
 /* Grammar correction box */

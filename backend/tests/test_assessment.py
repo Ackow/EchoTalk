@@ -57,7 +57,8 @@ def test_mock_fallback_scoring():
     print(f"  * 文本 1 评估分值结果: {scores_1}")
     
     # 验证各项分值均合法落在百分制 60~100 区间内
-    for k, v in scores_1.items():
+    for k in ["total_score", "accuracy_score", "fluency_score", "integrity_score"]:
+        v = scores_1[k]
         assert 60.0 <= v <= 100.0
         
     # 测试“输入确定、分值确定”的幂等性（由于 hash 打分逻辑，确保单元测试是确定可重复的）
