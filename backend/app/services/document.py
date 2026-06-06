@@ -110,15 +110,23 @@ def extract_text_from_pdf(file_path: str) -> str:
 
 def extract_text_from_txt_or_md(file_path: str) -> str:
     """
-    读取 TXT 或 Markdown 文件的纯文本内容（包含 UTF-8 和 GBK 编码容错机制）。
+    读取 TXT 或 Markdown 文件的纯文本内容（包含 UTF-8、GB18030 和 GBK 编码容错机制）。
     """
-    encodings = ["utf-8", "gbk", "utf-16"]
+    encodings = ["utf-8", "gb18030", "gbk", "utf-16"]
     for encoding in encodings:
         try:
             with open(file_path, "r", encoding=encoding) as f:
                 return f.read()
         except UnicodeDecodeError:
             continue
+
+    # 兜底方案：如果所有正常解码均失败，则使用 utf-8 配合 errors="replace" 强制读取，防止导入彻底失败
+    try:
+        with open(file_path, "r", encoding="utf-8", errors="replace") as f:
+            return f.read()
+    except Exception:
+        pass
+
     raise UnicodeDecodeError(
         "utf-8", b"", 0, 0, f"无法以支持的编码读取文件: {os.path.basename(file_path)}"
     )

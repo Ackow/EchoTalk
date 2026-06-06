@@ -54,9 +54,30 @@ def test_document_extraction_and_splitting():
                 
     print("\n[SUCCESS] 文档读取与递归分块算法全部通过测试！")
 
+def test_gb18030_emoji_document():
+    """
+    测试能够成功解析包含 Emoji 的 GB18030 / GBK 编码的文件
+    """
+    test_text = "这是一份包含表情符号😊和稀有字的文档。"
+    temp_file = os.path.join(DATA_DIR, "temp_gb18030_emoji.txt")
+    
+    try:
+        # 以 gb18030 编码写入
+        with open(temp_file, "w", encoding="gb18030") as f:
+            f.write(test_text)
+            
+        # 调用解析函数
+        parsed_text = extract_text_from_file(temp_file)
+        assert parsed_text == test_text, f"解析内容不一致！期望: {test_text}, 实际: {parsed_text}"
+        print("[SUCCESS] 成功解析包含 Emoji 的 GB18030 编码文件！")
+    finally:
+        if os.path.exists(temp_file):
+            os.remove(temp_file)
+
 if __name__ == "__main__":
     try:
         test_document_extraction_and_splitting()
+        test_gb18030_emoji_document()
     except AssertionError as e:
         print(f"\n[FAIL] 测试发生错误: {e}")
         sys.exit(1)
