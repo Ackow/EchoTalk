@@ -309,20 +309,6 @@
             <div class="radar-wrapper">
               <EChartsRadar :score-data="selectedUserTurn.pronunciation_score" />
             </div>
-            <div class="score-details" v-if="selectedUserTurn.pronunciation_score">
-              <div class="score-item">
-                <span class="label">发音准确度:</span>
-                <span class="value success-text">{{ selectedUserTurn.pronunciation_score.accuracy_score }}分</span>
-              </div>
-              <div class="score-item">
-                <span class="label">表达流利度:</span>
-                <span class="value warning-text">{{ selectedUserTurn.pronunciation_score.fluency_score }}分</span>
-              </div>
-              <div class="score-item">
-                <span class="label">发音完整度:</span>
-                <span class="value primary-text">{{ selectedUserTurn.pronunciation_score.integrity_score }}分</span>
-              </div>
-            </div>
           </div>
 
           <!-- Word-level Pronunciation Details (Only show low scores / missing) -->
@@ -397,8 +383,24 @@
                   <p class="correction-text success-text">{{ selectedUserTurn.grammar_correction.corrected }}</p>
                 </div>
                 <div class="correction-explanation">
-                  <span class="exp-title">修改说明 (Explanation):</span>
+                  <span class="exp-title">综合修改说明 (Explanation):</span>
                   <p class="exp-content">{{ selectedUserTurn.grammar_correction.explanation }}</p>
+                </div>
+                
+                <!-- 多元化 AI 建议 (Diversified AI Suggestions) -->
+                <div class="diversified-suggestions" v-if="selectedUserTurn.grammar_correction.suggestions">
+                  <div class="suggestion-subcard grammar-sug" v-if="selectedUserTurn.grammar_correction.suggestions.grammar">
+                    <span class="subcard-title font-display"><el-icon><CircleCheck /></el-icon> 语法纠错剖析 (Grammar)</span>
+                    <p class="subcard-content">{{ selectedUserTurn.grammar_correction.suggestions.grammar }}</p>
+                  </div>
+                  <div class="suggestion-subcard vocabulary-sug" v-if="selectedUserTurn.grammar_correction.suggestions.vocabulary">
+                    <span class="subcard-title font-display"><el-icon><Reading /></el-icon> 地道词汇表达升级 (Vocabulary)</span>
+                    <p class="subcard-content">{{ selectedUserTurn.grammar_correction.suggestions.vocabulary }}</p>
+                  </div>
+                  <div class="suggestion-subcard pronunciation-sug" v-if="selectedUserTurn.grammar_correction.suggestions.pronunciation">
+                    <span class="subcard-title font-display"><el-icon><Headset /></el-icon> 连读与语音技巧 (Pronunciation)</span>
+                    <p class="subcard-content">{{ selectedUserTurn.grammar_correction.suggestions.pronunciation }}</p>
+                  </div>
                 </div>
               </div>
             </div>
@@ -3429,5 +3431,60 @@ const getWavDuration = (turn) => {
     border-color: rgba(99, 102, 241, 0.15);
     background: rgba(99, 102, 241, 0.06);
   }
+}
+
+.purple-text {
+  color: #c084fc !important;
+}
+.pink-text {
+  color: #f472b6 !important;
+}
+.diversified-suggestions {
+  margin-top: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.suggestion-subcard {
+  padding: 10px 12px;
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: 6px;
+  border-left: 3px solid;
+  transition: all 0.2s ease;
+}
+.suggestion-subcard:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+.suggestion-subcard.grammar-sug {
+  border-left-color: #34d399; /* Green */
+}
+.suggestion-subcard.vocabulary-sug {
+  border-left-color: #60a5fa; /* Blue */
+}
+.suggestion-subcard.pronunciation-sug {
+  border-left-color: #c084fc; /* Purple */
+}
+.subcard-title {
+  font-size: 0.78rem;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 4px;
+}
+.grammar-sug .subcard-title {
+  color: #34d399;
+}
+.vocabulary-sug .subcard-title {
+  color: #60a5fa;
+}
+.pronunciation-sug .subcard-title {
+  color: #c084fc;
+}
+.subcard-content {
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  line-height: 1.45;
+  margin: 0;
 }
 </style>

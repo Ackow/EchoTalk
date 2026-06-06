@@ -182,10 +182,31 @@ def dynamic_mock_correction(user_text: str, scene_type: str, speaking_style: str
 
     explanation = f"语法建议（{ '书面化' if speaking_style == 'formal' else '口语化' }风格）：" + "；".join(corrections) + "。已保留您原本表达的核心内容。"
     
+    grammar_sug = "；".join(corrections) if corrections else "您的语法表达非常棒，没有发现明显错误。"
+    
+    # Generate realistic vocabulary and pronunciation suggestions
+    if scene_type in ["order", "cafe"]:
+        vocab_sug = "在点餐场景中，可以尝试使用更礼貌客气的 'Could I please get...' 或 'I would like to order...' 替换命令式表达。"
+        pron_sug = "朗读 'could I' 和 'get it' 时，注意辅音与元音的自然连读 (Liaison)，如 /kʊ.daɪ/ 和 /ɡe.dɪt/。"
+    elif scene_type == "interview":
+        vocab_sug = "在面试场景中，推荐使用 'I have extensive experience in...' 或 'I specialize in...' 来替换简单的 'I know...'，以显得更加专业自信。"
+        pron_sug = "注意多音节词的重音位置，例如 'experience' 的重音在第二个音节 /ɪkˈspɪəriəns/，请避免平均用力。"
+    elif scene_type == "meeting":
+        vocab_sug = "在商务会议中，推荐使用 'Let me update you on...' 或 'Let's circle back to...' 替换普通的口语陈述，显得更为职业化。"
+        pron_sug = "注意爆破音的失去爆破现象，如在 'update' 中，/p/ 发音时只做阻碍气流的口型，不产生爆破，直接过渡到 /d/。"
+    else:
+        vocab_sug = "日常口语中，多使用动词短语（Phrasal Verbs）如 'look forward to'、'check out' 等会使你的表达更加地道自然。"
+        pron_sug = "朗读整句时注意意群（Sense Group）的划分，在连接词前稍微停顿，虚词（如 prep, pron）进行弱读。"
+
     return {
         "original": user_text,
         "corrected": corrected,
-        "explanation": explanation
+        "explanation": explanation,
+        "suggestions": {
+            "grammar": grammar_sug,
+            "vocabulary": vocab_sug,
+            "pronunciation": pron_sug
+        }
     }
 
 
@@ -223,7 +244,12 @@ def mock_llm_response(scene_id: str, user_text: str, rag_context: str = "", spea
         grammar_correction = dynamic_mock_correction(user_text, "interview", speaking_style) if has_error else {
             "original": user_text,
             "corrected": user_text,
-            "explanation": "没有发现明显的语法错误，表达很流利！"
+            "explanation": "没有发现明显的语法错误，表达很流利！",
+            "suggestions": {
+                "grammar": "没有语法错误，主谓一致，时态正确！",
+                "vocabulary": "表达非常流畅。可以尝试使用如 'I would love to elaborate on...' 等短语替换基础句式以获得更好的印象分。",
+                "pronunciation": "整体发音自然，注意句子重音在实词（名词、动词）上，弱读虚词。"
+            }
         }
     elif "order" in scene_id_lower or "cafe" in scene_id_lower:
         item = extract_item_from_text(user_text)
@@ -255,7 +281,12 @@ def mock_llm_response(scene_id: str, user_text: str, rag_context: str = "", spea
         grammar_correction = dynamic_mock_correction(user_text, "order", speaking_style) if has_error else {
             "original": user_text,
             "corrected": user_text,
-            "explanation": "点餐用语符合规范，没有发现语法错误！"
+            "explanation": "点餐用语符合规范，没有发现语法错误！",
+            "suggestions": {
+                "grammar": "点餐句式表达标准，单复数使用正确！",
+                "vocabulary": "表达十分礼貌。在美式咖啡馆中，也可以用 'Can I grab a...?' 这种极其地道的常用口语词。",
+                "pronunciation": "注意 'latte' 或 'croissant' 等外来词的母语标准发音，平时可多模仿朗读。"
+            }
         }
     elif "meeting" in scene_id_lower:
         if rag_context:
@@ -281,7 +312,12 @@ def mock_llm_response(scene_id: str, user_text: str, rag_context: str = "", spea
         grammar_correction = dynamic_mock_correction(user_text, "meeting", speaking_style) if has_error else {
             "original": user_text,
             "corrected": user_text,
-            "explanation": "表达简明扼要，语法正确，非常符合会议沟通习惯！"
+            "explanation": "表达简明扼要，语法正确，非常符合会议沟通习惯！",
+            "suggestions": {
+                "grammar": "时态和主谓关系正确，句子结构清晰明了！",
+                "vocabulary": "商务会议表达很职业。也可以使用诸如 'I'd like to pitch in on...' 来表示自己想补充说明某事。",
+                "pronunciation": "整体语流连贯。在快速陈述时，注意 'and' 或 'but' 等连接词的弱读，使得语调更有节奏感。"
+            }
         }
     else:
         words = [w.strip(".,?!\"()") for w in user_text.split() if len(w) > 4 and w.lower() not in ["would", "about", "could", "there", "their", "where", "which"]]
@@ -392,7 +428,12 @@ async def generate_llm_response(
         f'  "grammar_correction": {{\n'
         f'    "original": "The user\'s original input text.",\n'
         f'    "corrected": "A corrected, polished version of the user\'s input. Keep it the same as original if no correction is needed.",\n'
-        f'    "explanation": "A short, encouraging explanation of the corrections/improvements in Chinese. If there are no errors, output \'没有发现明显的语法错误，表达很棒！\'."\n'
+        f'    "explanation": "A short, encouraging explanation of the corrections/improvements in Chinese. If there are no errors, output \'没有发现明显的语法错误，表达很棒！\'.",\n'
+        f'    "suggestions": {{\n'
+        f'      "grammar": "有关语法错误的解释与改进剖析（中文），若无语法错误请简述并肯定用户。",\n'
+        f'      "vocabulary": "地道词汇或表达升级推荐（中文），如何表达更生动，可附带地道例句。",\n'
+        f'      "pronunciation": "针对这句英文的连读（liaison）、失去爆破（loss of explosion）或重音易错点给出针对性的口语语音指导提示（中文）。"\n'
+        f'    }}\n'
         f'  }}\n'
         f"}}\n"
         f"Do not include any other text, prefix, suffix, or markdown tags outside the JSON block. Do not output ```json or ``` code block wrappers."

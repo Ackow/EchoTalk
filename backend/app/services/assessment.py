@@ -56,6 +56,8 @@ def _parse_xfyun_xml(xml_str: str) -> Dict[str, Any]:
         "accuracy_score": 0.0,
         "fluency_score": 0.0,
         "integrity_score": 0.0,
+        "intonation_score": 0.0,
+        "liaison_score": 0.0,
         "words": []
     }
     
@@ -65,10 +67,16 @@ def _parse_xfyun_xml(xml_str: str) -> Dict[str, Any]:
         
         # 鲁棒地全局递归扫描所有节点，一旦节点属性中包含我们想要的指标名称，就提取出来
         for elem in root.iter():
-            for key in ["total_score", "accuracy_score", "fluency_score", "integrity_score"]:
-                if key in elem.attrib and scores[key] == 0.0:
+            for key in ["total_score", "accuracy_score", "fluency_score", "integrity_score", "rhythm"]:
+                if key in elem.attrib:
                     try:
-                        scores[key] = float(elem.attrib[key])
+                        val = float(elem.attrib[key])
+                        if key == "rhythm":
+                            if scores["intonation_score"] == 0.0:
+                                scores["intonation_score"] = val
+                        else:
+                            if scores[key] == 0.0:
+                                scores[key] = val
                     except ValueError:
                         pass
         
@@ -135,12 +143,16 @@ def _parse_xfyun_xml(xml_str: str) -> Dict[str, Any]:
                 "phonemes": phonemes
             })
         
+        # 依据流利度和准确度，自动计算连读爆破度作为参考
+        if scores["liaison_score"] == 0.0:
+            scores["liaison_score"] = round(scores["accuracy_score"] * 0.9 + scores["fluency_score"] * 0.1, 1)
+
         # 判断是否属于 5 分制系统。由于 total_score 最多 5.0，如果总分 <= 5.0 则判定为 5 分制并需要缩放
         is_five_point_scale = scores["total_score"] <= 5.0
         
         if is_five_point_scale:
             # 乘以 20 归一化为百分制
-            for key in ["total_score", "accuracy_score", "fluency_score", "integrity_score"]:
+            for key in ["total_score", "accuracy_score", "fluency_score", "integrity_score", "intonation_score", "liaison_score"]:
                 scores[key] = round(scores[key] * 20.0, 1)
             for w in words_list:
                 w["score"] = round(w["score"] * 20.0, 1)
@@ -148,7 +160,7 @@ def _parse_xfyun_xml(xml_str: str) -> Dict[str, Any]:
                     p["score"] = round(p["score"] * 20.0, 1)
         else:
             # 百分制下只保留一位小数
-            for key in ["total_score", "accuracy_score", "fluency_score", "integrity_score"]:
+            for key in ["total_score", "accuracy_score", "fluency_score", "integrity_score", "intonation_score", "liaison_score"]:
                 scores[key] = round(scores[key], 1)
             for w in words_list:
                 w["score"] = round(w["score"], 1)
@@ -245,11 +257,16 @@ def mock_assess_pronunciation(reference_text: str, reason: str = "") -> Dict[str
             "phonemes": phonemes
         })
     
+    intonation = base_score - 1.0 + (text_hash % 3)
+    liaison = base_score - 3.0 + (text_hash % 5)
+
     scores = {
         "total_score": total_score,
         "accuracy_score": round(float(accuracy), 1),
         "fluency_score": round(float(fluency), 1),
         "integrity_score": round(float(integrity), 1),
+        "intonation_score": round(float(intonation), 1),
+        "liaison_score": round(float(liaison), 1),
         "words": words_list
     }
     

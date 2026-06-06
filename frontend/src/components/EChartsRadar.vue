@@ -51,6 +51,8 @@ const updateChart = () => {
   const fluency = data.fluency_score || 0
   const integrity = data.integrity_score || 0
   const grammar = data.grammar_score !== undefined ? data.grammar_score : total
+  const intonation = data.intonation_score !== undefined ? data.intonation_score : (data.fluency_score || 0)
+  const liaison = data.liaison_score !== undefined ? data.liaison_score : (data.accuracy_score || 0)
   
   const option = {
     backgroundColor: 'transparent',
@@ -73,17 +75,19 @@ const updateChart = () => {
         { name: '发音流利度', max: 100 },
         { name: '发音完整度', max: 100 },
         { name: '语法规范度', max: 100 },
+        { name: '语调与重音', max: 100 },
+        { name: '连读与爆破', max: 100 },
         { name: '综合发音分', max: 100 }
       ],
       shape: 'polygon',
-      radius: '75%',
+      radius: '70%',
       center: ['50%', '50%'],
       axisName: {
         color: '#9ca3af',
-        fontSize: 11,
+        fontSize: 10,
         fontWeight: 'bold',
         fontFamily: 'Inter, sans-serif',
-        padding: [-4, -4]
+        padding: [-2, -2]
       },
       splitArea: {
         areaStyle: {
@@ -114,7 +118,7 @@ const updateChart = () => {
         type: 'radar',
         data: [
           {
-            value: [accuracy, fluency, integrity, grammar, total],
+            value: [accuracy, fluency, integrity, grammar, intonation, liaison, total],
             name: '能力得分',
             symbol: 'circle',
             symbolSize: 5,
