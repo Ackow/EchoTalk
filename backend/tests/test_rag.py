@@ -8,7 +8,7 @@ from app.services.document import get_document_chunks
 from app.services.rag import add_documents_to_scene, query_scene_knowledge, clear_scene_knowledge
 
 # 测试数据及临时场景设置
-DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
+DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "app", "data", "rag_seeds")
 TEST_SCENE = "test_scene_rag"
 
 def test_rag_flow():

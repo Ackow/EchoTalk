@@ -6,8 +6,8 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from app.services.document import extract_text_from_file, get_document_chunks
 
-# 测试文件目录
-DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
+# 测试文件目录 — 知识库种子文件已迁移至 app/data/rag_seeds/
+DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "app", "data", "rag_seeds")
 
 def test_document_extraction_and_splitting():
     """

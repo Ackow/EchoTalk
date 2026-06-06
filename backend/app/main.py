@@ -146,11 +146,11 @@ def seed_rag_for_scene(db: Session, scene_id: str, scene_obj: Scene):
     if not filename:
         return
 
-    # 确认物理种子文件存在
+    # 确认物理种子文件存在（位于 app/data/rag_seeds/，PyInstaller 打包时随 app 目录一并收录）
     import datetime
     import hashlib
-    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    file_path = os.path.join(base_dir, "tests", "data", filename)
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    file_path = os.path.join(base_dir, "data", "rag_seeds", filename)
     if not os.path.exists(file_path):
         print(f"[RAG 种子异常] 未找到场景 '{scene_id}' 的种子文档: {file_path}")
         return
