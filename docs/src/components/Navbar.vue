@@ -9,7 +9,7 @@
       <router-link to="/docs">产品文档</router-link>
       <router-link to="/community">场景社区</router-link>
     </div>
-    <router-link class="nav-cta" to="/#download">⬇ 下载客户端</router-link>
+    <a class="nav-cta" href="https://github.com/Ackow/EchoTalk/releases" target="_blank">⬇ 下载客户端</a>
   </nav>
 </template>
 <style scoped>

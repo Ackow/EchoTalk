@@ -40,5 +40,89 @@
     "downloads": "内置",
     "featured": true,
     "downloadUrl": "/scenes/scene_ordering.zip"
+  },
+  {
+    "id": "demo",
+    "emoji": "📊",
+    "title": "产品方案演示 (Software Product Demo)",
+    "author": "社区贡献",
+    "desc": "向企业客户技术负责人演示SaaS产品的核心功能与数据安全机制，解答其系统集成与价格方案的疑问。",
+    "tags": [
+      "business"
+    ],
+    "rating": "--",
+    "downloads": "--",
+    "featured": false,
+    "downloadUrl": "/scenes/scene_demo.zip"
+  },
+  {
+    "id": "fitness",
+    "emoji": "💬",
+    "title": "私教健身咨询 (Fitness Consultation)",
+    "author": "社区贡献",
+    "desc": "与健身教练沟通你的减脂增肌目标，评估目前的饮食与运动习惯，量身定制健身训练计划。",
+    "tags": [
+      "daily"
+    ],
+    "rating": "--",
+    "downloads": "--",
+    "featured": false,
+    "downloadUrl": "/scenes/scene_fitness.zip"
+  },
+  {
+    "id": "gaming",
+    "emoji": "💻",
+    "title": "联机网游战术配合 (MMO Raid Coordination)",
+    "author": "社区贡献",
+    "desc": "与欧美玩家连麦参与大型网游副本开荒，沟通BOSS技能应对、仇恨控制与站位分配。",
+    "tags": [
+      "tech"
+    ],
+    "rating": "--",
+    "downloads": "--",
+    "featured": false,
+    "downloadUrl": "/scenes/scene_gaming.zip"
+  },
+  {
+    "id": "negotiation",
+    "emoji": "💼",
+    "title": "薪资待遇谈判 (Job Offer Negotiation)",
+    "author": "社区贡献",
+    "desc": "收到心仪公司的录用通知后，与HR主管就基本薪资、年终奖比例、带薪休假及远程办公福利进行谈判。",
+    "tags": [
+      "interview"
+    ],
+    "rating": "--",
+    "downloads": "--",
+    "featured": false,
+    "downloadUrl": "/scenes/scene_negotiation.zip"
+  },
+  {
+    "id": "renting",
+    "emoji": "💬",
+    "title": "公寓租房咨询 (Apartment Hunting)",
+    "author": "社区贡献",
+    "desc": "与中介咨询两室一厅公寓租赁，讨论月租金、押金退还、宠物政策及水电账单分摊。",
+    "tags": [
+      "daily"
+    ],
+    "rating": "--",
+    "downloads": "--",
+    "featured": false,
+    "downloadUrl": "/scenes/scene_renting.zip"
+  },
+  {
+    "id": "seminar",
+    "emoji": "🎓",
+    "title": "学术研讨答辩 (University Seminar Q&A)",
+    "author": "社区贡献",
+    "desc": "在大学研讨课上就你的研究成果进行英文陈述，并回答教授与同学关于实验设计与结论合理性的提问。",
+    "tags": [
+      "academic"
+    ],
+    "rating": "--",
+    "downloads": "--",
+    "featured": false,
+    "downloadUrl": "/scenes/scene_seminar.zip"
   }
 ]

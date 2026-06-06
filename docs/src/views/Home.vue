@@ -58,9 +58,9 @@
         <h2>下载 EchoTalk</h2>
         <p>支持 Windows 桌面客户端，安装即用，本地运行安全放心</p>
         <div class="download-cards">
-          <a class="dl-card" href="../frontend/dist_electron/EchoTalk%20Setup%201.0.0.exe">
+          <a class="dl-card" href="https://github.com/Ackow/EchoTalk/releases" target="_blank">
             <span class="dl-icon">🪟</span>
-            <div class="dl-info"><div class="os">Windows 客户端</div><div class="ver">v1.0.0 · 安装包</div></div>
+            <div class="dl-info"><div class="os">Windows 客户端</div><div class="ver">前往 GitHub Releases 下载</div></div>
           </a>
           <router-link class="dl-card" to="/docs#install">
             <span class="dl-icon">📖</span>

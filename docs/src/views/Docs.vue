@@ -27,8 +27,8 @@
       <h3 id="install">安装部署</h3>
       <p><strong>方式一：使用安装包（推荐）</strong></p>
       <ol>
-        <li>前往 <router-link to="/#download" style="color:var(--primary)">下载页面</router-link> 获取 Windows 安装包</li>
-        <li>运行 <code>EchoTalk Setup 1.0.0.exe</code>，按提示完成安装</li>
+        <li>前往 <a href="https://github.com/Ackow/EchoTalk/releases" target="_blank" style="color:var(--primary)">GitHub Releases</a> 下载最新安装包</li>
+        <li>运行安装程序，按提示完成安装</li>
         <li>首次启动会自动初始化 SQLite 数据库、注入种子场景（面试 / 点餐 / 会议）并预合成问候语 TTS 音频（约 1-3 分钟）</li>
       </ol>
       <p><strong>方式二：从源码构建</strong></p>

@@ -2074,7 +2074,8 @@ const translateKey = (key) => {
     cashier_name: '服务员',
     chairperson_name: '主持人',
     topic: '会议议题',
-    character_name: '角色名称'
+    character_name: '角色名称',
+    difficulty: '难度'
   }
   return mapping[key] || key
 }
