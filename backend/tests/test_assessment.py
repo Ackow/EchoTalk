@@ -15,10 +15,12 @@ from app.services.assessment import (
 def test_xml_parsing_and_normalization():
     print("\n--- [1. 科大讯飞 XML 结果解析与归一化测试] ---")
     
-    # 模拟 5 分制返回的 XML 文本，属性可能存在于 read_sentence 节点下
+    # 模拟 5 分制返回的 XML 文本，属性可能存在于 read_sentence 节点下，同时包含 rhythm 节点
     five_point_xml = (
         '<xml_report>'
-        '  <read_sentence total_score="4.1" accuracy_score="4.5" fluency_score="3.8" integrity_score="4.0" />'
+        '  <read_sentence total_score="4.1" accuracy_score="4.5" fluency_score="3.8" integrity_score="4.0">'
+        '    <rhythm total_score="4.2" />'
+        '  </read_sentence>'
         '</xml_report>'
     )
     
@@ -29,12 +31,15 @@ def test_xml_parsing_and_normalization():
     assert scores_5["accuracy_score"] == 90.0
     assert scores_5["fluency_score"] == 76.0
     assert scores_5["integrity_score"] == 80.0
+    assert scores_5["intonation_score"] == 84.0
     print("  * [OK] 5 分制缩放验证通过！")
     
-    # 模拟百分制返回的 XML 文本
+    # 模拟百分制返回的 XML 文本，包含 rhythm 节点
     hundred_point_xml = (
         '<xml_report>'
-        '  <read_sentence total_score="87.5" accuracy_score="92.0" fluency_score="84.0" integrity_score="90.0" />'
+        '  <read_sentence total_score="87.5" accuracy_score="92.0" fluency_score="84.0" integrity_score="90.0">'
+        '    <rhythm total_score="85.0" />'
+        '  </read_sentence>'
         '</xml_report>'
     )
     
@@ -45,6 +50,7 @@ def test_xml_parsing_and_normalization():
     assert scores_100["accuracy_score"] == 92.0
     assert scores_100["fluency_score"] == 84.0
     assert scores_100["integrity_score"] == 90.0
+    assert scores_100["intonation_score"] == 85.0
     print("  * [OK] 百分制直通验证通过！")
 
 

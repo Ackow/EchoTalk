@@ -164,9 +164,12 @@ async def create_dialogue_turn(
 
     if not stream:
         try:
-            # 运行原有的同步 Pipeline 并返回列表
-            user_turn, assistant_turn = await run_dialogue_turn_pipeline(db, history_id, temp_file_path)
-            return [user_turn, assistant_turn]
+            # 运行原有的同步 Pipeline 并返回列表和结束状态
+            user_turn, assistant_turn, finished = await run_dialogue_turn_pipeline(db, history_id, temp_file_path)
+            return {
+                "turns": [user_turn, assistant_turn],
+                "finished": finished
+            }
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

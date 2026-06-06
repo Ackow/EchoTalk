@@ -216,12 +216,26 @@ def mock_llm_response(scene_id: str, user_text: str, rag_context: str = "", spea
     根据不同的场景以及所选择的 speaking_style (colloquial vs formal) 返回回复与纠错结果。
     """
     scene_id_lower = scene_id.lower()
+    user_text_lower = user_text.lower()
+    finished = False
     
     # 模拟语法纠错逻辑：如果包含 "icecola" 但拼写不对，或者故意设置些微纠错
     has_error = "icecola" in user_text.lower() or "hello" not in user_text.lower()
     
+    # 判定是否满足收尾条件
+    if "card" in user_text_lower or "cash" in user_text_lower or "pay" in user_text_lower or "check out" in user_text_lower:
+        if "order" in scene_id_lower or "cafe" in scene_id_lower:
+            finished = True
+    if "bye" in user_text_lower or "goodbye" in user_text_lower or "thank you for your time" in user_text_lower:
+        finished = True
+        
     if "interview" in scene_id_lower:
-        if rag_context:
+        if finished:
+            if speaking_style == "formal":
+                reply = "Thank you very much for your time today. We have recorded your answers, and our HR team will get back to you shortly. Goodbye."
+            else:
+                reply = "Thanks for your time today! That wraps up our interview. We'll be in touch soon. Have a great day, bye!"
+        elif rag_context:
             keywords = ["performance", "optimization", "flatlist", "list", "memory", "image", "render", "state", "redux", "zustand"]
             found_keyword = None
             for kw in keywords:
@@ -252,31 +266,37 @@ def mock_llm_response(scene_id: str, user_text: str, rag_context: str = "", spea
             }
         }
     elif "order" in scene_id_lower or "cafe" in scene_id_lower:
-        item = extract_item_from_text(user_text)
-        if item:
+        if finished:
             if speaking_style == "formal":
-                reply = f"Certainly. I shall prepare the {item} for you. May I inquire what size you would prefer, and would you like to consume it here or take it away?"
+                reply = "Payment processed successfully. Here is your receipt and your fresh coffee. Thank you for visiting, have a pleasant day!"
             else:
-                reply = f"Sure! I can get the {item} started for you. What size would you like for that, and will that be for here or to go?"
-        elif rag_context:
-            keywords = ["latte", "espresso", "americano", "cappuccino", "bagel", "muffin", "croissant", "sandwich", "tea"]
-            found_keyword = None
-            for kw in keywords:
-                if kw in rag_context.lower() or kw in user_text.lower():
-                    found_keyword = kw
-                    break
-            if found_keyword:
-                if speaking_style == "formal":
-                    reply = f"Understood. A {found_keyword}. What is your preferred size, and would you care for any milk or syrup?"
-                else:
-                    reply = f"Got it. A {found_keyword}. What size would you like for that, and do you want any milk or syrup with it?"
-            else:
-                reply = "Sure, I can get that started for you. Would you like any pastries, like a fresh croissant or muffin, to go with your drink?"
+                reply = "All set! Your payment went through. Here is your receipt and your drink. Thanks for coming, have a great day!"
         else:
-            if speaking_style == "formal":
-                reply = "Certainly. A large vanilla latte and a slice of cheesecake. Would you prefer it hot or iced, and is it for here or to go?"
+            item = extract_item_from_text(user_text)
+            if item:
+                if speaking_style == "formal":
+                    reply = f"Certainly. I shall prepare the {item} for you. May I inquire what size you would prefer, and would you like to consume it here or take it away?"
+                else:
+                    reply = f"Sure! I can get the {item} started for you. What size would you like for that, and will that be for here or to go?"
+            elif rag_context:
+                keywords = ["latte", "espresso", "americano", "cappuccino", "bagel", "muffin", "croissant", "sandwich", "tea"]
+                found_keyword = None
+                for kw in keywords:
+                    if kw in rag_context.lower() or kw in user_text.lower():
+                        found_keyword = kw
+                        break
+                if found_keyword:
+                    if speaking_style == "formal":
+                        reply = f"Understood. A {found_keyword}. What is your preferred size, and would you care for any milk or syrup?"
+                    else:
+                        reply = f"Got it. A {found_keyword}. What size would you like for that, and do you want any milk or syrup with it?"
+                else:
+                    reply = "Sure, I can get that started for you. Would you like any pastries, like a fresh croissant or muffin, to go with your drink?"
             else:
-                reply = "Sure! A large vanilla latte and a slice of cheesecake. Would you like that hot or iced? And will that be for here or to go?"
+                if speaking_style == "formal":
+                    reply = "Certainly. A large vanilla latte and a slice of cheesecake. Would you prefer it hot or iced, and is it for here or to go?"
+                else:
+                    reply = "Sure! A large vanilla latte and a slice of cheesecake. Would you like that hot or iced? And will that be for here or to go?"
             
         grammar_correction = dynamic_mock_correction(user_text, "order", speaking_style) if has_error else {
             "original": user_text,
@@ -289,7 +309,12 @@ def mock_llm_response(scene_id: str, user_text: str, rag_context: str = "", spea
             }
         }
     elif "meeting" in scene_id_lower:
-        if rag_context:
+        if finished:
+            if speaking_style == "formal":
+                reply = "Understood. That concludes our sync-up on this topic. Thank you everyone for your status updates. Let us wrap up this meeting now. Goodbye."
+            else:
+                reply = "Got it, that wraps up our update for today. Thanks everyone for tuning in, let's close the meeting and get back to work. Talk later!"
+        elif rag_context:
             keywords = ["delay", "blocker", "estimation", "frontend", "api", "qa", "bug", "testing", "timeline"]
             found_keyword = None
             for kw in keywords:
@@ -320,17 +345,21 @@ def mock_llm_response(scene_id: str, user_text: str, rag_context: str = "", spea
             }
         }
     else:
-        words = [w.strip(".,?!\"()") for w in user_text.split() if len(w) > 4 and w.lower() not in ["would", "about", "could", "there", "their", "where", "which"]]
-        if words:
-            key_term = words[-1]
-            reply = f"I see. Since you mentioned '{key_term}', could you tell me more about how that fits into your practice scenario?"
+        if finished:
+            reply = "Thank you. I think we have practiced enough for this scenario. Let's finish here. Goodbye!"
         else:
-            reply = f"I understand. Let's continue practicing. You said: '{user_text}'. What would you like to add next?"
+            words = [w.strip(".,?!\"()") for w in user_text.split() if len(w) > 4 and w.lower() not in ["would", "about", "could", "there", "their", "where", "which"]]
+            if words:
+                key_term = words[-1]
+                reply = f"I see. Since you mentioned '{key_term}', could you tell me more about how that fits into your practice scenario?"
+            else:
+                reply = f"I understand. Let's continue practicing. You said: '{user_text}'. What would you like to add next?"
             
         grammar_correction = dynamic_mock_correction(user_text, "general", speaking_style)
 
     return {
         "reply": reply,
+        "finished": finished,
         "grammar_correction": grammar_correction
     }
 
@@ -425,6 +454,7 @@ async def generate_llm_response(
         f"The JSON response must contain exactly the following structure:\n"
         f"{{\n"
         f'  "reply": "Your character\'s conversational response in English. Keep it natural, conversational, and relatively concise (1-3 sentences).",\n'
+        f'  "finished": true/false (Set to true if and only if this response represents the final closing statement that logically concludes the practice scenario task - e.g. checking out/final goodbye in cafe ordering, or concluding a job interview. Must be a boolean value. Otherwise set to false.),\n'
         f'  "grammar_correction": {{\n'
         f'    "original": "The user\'s original input text.",\n'
         f'    "corrected": "A corrected, polished version of the user\'s input. Keep it the same as original if no correction is needed.",\n'
@@ -533,6 +563,9 @@ async def generate_llm_response(
         if "reply" not in parsed_json or "grammar_correction" not in parsed_json:
             raise KeyError("JSON 中缺失 required 字段 reply 或 grammar_correction")
             
+        # Ensure finished is dynamically populated in the response
+        parsed_json["finished"] = bool(parsed_json.get("finished", False))
+            
         log_api_call(
             api_type="大语言模型 (LLM)",
             provider=provider_name,
@@ -540,7 +573,7 @@ async def generate_llm_response(
             model=model_name,
             action="生成角色回复与语法纠错 (generate_llm_response)",
             status="success",
-            extra_info=f"AI 回复前 30 字: '{parsed_json['reply'][:30]}...'"
+            extra_info=f"AI 回复前 30 字: '{parsed_json['reply'][:30]}...', finished: {parsed_json['finished']}"
         )
         return parsed_json
 
@@ -562,7 +595,7 @@ async def run_dialogue_turn_pipeline(
     db: Session,
     history_id: int,
     user_audio_path: str
-) -> Tuple[DialogueTurn, DialogueTurn]:
+) -> Tuple[DialogueTurn, DialogueTurn, bool]:
     """
     对话管道核心控制器。
     接收当前会话 ID 和用户录音本地路径，串联 STT -> RAG 检索 -> PII 脱敏 -> 并行执行(发音测评 + LLM 对话/纠错) -> TTS -> 资源上传托管 -> 数据持久化全生命周期。
@@ -676,6 +709,9 @@ async def run_dialogue_turn_pipeline(
         grammar_correction=None
     )
 
+    if llm_result.get("finished"):
+        history.is_finished = True
+
     db.add(user_turn)
     db.add(assistant_turn)
     db.commit()
@@ -689,10 +725,10 @@ async def run_dialogue_turn_pipeline(
         model="N/A",
         action="执行口语对话 Pipeline (run_dialogue_turn_pipeline)",
         status="success",
-        extra_info=f"Pipeline 顺利跑通。用户识别: '{user_text_raw[:20]}...'，AI回复: '{ai_reply_text[:20]}...'"
+        extra_info=f"Pipeline 顺利跑通。用户识别: '{user_text_raw[:20]}...'，AI回复: '{ai_reply_text[:20]}...'，finished: {llm_result.get('finished', False)}"
     )
 
-    return user_turn, assistant_turn
+    return user_turn, assistant_turn, bool(llm_result.get("finished", False))
 
 
 async def run_dialogue_turn_pipeline_stream(
@@ -720,143 +756,199 @@ async def run_dialogue_turn_pipeline_stream(
         raise ValueError(f"指定会话历史记录 ID {history_id} 不存在")
 
     loop = asyncio.get_running_loop()
+    status_queue = asyncio.Queue()
 
-    # 0. 【并行上传任务预热】提前开始上传用户原始音频至七牛云/本地托管
-    user_audio_filename = f"user_voice_{history_id}_{int(time.time())}.wav"
-    upload_user_task = loop.run_in_executor(None, upload_audio_to_kodo, user_audio_path, user_audio_filename)
+    # 线程安全的消息入队方法
+    def post_status(status_type: str, message: str = "", extra_data: dict = None):
+        payload = {"status": status_type, "message": message}
+        if extra_data:
+            payload.update(extra_data)
+        loop.call_soon_threadsafe(status_queue.put_nowait, payload)
 
-    # 2. 步骤一：开始语音转文字
-    yield {"status": "asr", "message": "正在认真聆听您说了什么~"}
+    async def pipeline_worker():
+        try:
+            accent = getattr(history, "accent", "us")
+            # 0. 【并行上传任务预热】提前开始上传用户原始音频至七牛云/本地托管
+            user_audio_filename = f"user_voice_{history_id}_{int(time.time())}.wav"
+            upload_user_task = loop.run_in_executor(None, upload_audio_to_kodo, user_audio_path, user_audio_filename)
 
-    # 执行语音转文字 (ASR)
-    user_text_raw = speech_to_text(user_audio_path)
+            # 2. 步骤一：开始语音转文字
+            post_status("asr", "正在认真聆听您说了什么~")
 
-    # 3. 步骤一完成：发送识别文字
-    yield {"status": "asr_done", "text": user_text_raw}
+            # 执行语音转文字 (ASR)
+            user_text_raw = speech_to_text(user_audio_path)
 
-    # 【并发启动】开启口语发音评测，不等待 RAG/PII 脱敏直接触发
-    assessment_task = asyncio.create_task(assess_pronunciation(user_audio_path, user_text_raw))
+            # 3. 步骤一完成：发送识别文字
+            post_status("asr_done", extra_data={"text": user_text_raw})
 
-    # 4. 步骤二：开启隐私脱敏与 RAG 检索
-    yield {"status": "ise", "message": "正在检测您的口音，分析发音表现~"}
-    yield {"status": "pii", "message": "正在保护您的隐私，脱敏处理中~"}
+            # 【并发启动】开启口语发音评测，不等待 RAG/PII 脱敏直接触发，传入进度汇报回调
+            def ise_progress(msg: str):
+                post_status("ise", msg)
 
-    # 提取历史对话
-    turns_db = db.query(DialogueTurn).filter(
-        DialogueTurn.dialogue_history_id == history_id
-    ).order_by(DialogueTurn.timestamp.asc()).all()
-    
-    history_turns_list = []
-    for t in turns_db:
-        history_turns_list.append({
-            "role": "user" if t.role == "user" else "assistant",
-            "text": t.text
-        })
+            assessment_task = asyncio.create_task(assess_pronunciation(
+                user_audio_path, 
+                user_text_raw, 
+                on_progress=ise_progress
+            ))
 
-    # 检索匹配 RAG 分块
-    matched_chunks = query_scene_knowledge(history.scene_id, user_text_raw, top_k=2)
-    rag_raw_text = "\n".join(matched_chunks) if matched_chunks else ""
+            async def run_pronunciation_assessment():
+                pron_result = await assessment_task
+                post_status("ise_done", extra_data={"pronunciation_score": pron_result})
+                usr_audio_url = await upload_user_task
+                return pron_result, usr_audio_url
 
-    # 进行敏感信息过滤
-    # 仅对用户动态输入的内容进行脱敏，知识库属于静态参考文本，无需脱敏以省去大量的 API 请求时间
-    user_text_safe = await loop.run_in_executor(None, anonymize_text_via_llm, user_text_raw)
-    rag_text_safe = rag_raw_text
+            async def run_llm_and_tts():
+                # 4. 步骤二：开启隐私脱敏与 RAG 检索
+                post_status("pii", "正在保护您的隐私，脱敏处理中~")
 
-    # 5. 步骤三：开启大模型回复生成 (在此处直接 yield 'llm' 状态，使前端可以展示思考气泡，填补等待真空)
-    yield {"status": "llm", "message": "AI 正在组织语言，撰写角色回复~"}
+                # 提取历史对话
+                turns_db = db.query(DialogueTurn).filter(
+                    DialogueTurn.dialogue_history_id == history_id
+                ).order_by(DialogueTurn.timestamp.asc()).all()
+                
+                history_turns_list = []
+                for t in turns_db:
+                    history_turns_list.append({
+                        "role": "user" if t.role == "user" else "assistant",
+                        "text": t.text
+                    })
 
-    llm_task = asyncio.create_task(generate_llm_response(
-        scene_id=history.scene_id,
-        user_text=user_text_safe,
-        rag_context=rag_text_safe,
-        conversation_history=history_turns_list,
-        speaking_style=getattr(history, "speaking_style", "colloquial")
-    ))
+                # 检索匹配 RAG 分块
+                matched_chunks = query_scene_knowledge(history.scene_id, user_text_raw, top_k=2)
+                rag_raw_text = "\n".join(matched_chunks) if matched_chunks else ""
 
-    # 等待大模型生成完成
-    llm_result = await llm_task
+                # 进行敏感信息过滤
+                user_text_safe = await loop.run_in_executor(None, anonymize_text_via_llm, user_text_raw)
+                rag_text_safe = rag_raw_text
 
-    # 6. 步骤四：组织语言，合成 Edge-TTS 回复
-    ai_reply_text = llm_result["reply"]
-    ai_audio_filename = f"ai_reply_{history_id}_{int(time.time())}.mp3"
-    
-    temp_dir = settings.static_audio_dir
-    os.makedirs(temp_dir, exist_ok=True)
-    ai_audio_local_path = os.path.join(temp_dir, ai_audio_filename)
+                # 5. 步骤三：开启大模型回复生成 (在此处直接 yield 'llm' 状态，使前端可以展示思考气泡，填补等待真空)
+                post_status("llm", "AI 正在组织语言，撰写角色回复~")
 
-    # 提取口音并映射为对应的发音人音色
-    accent = getattr(history, "accent", "us")
-    voice = "en-GB-SoniaNeural" if accent == "uk" else "en-US-EmmaMultilingualNeural"
-    # 异步合成 AI 语音
-    await async_text_to_speech(ai_reply_text, ai_audio_local_path, voice=voice)
+                llm_res = await generate_llm_response(
+                    scene_id=history.scene_id,
+                    user_text=user_text_safe,
+                    rag_context=rag_text_safe,
+                    conversation_history=history_turns_list,
+                    speaking_style=getattr(history, "speaking_style", "colloquial")
+                )
 
-    # 并行上传 AI 录音
-    upload_ai_task = loop.run_in_executor(None, upload_audio_to_kodo, ai_audio_local_path, ai_audio_filename)
-    
-    # 统一收拢并发任务：口音评测、用户音频上传、AI音频上传
-    pronunciation_result, user_audio_url, ai_audio_url = await asyncio.gather(
-        assessment_task,
-        upload_user_task,
-        upload_ai_task
-    )
+                # LLM 结果出来后，立即向前端推送语法建议结果
+                post_status("grammar_done", extra_data={"grammar_correction": llm_res["grammar_correction"]})
 
-    # 7. 步骤五：数据库持久化写入
-    user_turn = DialogueTurn(
-        dialogue_history_id=history_id,
-        role="user",
-        text=user_text_raw,
-        audio_url=user_audio_url,
-        pronunciation_score=pronunciation_result,
-        grammar_correction=llm_result["grammar_correction"]
-    )
-    assistant_turn = DialogueTurn(
-        dialogue_history_id=history_id,
-        role="assistant",
-        text=ai_reply_text,
-        audio_url=ai_audio_url,
-        audio_url_us=ai_audio_url if accent == "us" else None,
-        audio_url_uk=ai_audio_url if accent == "uk" else None,
-        pronunciation_score=None,
-        grammar_correction=None
-    )
+                # 6. 步骤四：组织语言，合成 Edge-TTS 回复
+                post_status("tts", "正在合成 AI 语音，录音上传中~")
+                ai_reply = llm_res["reply"]
+                ai_audio_fn = f"ai_reply_{history_id}_{int(time.time())}.mp3"
+                
+                temp_dir = settings.static_audio_dir
+                os.makedirs(temp_dir, exist_ok=True)
+                ai_audio_lp = os.path.join(temp_dir, ai_audio_fn)
 
-    db.add(user_turn)
-    db.add(assistant_turn)
-    db.commit()
-    db.refresh(user_turn)
-    db.refresh(assistant_turn)
+                # 提取口音并映射为对应的发音人音色
+                voice = "en-GB-SoniaNeural" if accent == "uk" else "en-US-EmmaMultilingualNeural"
+                # 异步合成 AI 语音
+                await async_text_to_speech(ai_reply, ai_audio_lp, voice=voice)
 
-    # 序列化结果以防 ORM 对象脱离 session 导致报错
-    user_data = {
-        "id": user_turn.id,
-        "dialogue_history_id": user_turn.dialogue_history_id,
-        "role": user_turn.role,
-        "text": user_turn.text,
-        "audio_url": user_turn.audio_url,
-        "pronunciation_score": user_turn.pronunciation_score,
-        "grammar_correction": user_turn.grammar_correction,
-        "timestamp": user_turn.timestamp.isoformat() if user_turn.timestamp else None
-    }
-    ai_data = {
-        "id": assistant_turn.id,
-        "dialogue_history_id": assistant_turn.dialogue_history_id,
-        "role": assistant_turn.role,
-        "text": assistant_turn.text,
-        "audio_url": assistant_turn.audio_url,
-        "pronunciation_score": assistant_turn.pronunciation_score,
-        "grammar_correction": assistant_turn.grammar_correction,
-        "timestamp": assistant_turn.timestamp.isoformat() if assistant_turn.timestamp else None
-    }
+                # 并行上传 AI 录音
+                ai_aud_url = await loop.run_in_executor(None, upload_audio_to_kodo, ai_audio_lp, ai_audio_fn)
 
-    log_api_call(
-        api_type="流式管道流程编排 (Pipeline Stream)",
-        provider="EchoTalk Orchestrator",
-        url="N/A",
-        model="N/A",
-        action="执行口语对话流式 Pipeline (run_dialogue_turn_pipeline_stream)",
-        status="success",
-        extra_info=f"Pipeline 流式模式顺利通关。会话ID: {history_id}"
-    )
+                # AI 回复和音频上传完毕后，立即向前端推送 AI 完成事件，使其能够开始播放语音
+                post_status("ai_done", extra_data={"text": ai_reply, "audio_url": ai_aud_url})
 
-    # 8. 发送完成状态及结果
-    yield {"status": "done", "result": [user_data, ai_data]}
+                return llm_res, ai_reply, ai_aud_url
+
+            # 统一收拢并发任务：发音评测与上传分支、LLM与语音生成分支
+            (pronunciation_result, user_audio_url), (llm_result, ai_reply_text, ai_audio_url) = await asyncio.gather(
+                run_pronunciation_assessment(),
+                run_llm_and_tts()
+            )
+
+            # 7. 步骤五：数据库持久化写入
+            user_turn = DialogueTurn(
+                dialogue_history_id=history_id,
+                role="user",
+                text=user_text_raw,
+                audio_url=user_audio_url,
+                pronunciation_score=pronunciation_result,
+                grammar_correction=llm_result["grammar_correction"]
+            )
+            assistant_turn = DialogueTurn(
+                dialogue_history_id=history_id,
+                role="assistant",
+                text=ai_reply_text,
+                audio_url=ai_audio_url,
+                audio_url_us=ai_audio_url if accent == "us" else None,
+                audio_url_uk=ai_audio_url if accent == "uk" else None,
+                pronunciation_score=None,
+                grammar_correction=None
+            )
+
+            if llm_result.get("finished"):
+                history.is_finished = True
+
+            db.add(user_turn)
+            db.add(assistant_turn)
+            db.commit()
+            db.refresh(user_turn)
+            db.refresh(assistant_turn)
+
+            # 序列化结果以防 ORM 对象脱离 session 导致报错
+            user_data = {
+                "id": user_turn.id,
+                "dialogue_history_id": user_turn.dialogue_history_id,
+                "role": user_turn.role,
+                "text": user_turn.text,
+                "audio_url": user_turn.audio_url,
+                "pronunciation_score": user_turn.pronunciation_score,
+                "grammar_correction": user_turn.grammar_correction,
+                "timestamp": user_turn.timestamp.isoformat() if user_turn.timestamp else None
+            }
+            ai_data = {
+                "id": assistant_turn.id,
+                "dialogue_history_id": assistant_turn.dialogue_history_id,
+                "role": assistant_turn.role,
+                "text": assistant_turn.text,
+                "audio_url": assistant_turn.audio_url,
+                "pronunciation_score": assistant_turn.pronunciation_score,
+                "grammar_correction": assistant_turn.grammar_correction,
+                "timestamp": assistant_turn.timestamp.isoformat() if assistant_turn.timestamp else None
+            }
+
+            log_api_call(
+                api_type="流式管道流程编排 (Pipeline Stream)",
+                provider="EchoTalk Orchestrator",
+                url="N/A",
+                model="N/A",
+                action="执行口语对话流式 Pipeline (run_dialogue_turn_pipeline_stream)",
+                status="success",
+                extra_info=f"Pipeline 流式模式顺利通关。会话ID: {history_id}，finished: {llm_result.get('finished', False)}"
+            )
+
+            post_status("done", extra_data={
+                "result": [user_data, ai_data],
+                "finished": bool(llm_result.get("finished", False))
+            })
+
+        except Exception as ex:
+            post_status("error", extra_data={"detail": str(ex)})
+
+    # 启动工作协程
+    worker = asyncio.create_task(pipeline_worker())
+
+    try:
+        while True:
+            item = await status_queue.get()
+            if item["status"] == "done":
+                yield item
+                break
+            elif item["status"] == "error":
+                raise Exception(item["detail"])
+            else:
+                yield item
+    finally:
+        if not worker.done():
+            worker.cancel()
+            try:
+                await worker
+            except asyncio.CancelledError:
+                pass

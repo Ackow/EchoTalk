@@ -74,7 +74,7 @@ def test_dialogue_pipeline_and_endpoints():
         if line_str.startswith("data: "):
             event_data = json.loads(line_str[6:])
             events.append(event_data)
-            print(f"  [SSE Event] status: {event_data.get('status')}, message/text: {event_data.get('message') or event_data.get('text') or '...'}")
+            print(f"  [SSE Event] status: {event_data.get('status')}, message/text: {event_data.get('message') or event_data.get('text') or event_data.get('detail') or '...'}")
 
     # 校验流式事件状态
     statuses = [e.get("status") for e in events]

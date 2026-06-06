@@ -221,6 +221,17 @@
                 </div>
               </div>
             </div>
+
+            <!-- Dialogue Finished Notification -->
+            <transition name="fade-slide">
+              <div v-if="isDialogueFinished" class="dialogue-finished-overlay glass-card">
+                <el-icon class="finished-icon"><SuccessFilled /></el-icon>
+                <div class="finished-content">
+                  <h4 class="finished-title">对话演练已圆满结束</h4>
+                  <p class="finished-subtitle">AI 判定当前场景任务已全部达成。您可以点击右上角按钮结算本场练习。</p>
+                </div>
+              </div>
+            </transition>
           </div>
 
           <!-- Dialogue Controller at bottom of left panel -->
@@ -269,13 +280,13 @@
                   type="primary" 
                   :class="['mic-btn hover-scale', { 'recording-active': isRecording }]"
                   @click="toggleRecording"
-                  :disabled="isProcessing"
+                  :disabled="isProcessing || isDialogueFinished"
                   circle
                 >
                   <el-icon v-if="isRecording"><CircleClose /></el-icon>
                   <el-icon v-else><Microphone /></el-icon>
                 </el-button>
-                <div class="btn-subtext">{{ isRecording ? '点击结束' : '开始录音' }}</div>
+                <div class="btn-subtext">{{ isDialogueFinished ? '演练已结束' : (isRecording ? '点击结束' : '开始录音') }}</div>
               </div>
 
               <div class="placeholder-action">
@@ -302,68 +313,82 @@
       <section class="feedback-panel glass-panel">
         <h3 class="panel-title">发音与语法实时评估</h3>
         
-        <div v-if="selectedUserTurn" class="feedback-content" v-loading="selectedUserTurn.isEvaluating" element-loading-text="正在评估发音与语法中..." element-loading-background="rgba(17, 24, 39, 0.7)">
-          <!-- Radar Chart container -->
-          <div class="radar-section">
-            <div class="section-subtitle">发音能力五维雷达图</div>
-            <div class="radar-wrapper">
-              <EChartsRadar :score-data="selectedUserTurn.pronunciation_score" />
+        <div v-if="selectedUserTurn" class="feedback-content">
+          <!-- Pronunciation & Rhythm Section -->
+          <div v-if="selectedUserTurn.pronunciation_score">
+            <!-- Radar Chart container -->
+            <div class="radar-section">
+              <div class="section-subtitle">发音能力五维雷达图</div>
+              <div class="radar-wrapper">
+                <EChartsRadar :score-data="selectedUserTurn.pronunciation_score" />
+              </div>
             </div>
-          </div>
 
-          <!-- Word-level Pronunciation Details (Only show low scores / missing) -->
-          <div class="words-analysis-section" v-if="selectedUserTurn.pronunciation_score && selectedUserTurn.pronunciation_score.words && selectedUserTurn.pronunciation_score.words.length > 0">
-            <div class="section-subtitle">发音待改进单词 (点击听标准音 & 查词典)</div>
-            <div class="words-container glass-card" v-if="lowScoreWords.length > 0">
-              <span 
-                v-for="(w, wIdx) in lowScoreWords" 
-                :key="wIdx"
-                :class="['word-badge clickable-word-badge', getWordScoreClass(w)]"
-                @click="clickWordDetail(w.word)"
-              >
-                {{ w.word }}
-                <span class="word-score-tip">{{ Math.round(w.score) }}分</span>
-              </span>
-            </div>
-            <div class="all-perfect-box" v-else>
-              <el-icon class="all-perfect-icon"><SuccessFilled /></el-icon>
-              <span class="all-perfect-text">太棒了！该句中所有单词发音均达到优秀标准 (≥80分)！🎉</span>
-            </div>
-          </div>
-
-          <!-- Rhythm & Pause Diagnosis -->
-          <div class="rhythm-analysis-section" v-if="rhythmAnalysis">
-            <div class="section-subtitle">语速与停顿节奏诊断</div>
-            <div class="rhythm-card glass-card">
-              <div class="rhythm-speed-row">
-                <span class="speed-label">当前语速：</span>
-                <span :class="['speed-value font-display', rhythmAnalysis.speedClass]">
-                  {{ rhythmAnalysis.wpm }} WPM ({{ rhythmAnalysis.speedEval }})
+            <!-- Word-level Pronunciation Details (Only show low scores / missing) -->
+            <div class="words-analysis-section" v-if="selectedUserTurn.pronunciation_score.words && selectedUserTurn.pronunciation_score.words.length > 0">
+              <div class="section-subtitle">发音待改进单词 (点击听标准音 & 查词典)</div>
+              <div class="words-container glass-card" v-if="lowScoreWords.length > 0">
+                <span 
+                  v-for="(w, wIdx) in lowScoreWords" 
+                  :key="wIdx"
+                  :class="['word-badge clickable-word-badge', getWordScoreClass(w)]"
+                  @click="clickWordDetail(w.word)"
+                >
+                  {{ w.word }}
+                  <span class="word-score-tip">{{ Math.round(w.score) }}分</span>
                 </span>
               </div>
-              <p class="rhythm-advice">{{ rhythmAnalysis.speedAdvice }}</p>
-              
-              <!-- 停顿细节 -->
-              <div class="rhythm-pauses" v-if="rhythmAnalysis.longPauses.length > 0">
-                <span class="pause-label-title">检测到的较长停顿：</span>
-                <ul class="pause-list">
-                  <li 
-                    v-for="(p, pIdx) in rhythmAnalysis.longPauses" 
-                    :key="pIdx"
-                    class="pause-item"
-                  >
-                    在 <strong>"{{ p.word1 }}"</strong> 与 <strong>"{{ p.word2 }}"</strong> 之间停顿了 <span>{{ p.duration }} 秒</span>
-                  </li>
-                </ul>
-              </div>
-              <div class="rhythm-pauses-empty" v-else>
+              <div class="all-perfect-box" v-else>
                 <el-icon class="all-perfect-icon"><SuccessFilled /></el-icon>
-                <span>整句发音一气呵成，没有检测到不自然的长停顿！</span>
+                <span class="all-perfect-text">太棒了！该句中所有单词发音均达到优秀标准 (≥80分)！🎉</span>
+              </div>
+            </div>
+
+            <!-- Rhythm & Pause Diagnosis -->
+            <div class="rhythm-analysis-section" v-if="rhythmAnalysis">
+              <div class="section-subtitle">语速与停顿节奏诊断</div>
+              <div class="rhythm-card glass-card">
+                <div class="rhythm-speed-row">
+                  <span class="speed-label">当前语速：</span>
+                  <span :class="['speed-value font-display', rhythmAnalysis.speedClass]">
+                    {{ rhythmAnalysis.wpm }} WPM ({{ rhythmAnalysis.speedEval }})
+                  </span>
+                </div>
+                <p class="rhythm-advice">{{ rhythmAnalysis.speedAdvice }}</p>
+                
+                <!-- 停顿细节 -->
+                <div class="rhythm-pauses" v-if="rhythmAnalysis.longPauses.length > 0">
+                  <span class="pause-label-title">检测到的较长停顿：</span>
+                  <ul class="pause-list">
+                    <li 
+                      v-for="(p, pIdx) in rhythmAnalysis.longPauses" 
+                      :key="pIdx"
+                      class="pause-item"
+                    >
+                      在 <strong>"{{ p.word1 }}"</strong> 与 <strong>"{{ p.word2 }}"</strong> 之间停顿了 <span>{{ p.duration }} 秒</span>
+                    </li>
+                  </ul>
+                </div>
+                <div class="rhythm-pauses-empty" v-else>
+                  <el-icon class="all-perfect-icon"><SuccessFilled /></el-icon>
+                  <span>整句发音一气呵成，没有检测到不自然的长停顿！</span>
+                </div>
               </div>
             </div>
           </div>
+          
+          <!-- Pronunciation & Rhythm Loading Placeholder -->
+          <div 
+            v-else-if="selectedUserTurn.isEvaluating" 
+            class="radar-section-loading glass-card" 
+            v-loading="true" 
+            :element-loading-text="selectedUserTurn.evaluationStatusText || '正在评估发音表现...'" 
+            element-loading-background="rgba(17, 24, 39, 0.4)" 
+            style="height: 380px; display: flex; align-items: center; justify-content: center; margin-bottom: 24px; border: 1px solid rgba(255, 255, 255, 0.08); background: rgba(30, 41, 59, 0.2); border-radius: 12px;"
+          >
+          </div>
 
-          <!-- Grammar correction container -->
+          <!-- Grammar Section -->
           <div class="grammar-section" v-if="selectedUserTurn.grammar_correction">
             <div class="section-subtitle">语法及表达优化建议</div>
             <div class="grammar-card glass-card">
@@ -404,6 +429,17 @@
                 </div>
               </div>
             </div>
+          </div>
+          
+          <!-- Grammar Loading Placeholder -->
+          <div 
+            v-else-if="selectedUserTurn.isEvaluating" 
+            class="grammar-section-loading glass-card" 
+            v-loading="true" 
+            element-loading-text="AI 正在分析语法与表达建议..." 
+            element-loading-background="rgba(17, 24, 39, 0.4)" 
+            style="height: 180px; display: flex; align-items: center; justify-content: center; border: 1px solid rgba(255, 255, 255, 0.08); background: rgba(30, 41, 59, 0.2); border-radius: 12px;"
+          >
           </div>
         </div>
         
@@ -587,6 +623,22 @@ const isRecording = ref(false)
 const isProcessing = ref(false)
 const isSettleOpen = ref(false)
 const settleRadarReady = ref(false)
+
+// 自动结束与结算相关状态
+const isDialogueFinished = ref(false)
+const isAutoSettling = ref(false)
+const autoSettleCountdown = ref(3)
+let autoSettleTimer = null
+
+const resetFinishedState = () => {
+  isDialogueFinished.value = false
+  isAutoSettling.value = false
+  autoSettleCountdown.value = 3
+  if (autoSettleTimer) {
+    clearInterval(autoSettleTimer)
+    autoSettleTimer = null
+  }
+}
 
 const onSettleDialogOpen = () => {
   settleRadarReady.value = true
@@ -979,6 +1031,7 @@ const goHome = () => {
 // Start new dialogue session
 const startDialogueSession = async () => {
   if (!scene.value) return
+  resetFinishedState()
   startingSession.value = true
   
   try {
@@ -1042,6 +1095,12 @@ const resumeDialogueSession = async (historyId) => {
       speakingAccent.value = res.data.accent
     }
     
+    if (res.data.is_finished) {
+      isDialogueFinished.value = true
+    } else {
+      isDialogueFinished.value = false
+    }
+
     if (res.data.turns && res.data.turns.length > 0) {
       res.data.turns.forEach(turn => {
         store.addDialogueTurn(turn)
@@ -1242,6 +1301,7 @@ const finishRecordingAndUpload = async () => {
     // 传递 stream=true Query 参数以启用后端分阶段推送
     const streamUrl = `${store.backendBaseUrl}/api/dialogues/${historyId.value}/turn?stream=true`
     
+    let hasPlayedAiAudio = false
     const response = await fetch(streamUrl, {
       method: 'POST',
       body: formData
@@ -1272,12 +1332,12 @@ const finishRecordingAndUpload = async () => {
             const data = JSON.parse(dataStr)
             
             if (data.status === 'asr') {
-              processingStatusText.value = '正在认真聆听您说了什么~'
+              processingStatusText.value = data.message || '正在认真聆听您说了什么~'
               currentBigStatus.value = '语音解析'
-              currentPlayfulRemark.value = '正在认真聆听您说了什么~'
+              currentPlayfulRemark.value = data.message || '正在认真聆听您说了什么~'
               const idx = store.dialogueTurns.findIndex(t => t.id === tempTurnId)
               if (idx !== -1) {
-                store.dialogueTurns[idx].evaluationStatusText = '正在认真聆听您说了什么~'
+                store.dialogueTurns[idx].evaluationStatusText = data.message || '正在认真聆听您说了什么~'
               }
             } else if (data.status === 'asr_done') {
               // ASR 转译完毕，提前在用户加载气泡上呈现转译出的英文文本，并变绿正常渲染，同时设定为口音评测中
@@ -1296,42 +1356,97 @@ const finishRecordingAndUpload = async () => {
               }
               scrollToBottom()
             } else if (data.status === 'pii') {
-              processingStatusText.value = '正在保护您的隐私，进行敏感信息脱敏~'
+              processingStatusText.value = data.message || '正在保护您的隐私，进行敏感信息脱敏~'
               currentBigStatus.value = '隐私保护'
-              currentPlayfulRemark.value = '正在保护您的隐私，进行敏感信息脱敏~'
+              currentPlayfulRemark.value = data.message || '正在保护您的隐私，进行敏感信息脱敏~'
               const idx = store.dialogueTurns.findIndex(t => t.id === tempTurnId || t.text === data.text)
               if (idx !== -1) {
                 store.dialogueTurns[idx].isEvaluating = true
-                store.dialogueTurns[idx].evaluationStatusText = '正在保护您的隐私，进行敏感信息脱敏~'
+                store.dialogueTurns[idx].evaluationStatusText = data.message || '正在保护您的隐私，进行敏感信息脱敏~'
               }
             } else if (data.status === 'ise') {
-              processingStatusText.value = '正在检测您的口音，分析发音表现~'
+              processingStatusText.value = data.message || '正在检测您的口音，分析发音表现~'
               currentBigStatus.value = '口音分析'
-              currentPlayfulRemark.value = '正在检测您的口音，分析发音表现~'
+              currentPlayfulRemark.value = data.message || '正在检测您的口音，分析发音表现~'
               const idx = store.dialogueTurns.findIndex(t => t.id === tempTurnId || t.text === data.text)
               if (idx !== -1) {
                 store.dialogueTurns[idx].isEvaluating = true
-                store.dialogueTurns[idx].evaluationStatusText = '正在检测您的口音，分析发音表现~'
+                store.dialogueTurns[idx].evaluationStatusText = data.message || '正在检测您的口音，分析发音表现~'
               }
             } else if (data.status === 'llm') {
-              // 口语分析结束，开启 AI 气泡展示
-              processingStatusText.value = 'AI 正在组织语言，撰写角色回复~'
+              // 开启 AI 气泡展示，但右侧发音评估和优化建议依然保持 loading 状态
+              processingStatusText.value = data.message || 'AI 正在组织语言，撰写角色回复~'
               currentBigStatus.value = '生成回复'
-              currentPlayfulRemark.value = 'AI 正在组织语言，撰写角色回复~'
+              currentPlayfulRemark.value = data.message || 'AI 正在组织语言，撰写角色回复~'
               const idx = store.dialogueTurns.findIndex(t => t.id === tempTurnId || t.text === data.text)
               if (idx !== -1) {
-                store.dialogueTurns[idx].isEvaluating = false
+                store.dialogueTurns[idx].isEvaluating = true
+                store.dialogueTurns[idx].evaluationStatusText = data.message || 'AI 正在组织语言，撰写角色回复~'
               }
               showAiThinking.value = true
-              aiThinkingStatusText.value = '正在组织语言，撰写角色回复~'
+              aiThinkingStatusText.value = data.message || '正在组织语言，撰写角色回复~'
               scrollToBottom()
+            } else if (data.status === 'tts') {
+              processingStatusText.value = data.message || '正在合成 AI 语音，录音上传中~'
+              currentBigStatus.value = '语音合成'
+              currentPlayfulRemark.value = data.message || '正在合成 AI 语音，录音上传中~'
+              const idx = store.dialogueTurns.findIndex(t => t.id === tempTurnId || t.text === data.text)
+              if (idx !== -1) {
+                store.dialogueTurns[idx].isEvaluating = true
+                store.dialogueTurns[idx].evaluationStatusText = data.message || '正在合成 AI 语音，录音上传中~'
+              }
+            } else if (data.status === 'ise_done') {
+              const idx = store.dialogueTurns.findIndex(t => t.id === tempTurnId)
+              if (idx !== -1) {
+                store.dialogueTurns[idx].pronunciation_score = data.pronunciation_score
+                if (store.dialogueTurns[idx].grammar_correction) {
+                  store.dialogueTurns[idx].isEvaluating = false
+                } else {
+                  store.dialogueTurns[idx].evaluationStatusText = '发音分析已完成，正在等待语法分析...'
+                }
+              }
+            } else if (data.status === 'grammar_done') {
+              const idx = store.dialogueTurns.findIndex(t => t.id === tempTurnId)
+              if (idx !== -1) {
+                store.dialogueTurns[idx].grammar_correction = data.grammar_correction
+                if (store.dialogueTurns[idx].pronunciation_score) {
+                  store.dialogueTurns[idx].isEvaluating = false
+                } else {
+                  store.dialogueTurns[idx].evaluationStatusText = '语法分析已完成，正在等待发音分析...'
+                }
+              }
+            } else if (data.status === 'ai_done') {
+              showAiThinking.value = false
+              const aiTempIdx = store.dialogueTurns.findIndex(t => typeof t.id === 'string' && t.id.startsWith('temp_ai_'))
+              if (aiTempIdx === -1) {
+                const aiTempTurn = {
+                  id: 'temp_ai_' + Date.now(),
+                  role: 'assistant',
+                  text: data.text,
+                  audio_url: data.audio_url,
+                  isTemp: false
+                }
+                store.addDialogueTurn(aiTempTurn)
+                scrollToBottom()
+                
+                if (data.audio_url && !hasPlayedAiAudio) {
+                  hasPlayedAiAudio = true
+                  playAudio(data.audio_url, aiTempTurn.id)
+                }
+              }
             } else if (data.status === 'done') {
               const [userTurn, aiTurn] = data.result
               userTurn.recordingDuration = durationSec
               
-              const tempIdx = store.dialogueTurns.findIndex(t => t.id === tempTurnId || t.text === userTurn.text)
-              if (tempIdx !== -1) {
-                store.dialogueTurns.splice(tempIdx, 1)
+              const tempUserIdx = store.dialogueTurns.findIndex(t => t.id === tempTurnId || t.text === userTurn.text)
+              const tempAiIdx = store.dialogueTurns.findIndex(t => typeof t.id === 'string' && t.id.startsWith('temp_ai_'))
+              const oldAiTempId = tempAiIdx !== -1 ? store.dialogueTurns[tempAiIdx].id : null
+              
+              if (tempUserIdx !== -1) {
+                store.dialogueTurns.splice(tempUserIdx, 1)
+              }
+              if (tempAiIdx !== -1) {
+                store.dialogueTurns.splice(tempAiIdx, 1)
               }
               
               store.addDialogueTurn(userTurn)
@@ -1348,8 +1463,16 @@ const finishRecordingAndUpload = async () => {
               
               scrollToBottom()
               
-              if (aiTurn.audio_url) {
+              if (oldAiTempId && playingTurnId.value === oldAiTempId) {
+                playingTurnId.value = aiTurn.id
+              } else if (aiTurn.audio_url && !hasPlayedAiAudio) {
+                hasPlayedAiAudio = true
                 playAudio(aiTurn.audio_url, turns.value.length - 1)
+              }
+              
+              // 检查对话是否完成
+              if (data.finished) {
+                isDialogueFinished.value = true
               }
             } else if (data.status === 'error') {
               throw new Error(data.detail || '流式管道异常')
@@ -1665,16 +1788,14 @@ const toggleTurnExpanded = (idx, turn) => {
 }
 
 // Settle session
-const handleSettle = () => {
-  ElMessageBox.confirm(
-    '确定结束当前场景并生成结算成绩报告吗？',
-    '结算提示',
-    {
-      confirmButtonText: '确定结算',
-      cancelButtonText: '继续练习',
-      type: 'success'
-    }
-  ).then(async () => {
+const handleSettle = (isAuto = false) => {
+  if (autoSettleTimer) {
+    clearInterval(autoSettleTimer)
+    autoSettleTimer = null
+  }
+  isAutoSettling.value = false
+
+  const performSettle = async () => {
     try {
       const res = await axios.post(`${store.backendBaseUrl}/api/dialogues/${historyId.value}/settle`)
       settlementReport.value = res.data
@@ -1684,7 +1805,21 @@ const handleSettle = () => {
     } catch (err) {
       ElMessage.error('结算对话失败，请检查连接')
     }
-  }).catch(() => {})
+  }
+
+  if (isAuto === true) {
+    performSettle()
+  } else {
+    ElMessageBox.confirm(
+      '确定结束当前场景并生成结算成绩报告吗？',
+      '结算提示',
+      {
+        confirmButtonText: '确定结算',
+        cancelButtonText: '继续练习',
+        type: 'success'
+      }
+    ).then(performSettle).catch(() => {})
+  }
 }
 
 const calculateAverageScores = () => {
@@ -2588,6 +2723,15 @@ const getWavDuration = (turn) => {
   color: #fff !important;
 }
 
+.mic-btn.is-disabled {
+  background: rgba(156, 163, 175, 0.15) !important;
+  color: #6b7280 !important;
+  border: 1px solid rgba(156, 163, 175, 0.25) !important;
+  box-shadow: none !important;
+  cursor: not-allowed !important;
+  pointer-events: none;
+}
+
 .mic-btn.recording-active {
   background: linear-gradient(135deg, var(--danger-color) 0%, #b91c1c 100%) !important;
   animation: pulseRecording 1.5s infinite;
@@ -3486,5 +3630,86 @@ const getWavDuration = (turn) => {
   color: var(--text-secondary);
   line-height: 1.45;
   margin: 0;
+}
+
+/* Dialogue Auto-settling Notification */
+.dialogue-finished-overlay {
+  margin: 16px auto;
+  width: 90%;
+  max-width: 480px;
+  padding: 16px 20px;
+  border-radius: 12px;
+  background: rgba(16, 185, 129, 0.08) !important;
+  border: 1px solid rgba(16, 185, 129, 0.25) !important;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  box-shadow: 0 8px 32px rgba(16, 185, 129, 0.1);
+  backdrop-filter: blur(10px);
+  animation: pulse-border-green 2.5s infinite;
+}
+
+@keyframes pulse-border-green {
+  0% {
+    border-color: rgba(16, 185, 129, 0.25);
+    background: rgba(16, 185, 129, 0.08);
+  }
+  50% {
+    border-color: rgba(16, 185, 129, 0.5);
+    background: rgba(16, 185, 129, 0.12);
+  }
+  100% {
+    border-color: rgba(16, 185, 129, 0.25);
+    background: rgba(16, 185, 129, 0.08);
+  }
+}
+
+.dialogue-finished-overlay .finished-icon {
+  font-size: 2.2rem;
+  color: #34d399;
+  flex-shrink: 0;
+}
+
+.dialogue-finished-overlay .finished-content {
+  flex-grow: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.dialogue-finished-overlay .finished-title {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #34d399;
+  margin: 0;
+}
+
+.dialogue-finished-overlay .finished-subtitle {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  margin: 0;
+  line-height: 1.4;
+}
+
+.dialogue-finished-overlay .settle-now-btn {
+  background: #10b981 !important;
+  border-color: #10b981 !important;
+  color: #fff !important;
+  font-weight: 600;
+  transition: all 0.2s ease;
+}
+
+.dialogue-finished-overlay .settle-now-btn:hover {
+  background: #059669 !important;
+  border-color: #059669 !important;
+  transform: scale(1.05);
+}
+
+.fade-slide-enter-active, .fade-slide-leave-active {
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.fade-slide-enter-from, .fade-slide-leave-to {
+  opacity: 0;
+  transform: translateY(-8px);
 }
 </style>

@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Text, Float, DateTime, ForeignKey, JSON
+from sqlalchemy import Column, Boolean, Integer, String, Text, Float, DateTime, ForeignKey, JSON
 from sqlalchemy.orm import relationship
 from datetime import datetime
 from app.core.database import Base
@@ -61,6 +61,7 @@ class DialogueHistory(Base):
     overall_score = Column(Float, nullable=True) # 综合评分
     speaking_style = Column(String(20), nullable=True, default="colloquial") # 说话风格: 'colloquial' (口语化) 或 'formal' (书面化)
     accent = Column(String(10), nullable=True, default="us") # 发音口音: 'us' (美音) 或 'uk' (英音)
+    is_finished = Column(Boolean, default=False, nullable=False) # 会话是否由 AI 判定为结束
 
     # 关联关系
     user = relationship("User", back_populates="dialogues")

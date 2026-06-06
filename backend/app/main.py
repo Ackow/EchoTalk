@@ -108,6 +108,12 @@ def check_and_upgrade_database_schema(db: Session):
             db.execute(text("ALTER TABLE dialogue_histories ADD COLUMN accent VARCHAR(10) DEFAULT 'us'"))
             db.commit()
             print("[数据库热升级] dialogue_histories 表成功注入 accent 字段！")
+
+        if "is_finished" not in dh_columns:
+            print("[数据库热升级] dialogue_histories 表缺失 is_finished 字段，正在执行热注入...")
+            db.execute(text("ALTER TABLE dialogue_histories ADD COLUMN is_finished BOOLEAN DEFAULT 0 NOT NULL"))
+            db.commit()
+            print("[数据库热升级] dialogue_histories 表成功注入 is_finished 字段！")
             
         cursor = db.execute(text("PRAGMA table_info(dialogue_turns)"))
         dt_columns = [row[1] for row in cursor.fetchall()]

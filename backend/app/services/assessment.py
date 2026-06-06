@@ -65,13 +65,25 @@ def _parse_xfyun_xml(xml_str: str) -> Dict[str, Any]:
         # 解析 XML 字符串
         root = ET.fromstring(xml_str)
         
-        # 鲁棒地全局递归扫描所有节点，一旦节点属性中包含我们想要的指标名称，就提取出来
+        # 鲁棒地全局递归扫描所有节点，一旦节点属性或标签名中包含我们想要的指标名称，就提取出来
         for elem in root.iter():
-            for key in ["total_score", "accuracy_score", "fluency_score", "integrity_score", "rhythm"]:
+            # 兼容：当节点标签本身为 rhythm 或 rhythm_score 时，提取其 score 或 total_score 属性作为语调与重音分（高优先级）
+            if elem.tag in ["rhythm", "rhythm_score"]:
+                for attr_key in ["total_score", "score", "rhythm"]:
+                    if attr_key in elem.attrib:
+                        try:
+                            val = float(elem.attrib[attr_key])
+                            scores["intonation_score"] = val
+                        except ValueError:
+                            pass
+
+            for key in ["total_score", "accuracy_score", "fluency_score", "integrity_score", "rhythm", "standard_score"]:
                 if key in elem.attrib:
                     try:
                         val = float(elem.attrib[key])
                         if key == "rhythm":
+                            scores["intonation_score"] = val
+                        elif key == "standard_score":
                             if scores["intonation_score"] == 0.0:
                                 scores["intonation_score"] = val
                         else:
@@ -175,12 +187,17 @@ def _parse_xfyun_xml(xml_str: str) -> Dict[str, Any]:
     return scores
 
 
-def mock_assess_pronunciation(reference_text: str, reason: str = "") -> Dict[str, Any]:
+def mock_assess_pronunciation(reference_text: str, reason: str = "", on_progress = None) -> Dict[str, Any]:
     """
     发音评测的本地 Mock 降级打分机制。
     在未配置科大讯飞 AppID/APIKey/APISecret 或网络请求发生报错时，自动触发进行兜底。
     通过对待评测文本的字符 hash 运算生成高真实度且保证“单文本幂等确定”的拟真分数，以配合单元测试。
     """
+    if on_progress:
+        try:
+            on_progress("正在进行发音评估 (本地离线引擎)...")
+        except Exception:
+            pass
     import re
     # 基于待评测文本的字符序列计算累加 Hash
     text_hash = sum(ord(c) for c in reference_text)
@@ -283,7 +300,7 @@ def mock_assess_pronunciation(reference_text: str, reason: str = "") -> Dict[str
     return scores
 
 
-def assess_pronunciation_sync(audio_path: str, reference_text: str) -> Dict[str, Any]:
+def assess_pronunciation_sync(audio_path: str, reference_text: str, on_progress = None) -> Dict[str, Any]:
     """
     同步口语发音评测。
     使用 WebSocket 建立连接，分片（每 40ms/1280 字节）读取并推送 16k 16bit 单声道 WAV 音频（过滤 WAV 头部）。
@@ -300,11 +317,11 @@ def assess_pronunciation_sync(audio_path: str, reference_text: str) -> Dict[str,
         or app_id == "mock-appid" 
         or api_key == "mock-key"
     ):
-        return mock_assess_pronunciation(reference_text, "未配置有效的科大讯飞 AppID/APIKey/APISecret 凭据")
+        return mock_assess_pronunciation(reference_text, "未配置有效的科大讯飞 AppID/APIKey/APISecret 凭据", on_progress)
 
     # 2. 检查待测音频文件是否存在
     if not audio_path or not os.path.exists(audio_path):
-        return mock_assess_pronunciation(reference_text, f"发音评估音频文件未找到: '{audio_path}'")
+        return mock_assess_pronunciation(reference_text, f"发音评估音频文件未找到: '{audio_path}'", on_progress)
 
     # 3. 构造 WebSocket 握手鉴权加密 URL (RFC1123 的 GMT 时间戳拼接 HMAC-SHA256 签名)
     host = "ise-api.xfyun.cn"
@@ -368,7 +385,7 @@ def assess_pronunciation_sync(audio_path: str, reference_text: str) -> Dict[str,
                 status="failed",
                 extra_info=f"读取音频数据失败: {str(ex)}。已自动回退到 Mock 评分。"
             )
-            return mock_assess_pronunciation(reference_text, f"读取音频异常: {str(ex)}")
+            return mock_assess_pronunciation(reference_text, f"读取音频异常: {str(ex)}", on_progress)
         log_api_call(
             api_type="语音评测 (ISE)",
             provider="科大讯飞 Xfyun",
@@ -378,7 +395,7 @@ def assess_pronunciation_sync(audio_path: str, reference_text: str) -> Dict[str,
             status="failed",
             extra_info=f"读取音频文件失败: {str(e)}。已回退到 Mock 评估。"
         )
-        return mock_assess_pronunciation(reference_text, f"读取音频异常: {str(e)}")
+        return mock_assess_pronunciation(reference_text, f"读取音频异常: {str(e)}", on_progress)
 
     # 5. 发起接口调用
     log_api_call(
@@ -390,6 +407,12 @@ def assess_pronunciation_sync(audio_path: str, reference_text: str) -> Dict[str,
         status="pending",
         extra_info=f"评测文本: '{reference_text[:30]}...'，音频大小: {len(pcm_data)} 字节"
     )
+
+    if on_progress:
+        try:
+            on_progress("正在连接科大讯飞语音评测引擎...")
+        except Exception:
+            pass
 
     ws = None
     try:
@@ -403,6 +426,12 @@ def assess_pronunciation_sync(audio_path: str, reference_text: str) -> Dict[str,
             http_proxy_port=proxy_port,
             http_proxy_auth=proxy_auth
         )
+        
+        if on_progress:
+            try:
+                on_progress("已成功建立与讯飞评估接口的连接...")
+            except Exception:
+                pass
         
         # (1) 发送首帧配置帧 (cmd="ssb", status=0)
         # 按照科大讯飞流式版规范，待测文本需要加上 UTF-8 BOM 头 (\uFEFF) 并以 [content]\n 开头
@@ -437,6 +466,7 @@ def assess_pronunciation_sync(audio_path: str, reference_text: str) -> Dict[str,
         offset = 0
         aus = 1  # 状态量：1为首帧音频，2为中间音频，4为最后一帧音频
         result_xml = None
+        last_percent = -1
 
         while offset < total_bytes:
             if result_xml:
@@ -465,6 +495,17 @@ def assess_pronunciation_sync(audio_path: str, reference_text: str) -> Dict[str,
             }
             ws.send(json.dumps(audio_frame))
             
+            # 传输进度汇报（每增加 10% 汇报一次，避免过多消息堆积）
+            percent = min(100, int((offset / total_bytes) * 100))
+            percent_step = (percent // 10) * 10
+            if percent_step != last_percent:
+                last_percent = percent_step
+                if on_progress:
+                    try:
+                        on_progress(f"正在进行发音评估，音频传输中 ({percent_step}%)...")
+                    except Exception:
+                        pass
+
             # 一边流式传输音频，一边非阻塞监听服务端是否有反馈（主要为了拦截鉴权错误或接口故障抛错）
             # 从而在服务器主动拒绝连接时，客户端能瞬间捕获异常并中断传输，防止盲发导致的 The write operation timed out
             if ws.sock:
@@ -493,6 +534,12 @@ def assess_pronunciation_sync(audio_path: str, reference_text: str) -> Dict[str,
             time.sleep(frame_interval)
 
         # (3) 循环接收讯飞响应，提取最后 status 为 2 的结果报文
+        if on_progress and not result_xml:
+            try:
+                on_progress("录音数据发送完成，正在等待最终评估结果...")
+            except Exception:
+                pass
+
         while not result_xml:
             response = ws.recv()
             if not response:
@@ -521,6 +568,12 @@ def assess_pronunciation_sync(audio_path: str, reference_text: str) -> Dict[str,
 
         if not result_xml:
             raise Exception("未能成功从科大讯飞 WebSocket 中读取结果 XML 文本")
+
+        if on_progress:
+            try:
+                on_progress("科大讯飞发音测评结果接收成功，解析评分中...")
+            except Exception:
+                pass
 
         # 6. 解析并提取四维分数
         scores = _parse_xfyun_xml(result_xml)
@@ -555,14 +608,14 @@ def assess_pronunciation_sync(audio_path: str, reference_text: str) -> Dict[str,
             extra_info=f"发音评估接口报错: {str(e)}。程序已自动激活 Mock 降级打分。"
         )
         # 出错降级
-        return mock_assess_pronunciation(reference_text, f"WebSocket 异常: {str(e)}")
+        return mock_assess_pronunciation(reference_text, f"WebSocket 异常: {str(e)}", on_progress)
 
 
-async def assess_pronunciation(audio_path: str, reference_text: str) -> Dict[str, Any]:
+async def assess_pronunciation(audio_path: str, reference_text: str, on_progress = None) -> Dict[str, Any]:
     """
     异步口语发音评测入口：
     利用事件循环的 run_in_executor 将同步阻塞的 WebSocket 网络连接流式发送投递至子线程执行，
     完美实现非阻塞的高并发 I/O 动作。
     """
     loop = asyncio.get_running_loop()
-    return await loop.run_in_executor(None, assess_pronunciation_sync, audio_path, reference_text)
+    return await loop.run_in_executor(None, assess_pronunciation_sync, audio_path, reference_text, on_progress)

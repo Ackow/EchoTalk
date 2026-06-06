@@ -84,6 +84,7 @@ class DialogueHistoryResponse(BaseModel):
     overall_score: Optional[float] = None
     speaking_style: Optional[str] = "colloquial"
     accent: Optional[str] = "us"
+    is_finished: bool = False
     turns: List[DialogueTurnResponse] = []
 
     class Config:
