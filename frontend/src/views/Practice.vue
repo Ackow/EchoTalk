@@ -56,6 +56,14 @@
             </el-radio-group>
           </div>
 
+          <div class="style-selector accent-selector-wrapper" style="margin-top: 15px; margin-bottom: 25px;">
+            <span class="style-label">选择发音口音：</span>
+            <el-radio-group v-model="speakingAccent" size="default" class="custom-radio-group">
+              <el-radio-button label="us">美式英语 (US)</el-radio-button>
+              <el-radio-button label="uk">英式英语 (UK)</el-radio-button>
+            </el-radio-group>
+          </div>
+
           <el-button type="primary" size="large" class="start-session-btn hover-scale" @click="startDialogueSession" :loading="startingSession">
             <span>进入练习会话</span>
           </el-button>
@@ -70,18 +78,23 @@
                 <div class="bubble-wrapper">
                   <div class="bubble-row">
                     <!-- 始终显示的灰色语音胶囊 (点击播放原音) -->
-                    <div class="voice-capsule ai-voice-capsule" :style="{ width: getCapsuleWidth(turn) }" @click="playAudio(turn.audio_url, turn.id || idx)">
+                    <div class="voice-capsule ai-voice-capsule" :style="{ width: getCapsuleWidth(turn) }" @click="handlePlayAudio(turn, turn.id || idx)">
                       <div 
                         class="voice-capsule-progress-bar" 
                         v-if="playingTurnId === (turn.id || idx) && currentPlaybackDuration > 0"
                         :style="{ width: (currentPlaybackTime / currentPlaybackDuration * 100) + '%' }"
                       ></div>
-                      <el-icon class="voice-icon" v-if="playingTurnId === (turn.id || idx)"><VideoPause /></el-icon>
+                      <el-icon class="voice-icon is-loading" v-if="synthesizingTurns[turn.id || idx]"><Loading /></el-icon>
+                      <el-icon class="voice-icon" v-else-if="playingTurnId === (turn.id || idx)"><VideoPause /></el-icon>
                       <el-icon class="voice-icon" v-else><Headset /></el-icon>
                       <span class="voice-duration" v-if="playingTurnId === (turn.id || idx)">
                         {{ Math.round(currentPlaybackTime) }}" / {{ Math.round(currentPlaybackDuration || getWavDurationSeconds(turn)) }}"
                       </span>
                       <span class="voice-duration" v-else>{{ getWavDuration(turn) }}</span>
+                      <!-- 口音标识徽章 -->
+                      <span class="accent-badge-pill font-display">
+                        {{ speakingAccent === 'uk' ? 'UK' : 'US' }}
+                      </span>
                     </div>
                     <!-- 文本折叠按钮 -->
                     <el-button type="primary" link class="translate-toggle-btn" @click="toggleTurnExpanded(idx, turn)">
@@ -230,6 +243,14 @@
                   <el-radio-group v-model="speakingStyle" size="default" @change="handleStyleChange" class="style-radio-group">
                     <el-radio-button label="colloquial">口语化</el-radio-button>
                     <el-radio-button label="formal">书面化</el-radio-button>
+                  </el-radio-group>
+                </div>
+                <!-- Accent Selector underneath style control -->
+                <div class="accent-controller" v-if="sessionStarted">
+                  <span class="label">发音口音:</span>
+                  <el-radio-group v-model="speakingAccent" size="default" @change="handleAccentChange" class="accent-radio-group">
+                    <el-radio-button label="us">美式发音</el-radio-button>
+                    <el-radio-button label="uk">英式发音</el-radio-button>
                   </el-radio-group>
                 </div>
               </div>
@@ -425,6 +446,7 @@ const historyId = computed(() => store.activeHistoryId)
 
 const sessionStarted = ref(false)
 const speakingStyle = ref('colloquial')
+const speakingAccent = ref('us')
 const startingSession = ref(false)
 const isRecording = ref(false)
 const isProcessing = ref(false)
@@ -660,6 +682,9 @@ const resumeDialogueSession = async (historyId) => {
     if (res.data.speaking_style) {
       speakingStyle.value = res.data.speaking_style
     }
+    if (res.data.accent) {
+      speakingAccent.value = res.data.accent
+    }
     
     if (res.data.turns && res.data.turns.length > 0) {
       res.data.turns.forEach(turn => {
@@ -689,7 +714,8 @@ const startNewDialogueSession = async () => {
       user_id: 1, // 默认 ID=1 预注册用户
       scene_id: scene.value.id,
       custom_params: activeParams.value,
-      speaking_style: speakingStyle.value
+      speaking_style: speakingStyle.value,
+      accent: speakingAccent.value
     })
     
     store.setActiveHistoryId(res.data.id)
@@ -704,7 +730,8 @@ const startNewDialogueSession = async () => {
       const greetingTurn = res.data.turns[0]
       if (greetingTurn.audio_url) {
         nextTick(() => {
-          playAudio(greetingTurn.audio_url, 0)
+          const targetId = greetingTurn.id !== undefined && greetingTurn.id !== null ? greetingTurn.id : 0
+          playAudio(greetingTurn.audio_url, targetId)
         })
       }
     }
@@ -732,6 +759,22 @@ const handleStyleChange = async (val) => {
     ElMessage.error('切换对话风格失败，请重试')
     // 失败时回滚前端状态
     speakingStyle.value = val === 'colloquial' ? 'formal' : 'colloquial'
+  }
+}
+
+// 切换发音口音
+const handleAccentChange = async (val) => {
+  if (!historyId.value) return
+  try {
+    await axios.put(`${store.backendBaseUrl}/api/dialogues/${historyId.value}/accent`, null, {
+      params: { accent: val }
+    })
+    ElMessage.success(`发音口音已切换为: ${val === 'us' ? '美式发音 (American)' : '英式发音 (British)'}`)
+  } catch (err) {
+    console.error('切换发音口音失败:', err)
+    ElMessage.error('切换发音口音失败，请重试')
+    // 失败时回滚前端状态
+    speakingAccent.value = val === 'us' ? 'uk' : 'us'
   }
 }
 
@@ -1119,6 +1162,46 @@ const drawWave = () => {
   waveAnimationId = requestAnimationFrame(drawWave)
 }
 
+const synthesizingTurns = ref({})
+
+const handlePlayAudio = async (turn, turnIdOrIdx) => {
+  if (synthesizingTurns.value[turnIdOrIdx]) return
+
+  if (turn.role === 'user') {
+    playAudio(turn.audio_url, turnIdOrIdx)
+    return
+  }
+
+  const targetAccent = speakingAccent.value
+  let audioUrlToPlay = targetAccent === 'uk' ? turn.audio_url_uk : turn.audio_url_us
+
+  if (audioUrlToPlay) {
+    playAudio(audioUrlToPlay, turnIdOrIdx)
+    return
+  }
+
+  synthesizingTurns.value[turnIdOrIdx] = true
+  try {
+    const res = await axios.post(`${store.backendBaseUrl}/api/dialogues/turns/${turn.id}/synthesize`, null, {
+      params: { accent: targetAccent }
+    })
+    const newAudioUrl = res.data.audio_url
+    
+    if (targetAccent === 'uk') {
+      turn.audio_url_uk = newAudioUrl
+    } else {
+      turn.audio_url_us = newAudioUrl
+    }
+    
+    playAudio(newAudioUrl, turnIdOrIdx)
+  } catch (err) {
+    console.error('在线合成特定口音语音失败:', err)
+    ElMessage.error('该轮次切换口音语音合成失败，请重试')
+  } finally {
+    synthesizingTurns.value[turnIdOrIdx] = false
+  }
+}
+
 // Audio player management
 const playAudio = (url, turnId) => {
   const isSame = (playingTurnId.value === turnId)
@@ -1404,13 +1487,13 @@ const getWavDuration = (turn) => {
   justify-self: start;
 }
 
-.style-controller {
+.style-controller, .accent-controller {
   display: flex;
   align-items: center;
   gap: 8px;
 }
 
-.style-controller .label {
+.style-controller .label, .accent-controller .label {
   font-size: 0.92rem;
   color: var(--text-muted);
   font-weight: 600;
@@ -1424,13 +1507,14 @@ const getWavDuration = (turn) => {
   text-align: right;
 }
 
-:deep(.style-controller .el-radio-button__inner) {
+:deep(.style-controller .el-radio-button__inner), :deep(.accent-controller .el-radio-button__inner) {
   background: rgba(17, 24, 39, 0.6) !important;
   border-color: rgba(255, 255, 255, 0.08) !important;
   color: var(--text-secondary) !important;
 }
 
-:deep(.style-controller .el-radio-button__original-radio:checked + .el-radio-button__inner) {
+:deep(.style-controller .el-radio-button__original-radio:checked + .el-radio-button__inner),
+:deep(.accent-controller .el-radio-button__original-radio:checked + .el-radio-button__inner) {
   background: var(--primary-color) !important;
   color: #fff !important;
   border-color: var(--primary-color) !important;
@@ -1808,6 +1892,21 @@ const getWavDuration = (turn) => {
   display: flex;
   align-items: center;
   gap: 4px;
+}
+
+.accent-badge-pill {
+  font-size: 0.65rem;
+  font-weight: 700;
+  padding: 1px 5px;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: var(--text-secondary);
+  border-radius: 4px;
+  text-transform: uppercase;
+  margin-left: auto;
+  letter-spacing: 0.5px;
+  display: inline-flex;
+  align-items: center;
 }
 
 /* Bubble style when expanded */

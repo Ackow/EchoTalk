@@ -56,6 +56,8 @@ class DialogueTurnResponse(BaseModel):
     timestamp: datetime
     text: str
     audio_url: Optional[str] = None
+    audio_url_us: Optional[str] = None
+    audio_url_uk: Optional[str] = None
     pronunciation_score: Optional[Dict[str, Any]] = None
     grammar_correction: Optional[Dict[str, Any]] = None
 
@@ -71,6 +73,7 @@ class DialogueHistoryBase(BaseModel):
 class DialogueStartRequest(DialogueHistoryBase):
     custom_params: Optional[Dict[str, Any]] = None # 会话开始时可定制的动态参数，会覆盖场景默认值
     speaking_style: Optional[str] = "colloquial" # 说话风格: 'colloquial' (口语化) 或 'formal' (书面化)
+    accent: Optional[str] = "us" # 发音口音: 'us' (美音) 或 'uk' (英音)
 
 class DialogueHistoryResponse(BaseModel):
     id: int
@@ -80,6 +83,7 @@ class DialogueHistoryResponse(BaseModel):
     end_time: Optional[datetime] = None
     overall_score: Optional[float] = None
     speaking_style: Optional[str] = "colloquial"
+    accent: Optional[str] = "us"
     turns: List[DialogueTurnResponse] = []
 
     class Config:

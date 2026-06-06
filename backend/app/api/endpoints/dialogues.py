@@ -13,7 +13,7 @@ from app.models import DialogueHistory, Scene, User, DialogueTurn
 from app.schemas import DialogueHistoryResponse, DialogueStartRequest, DialogueTurnResponse
 from app.core.config import settings
 from app.services.pipeline import run_dialogue_turn_pipeline, run_dialogue_turn_pipeline_stream
-from app.services.tts import text_to_speech
+from app.services.tts import text_to_speech, async_text_to_speech
 from app.services.storage import upload_audio_to_kodo
 
 router = APIRouter()
@@ -44,6 +44,7 @@ def start_dialogue(req: DialogueStartRequest, db: Session = Depends(get_db)):
         user_id=req.user_id,
         scene_id=req.scene_id,
         speaking_style=req.speaking_style or "colloquial",
+        accent=req.accent or "us",
         turns=[]
     )
     db.add(history)
@@ -61,21 +62,22 @@ def start_dialogue(req: DialogueStartRequest, db: Session = Depends(get_db)):
         if placeholder in greeting_rendered:
             greeting_rendered = greeting_rendered.replace(placeholder, str(v))
             
-    # 2. 检查渲染后的打招呼文本是否与原场景问候语完全等值
-    # 如果完全等值且数据库中已存在预合成音频地址，则直接复用，免去合成耗时以实现会话启动零延迟！
-    if greeting_rendered == scene.greeting_text and scene.greeting_audio_url:
+    # 2. 检查渲染后的打招呼文本是否与原场景问候语完全等值，且请求的是默认的美音（us）
+    accent = req.accent or "us"
+    if accent == "us" and greeting_rendered == scene.greeting_text and scene.greeting_audio_url:
         greeting_audio_url = scene.greeting_audio_url
-        print(f"[会话启动加速] 问候语文本未改变，成功直通复用预合成音轨: {greeting_audio_url}")
+        print(f"[会话启动加速] 问候语文本未改变且使用美音，成功直通复用预合成音轨: {greeting_audio_url}")
     else:
-        # 否则 (例如因 custom_params 发生了变量替换)，降级为实时重新合成
-        print(f"[会话启动降级] 问候语文本发生变量插值改变，正在实时合成定制音轨...")
+        # 否则 (例如因 custom_params 发生了变量替换，或是请求英音)，降级为实时重新合成
+        print(f"[会话启动降级] 问候语文本发生变量插值改变或使用英音，正在实时合成定制音轨...")
         ai_audio_filename = f"greeting_{history.id}_{int(time.time())}.mp3"
         temp_dir = settings.static_audio_dir
         os.makedirs(temp_dir, exist_ok=True)
         local_path = os.path.join(temp_dir, ai_audio_filename)
         
+        voice = "en-GB-SoniaNeural" if accent == "uk" else "en-US-EmmaMultilingualNeural"
         try:
-            text_to_speech(greeting_rendered, local_path)
+            text_to_speech(greeting_rendered, local_path, voice=voice)
             greeting_audio_url = upload_audio_to_kodo(local_path, ai_audio_filename)
         except Exception as e:
             print(f"[问候语 TTS 合成异常警告] {str(e)}。降级为无语音。")
@@ -95,6 +97,8 @@ def start_dialogue(req: DialogueStartRequest, db: Session = Depends(get_db)):
         role="assistant",
         text=greeting_rendered,
         audio_url=greeting_audio_url,
+        audio_url_us=greeting_audio_url if accent == "us" else None,
+        audio_url_uk=greeting_audio_url if accent == "uk" else None,
         pronunciation_score=None,
         grammar_correction=None
     )
@@ -271,3 +275,90 @@ def update_speaking_style(
     history.speaking_style = speaking_style
     db.commit()
     return {"message": "说话风格更新成功", "speaking_style": speaking_style}
+
+
+@router.put("/{history_id}/accent")
+def update_accent(
+    history_id: int,
+    accent: str,
+    db: Session = Depends(get_db)
+):
+    """
+    更新指定会话的发音口音 (美音 us 或 英音 uk)
+    """
+    history = db.query(DialogueHistory).filter(DialogueHistory.id == history_id).first()
+    if not history:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"会话 ID '{history_id}' 不存在"
+        )
+    if accent not in ["us", "uk"]:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="发音口音必须为 'us' 或 'uk'"
+        )
+    history.accent = accent
+    db.commit()
+    return {"message": "发音口音更新成功", "accent": accent}
+
+
+@router.post("/turns/{turn_id}/synthesize")
+async def synthesize_turn_accent(
+    turn_id: int,
+    accent: str,
+    db: Session = Depends(get_db)
+):
+    """
+    针对现有的某一个对话轮次，按指定的口音（us/uk）重新在线合成语音，并缓存到数据库中
+    """
+    import asyncio
+    if accent not in ["us", "uk"]:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="发音口音必须为 'us' 或 'uk'"
+        )
+        
+    turn = db.query(DialogueTurn).filter(DialogueTurn.id == turn_id).first()
+    if not turn:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"对话轮次 ID '{turn_id}' 不存在"
+        )
+        
+    # 如果已经缓存过对应的口音音频，直接返回
+    if accent == "us" and turn.audio_url_us:
+        return {"audio_url": turn.audio_url_us}
+    if accent == "uk" and turn.audio_url_uk:
+        return {"audio_url": turn.audio_url_uk}
+        
+    # 执行语音合成
+    # 为合成音频定义唯一文件名
+    audio_filename = f"ai_reply_extra_{turn_id}_{accent}_{int(time.time())}.mp3"
+    temp_dir = settings.static_audio_dir
+    os.makedirs(temp_dir, exist_ok=True)
+    audio_local_path = os.path.join(temp_dir, audio_filename)
+    
+    voice = "en-GB-SoniaNeural" if accent == "uk" else "en-US-EmmaMultilingualNeural"
+    
+    # 异步合成语音
+    success = await async_text_to_speech(turn.text, audio_local_path, voice=voice)
+    if not success or not os.path.exists(audio_local_path):
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="音频在线合成失败"
+        )
+        
+    # 上传至七牛云/本地托管
+    loop = asyncio.get_running_loop()
+    audio_url = await loop.run_in_executor(None, upload_audio_to_kodo, audio_local_path, audio_filename)
+    
+    # 缓存入库
+    if accent == "us":
+        turn.audio_url_us = audio_url
+    else:
+        turn.audio_url_uk = audio_url
+        
+    db.commit()
+    db.refresh(turn)
+    
+    return {"audio_url": audio_url}

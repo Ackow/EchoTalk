@@ -60,6 +60,7 @@ class DialogueHistory(Base):
     end_time = Column(DateTime, nullable=True) # 结束时间
     overall_score = Column(Float, nullable=True) # 综合评分
     speaking_style = Column(String(20), nullable=True, default="colloquial") # 说话风格: 'colloquial' (口语化) 或 'formal' (书面化)
+    accent = Column(String(10), nullable=True, default="us") # 发音口音: 'us' (美音) 或 'uk' (英音)
 
     # 关联关系
     user = relationship("User", back_populates="dialogues")
@@ -82,6 +83,8 @@ class DialogueTurn(Base):
     text = Column(Text, nullable=False) # 转录出的文本
     
     audio_url = Column(String(255), nullable=True) # 七牛云 Kodo 音频存储地址 (云端回放)
+    audio_url_us = Column(String(255), nullable=True) # 美式发音音频存储地址
+    audio_url_uk = Column(String(255), nullable=True) # 英式发音音频存储地址
     
     # 发音测评结果 JSON：包含综合分、准确度、流利度、完整度、音素等
     pronunciation_score = Column(JSON, nullable=True)

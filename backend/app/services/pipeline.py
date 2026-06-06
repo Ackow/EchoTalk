@@ -597,8 +597,11 @@ async def run_dialogue_turn_pipeline(
     os.makedirs(temp_dir, exist_ok=True)
     ai_audio_local_path = os.path.join(temp_dir, ai_audio_filename)
 
-    # 调用 Edge-TTS 异步合成，不阻塞事件循环
-    await async_text_to_speech(ai_reply_text, ai_audio_local_path)
+    # 提取口音并映射为对应的发音人音色
+    accent = getattr(history, "accent", "us")
+    voice = "en-GB-SoniaNeural" if accent == "uk" else "en-US-EmmaMultilingualNeural"
+    # 调用 Edge-TTS/腾讯云 异步合成，不阻塞事件循环
+    await async_text_to_speech(ai_reply_text, ai_audio_local_path, voice=voice)
 
     # 8. 【步骤六】开始并发上传 AI 音频文件
     upload_ai_task = loop.run_in_executor(None, upload_audio_to_kodo, ai_audio_local_path, ai_audio_filename)
@@ -626,6 +629,8 @@ async def run_dialogue_turn_pipeline(
         role="assistant",
         text=ai_reply_text,
         audio_url=ai_audio_url,
+        audio_url_us=ai_audio_url if accent == "us" else None,
+        audio_url_uk=ai_audio_url if accent == "uk" else None,
         pronunciation_score=None,
         grammar_correction=None
     )
@@ -738,8 +743,11 @@ async def run_dialogue_turn_pipeline_stream(
     os.makedirs(temp_dir, exist_ok=True)
     ai_audio_local_path = os.path.join(temp_dir, ai_audio_filename)
 
+    # 提取口音并映射为对应的发音人音色
+    accent = getattr(history, "accent", "us")
+    voice = "en-GB-SoniaNeural" if accent == "uk" else "en-US-EmmaMultilingualNeural"
     # 异步合成 AI 语音
-    await async_text_to_speech(ai_reply_text, ai_audio_local_path)
+    await async_text_to_speech(ai_reply_text, ai_audio_local_path, voice=voice)
 
     # 并行上传 AI 录音
     upload_ai_task = loop.run_in_executor(None, upload_audio_to_kodo, ai_audio_local_path, ai_audio_filename)
@@ -765,6 +773,8 @@ async def run_dialogue_turn_pipeline_stream(
         role="assistant",
         text=ai_reply_text,
         audio_url=ai_audio_url,
+        audio_url_us=ai_audio_url if accent == "us" else None,
+        audio_url_uk=ai_audio_url if accent == "uk" else None,
         pronunciation_score=None,
         grammar_correction=None
     )

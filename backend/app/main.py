@@ -102,6 +102,26 @@ def check_and_upgrade_database_schema(db: Session):
             db.execute(text("ALTER TABLE dialogue_histories ADD COLUMN speaking_style VARCHAR(20) DEFAULT 'colloquial'"))
             db.commit()
             print("[数据库热升级] dialogue_histories 表成功注入 speaking_style 字段！")
+            
+        if "accent" not in dh_columns:
+            print("[数据库热升级] dialogue_histories 表缺失 accent 字段，正在执行热注入...")
+            db.execute(text("ALTER TABLE dialogue_histories ADD COLUMN accent VARCHAR(10) DEFAULT 'us'"))
+            db.commit()
+            print("[数据库热升级] dialogue_histories 表成功注入 accent 字段！")
+            
+        cursor = db.execute(text("PRAGMA table_info(dialogue_turns)"))
+        dt_columns = [row[1] for row in cursor.fetchall()]
+        if "audio_url_us" not in dt_columns:
+            print("[数据库热升级] dialogue_turns 表缺失 audio_url_us 字段，正在执行热注入...")
+            db.execute(text("ALTER TABLE dialogue_turns ADD COLUMN audio_url_us VARCHAR(255)"))
+            db.commit()
+            print("[数据库热升级] dialogue_turns 表成功注入 audio_url_us 字段！")
+            
+        if "audio_url_uk" not in dt_columns:
+            print("[数据库热升级] dialogue_turns 表缺失 audio_url_uk 字段，正在执行热注入...")
+            db.execute(text("ALTER TABLE dialogue_turns ADD COLUMN audio_url_uk VARCHAR(255)"))
+            db.commit()
+            print("[数据库热升级] dialogue_turns 表成功注入 audio_url_uk 字段！")
     except Exception as e:
         print(f"[数据库热升级异常警告] 自动升级 schema 失败: {e}")
 

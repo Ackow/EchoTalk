@@ -184,24 +184,35 @@ async def async_text_to_speech(
     使用 edge-tts 免 Key 合成高质量的神经网络语音，并保存至 output_path。
     若合成抛出异常或网络不通，将自动启动降级逻辑，写入本地 Mock 静音音频。
     """
+    # 0. 简写与特定口音映射
+    if voice == "us":
+        voice = "en-US-EmmaMultilingualNeural"
+    elif voice == "uk":
+        voice = "en-GB-SoniaNeural"
+
     # 1. 检查是否配置并启用了腾讯云 TTS
     use_tencent = settings.USE_TENCENT_TTS
     secret_id = settings.TENCENT_SECRET_ID
     secret_key = settings.TENCENT_SECRET_KEY
     
     if use_tencent and secret_id and secret_key:
+        # 确定腾讯云发音人声音 ID (101017: 智雅英文女声(美音), 105100: 英音女声)
+        if "en-GB" in voice or "uk" in voice:
+            tencent_voice = 105100
+        else:
+            tencent_voice = 101017
+
         if len(text) > 500:
             log_api_call(
                 api_type="文字转语音 (TTS)",
                 provider="Tencent Cloud",
                 url="https://tts.tencentcloudapi.com",
-                model="101017",
+                model=str(tencent_voice),
                 action="腾讯云极速语音合成 (async_text_to_speech)",
                 status="failed",
                 extra_info=f"文本长度为 {len(text)} 超过腾讯极速版 500 字符限制。自动降级使用微软 Edge-TTS。"
             )
         else:
-            tencent_voice = 101017  # 默认高品质英文女声
             tencent_speed = _rate_to_tencent_speed(rate)
             
             # 确保保存音频的父级目录存在
