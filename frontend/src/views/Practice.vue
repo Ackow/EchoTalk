@@ -366,12 +366,11 @@
     >
       <div class="settlement-report" v-if="settlementReport">
         <div class="report-header">
+          <h3 class="scene-done-name">{{ scene?.name }}</h3>
           <div class="score-circle">
             <span class="score-num text-gradient">{{ settlementReport.overall_score }}</span>
             <span class="score-label">平均口语评分</span>
           </div>
-          <h3 class="scene-done-name">{{ scene?.name }}</h3>
-          <p class="duration">练习时间: {{ formatDuration(settlementReport.start_time, settlementReport.end_time) }}</p>
         </div>
 
         <!-- 丰富多维数据汇总 -->
@@ -409,7 +408,7 @@
         </div>
 
         <div class="radar-wrapper-settle">
-          <EChartsRadar v-if="settleRadarReady" :score-data="averageScores" height="360px" />
+          <EChartsRadar v-if="settleRadarReady" :score-data="averageScores" height="240px" />
         </div>
 
         <div class="report-footer-tips">
@@ -2498,8 +2497,15 @@ const getWavDuration = (turn) => {
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6) !important;
 }
 
+:deep(.custom-dialog .el-dialog__body) {
+  padding: 10px 24px 14px 24px !important;
+}
 :deep(.custom-dialog .el-dialog__header) {
+  padding: 16px 20px 0 !important;
   text-align: center;
+}
+:deep(.custom-dialog .el-dialog__footer) {
+  padding: 10px 24px 16px !important;
 }
 
 :deep(.custom-dialog .el-dialog__title) {
@@ -2518,17 +2524,17 @@ const getWavDuration = (turn) => {
 /* 结算多维报表 CSS (3 Columns Grid) */
 .settle-metrics-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 14px;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 8px; /* 缩减间距 */
   width: 100%;
-  margin-bottom: 20px;
+  margin-bottom: 12px; /* 从 20px 缩减 */
 }
 
 .metric-card {
   background: rgba(255, 255, 255, 0.03);
   border: 1px solid rgba(255, 255, 255, 0.06);
   border-radius: 8px;
-  padding: 12px 6px;
+  padding: 8px 4px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -2573,12 +2579,11 @@ const getWavDuration = (turn) => {
 
 .report-header {
   text-align: center;
-  margin-bottom: 20px;
 }
 
 .score-circle {
-  width: 110px;
-  height: 110px;
+  width: 100px;
+  height: 100px;
   border-radius: 50%;
   background: rgba(99, 102, 241, 0.05);
   border: 2px solid rgba(99, 102, 241, 0.15);
@@ -2591,7 +2596,7 @@ const getWavDuration = (turn) => {
 }
 
 .score-num {
-  font-size: 2.4rem;
+  font-size: 1.8rem;
   font-family: var(--font-display);
   font-weight: 800;
   line-height: 1;
@@ -2605,9 +2610,10 @@ const getWavDuration = (turn) => {
 }
 
 .scene-done-name {
-  font-size: 1.25rem;
+  font-size: 1.1rem;
   font-weight: 700;
   color: var(--text-primary);
+  margin-bottom: 12px;
 }
 
 .duration {
@@ -2623,7 +2629,7 @@ const getWavDuration = (turn) => {
   background: rgba(0, 0, 0, 0.1);
   border-radius: 10px;
   padding: 10px;
-  margin-bottom: 20px;
+  margin-bottom: 12px;
 }
 
 .report-footer-tips {
