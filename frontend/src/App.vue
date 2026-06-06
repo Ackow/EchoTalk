@@ -86,7 +86,7 @@
         </router-link>
         <router-link to="/analytics" class="menu-item" active-class="active">
           <el-icon><TrendCharts /></el-icon>
-          <span>成长分析</span>
+          <span>数据分析</span>
         </router-link>
       </nav>
 

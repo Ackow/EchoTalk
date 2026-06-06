@@ -2,7 +2,7 @@
   <div class="analytics-container">
     <!-- Header -->
     <header class="analytics-header">
-      <h1 class="text-gradient page-title">口语成长看板</h1>
+      <h1 class="text-gradient page-title">口语数据分析看板</h1>
       <p class="subtitle">追溯口语技能演变过程，量化并可视化您的每一次流利度与发音飞跃</p>
     </header>
 
@@ -93,6 +93,60 @@
           </div>
         </div>
       </div>
+
+      <!-- Row 2: Rhythm & Fluency Analysis -->
+      <div class="charts-row secondary-charts-row">
+        <!-- Speaking speed WPM Trend -->
+        <div class="chart-card glass-card half-card">
+          <h3 class="chart-title">平均语速演变趋势 (Speaking Speed)</h3>
+          <div class="chart-container">
+            <div ref="rhythmChartRef" class="echart-div"></div>
+          </div>
+        </div>
+
+        <!-- Long pauses per sentence -->
+        <div class="chart-card glass-card half-card">
+          <h3 class="chart-title">均句不自然长停顿频率 (Long Pauses)</h3>
+          <div class="chart-container">
+            <div ref="pausesChartRef" class="echart-div"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Row 3: Diagnosis & Review -->
+      <div class="charts-row secondary-charts-row">
+        <!-- Pronunciation Hard Words review wall -->
+        <div class="chart-card glass-card half-card hard-words-card">
+          <h3 class="chart-title">发音难词回顾与跟读攻坚墙 (Hard Words)</h3>
+          <div class="hard-words-container" v-if="hardWords.length > 0">
+            <div 
+              v-for="(w, wIdx) in hardWords" 
+              :key="wIdx"
+              class="hard-word-badge clickable-badge hover-scale"
+              @click="playWordTts(w.word)"
+              title="点击播放标准音跟读"
+            >
+              <span class="word-name">{{ w.word }}</span>
+              <div class="word-meta">
+                <span class="word-score">{{ w.avgScore }}分</span>
+                <span class="word-count">{{ w.count }}次</span>
+              </div>
+            </div>
+          </div>
+          <div class="hard-words-empty" v-else>
+            <el-icon class="all-perfect-icon"><SuccessFilled /></el-icon>
+            <span class="empty-text">太棒了！所有录音单词发音良好 (无评分 &lt; 75 分的单词)！🎉</span>
+          </div>
+        </div>
+
+        <!-- AI Grammar Error distribution -->
+        <div class="chart-card glass-card half-card">
+          <h3 class="chart-title">AI 语法错误类别剖析 (Grammar Errors)</h3>
+          <div class="chart-container">
+            <div ref="grammarPieRef" class="echart-div"></div>
+          </div>
+        </div>
+      </div>
     </template>
   </div>
 </template>
@@ -116,9 +170,17 @@ const stats = ref({
 const calendarDays = ref([])
 const trendChartRef = ref(null)
 const sceneChartRef = ref(null)
+const rhythmChartRef = ref(null)
+const pausesChartRef = ref(null)
+const grammarPieRef = ref(null)
+
+const hardWords = ref([])
 
 let trendChartInstance = null
 let sceneChartInstance = null
+let rhythmChartInstance = null
+let pausesChartInstance = null
+let grammarPieInstance = null
 let historyData = []
 
 // 获取场景友好名称
@@ -192,6 +254,9 @@ const fetchData = async () => {
 
     // 2. 近30天练习打卡计算
     generateCalendarData(historyData)
+
+    // 3. 计算发音难词库 (< 75分)
+    calculateHardWords(historyData)
   } catch (err) {
     console.error('获取成长看板数据失败:', err)
   } finally {
@@ -233,6 +298,148 @@ const generateCalendarData = (sessions) => {
     })
   }
   calendarDays.value = days
+}
+
+// 单词跟读播放
+const playWordTts = (word) => {
+  window.speechSynthesis.cancel()
+  const utterance = new SpeechSynthesisUtterance(word)
+  const targetLang = 'en-US'
+  utterance.lang = targetLang
+  
+  if (window.speechSynthesis) {
+    const voices = window.speechSynthesis.getVoices()
+    let bestVoice = voices.find(v => v.lang === targetLang)
+    if (!bestVoice) {
+      bestVoice = voices.find(v => v.lang.startsWith(targetLang))
+    }
+    if (bestVoice) {
+      utterance.voice = bestVoice
+    }
+  }
+  window.speechSynthesis.speak(utterance)
+}
+
+// 汇总发音难词 (平均分 < 75 分且出现低分的单词)
+const calculateHardWords = (sessions) => {
+  const wordStats = {}
+  sessions.forEach(s => {
+    s.turns.filter(t => t.role === 'user' && t.pronunciation_score && t.pronunciation_score.words).forEach(t => {
+      t.pronunciation_score.words.forEach(w => {
+        const clean = w.word.toLowerCase().replace(/^[.,?!\"();:\[\]{}*#_`~']+|[.,?!\"();:\[\]{}*#_`~']+$/g, '').trim()
+        if (!clean || w.score >= 75) return
+        
+        if (!wordStats[clean]) {
+          wordStats[clean] = { word: clean, origCase: w.word, totalScore: 0, count: 0 }
+        }
+        wordStats[clean].totalScore += w.score
+        wordStats[clean].count += 1
+      })
+    })
+  })
+  
+  const list = Object.values(wordStats).map(o => ({
+    word: o.origCase,
+    avgScore: roundOneDecimal(o.totalScore / o.count),
+    count: o.count
+  }))
+  
+  // 先按低分次数排序，再按平均分排序（低分在前）
+  list.sort((a, b) => b.count - a.count || a.avgScore - b.avgScore)
+  hardWords.value = list.slice(0, 15) // 最多展示 15 个最难发音的单词
+}
+
+// 计算每会话的平均语速 WPM
+const getSessionAvgWpm = (session) => {
+  const userTurns = session.turns.filter(t => t.role === 'user' && t.pronunciation_score && t.pronunciation_score.words && t.pronunciation_score.words.length > 0)
+  if (userTurns.length === 0) return 0
+  
+  let totalWpm = 0
+  let validTurns = 0
+  
+  userTurns.forEach(turn => {
+    const words = turn.pronunciation_score.words
+    if (words.length >= 2) {
+      const firstWord = words[0]
+      const lastWord = words[words.length - 1]
+      const durationFrames = lastWord.end_pos - firstWord.beg_pos
+      if (durationFrames > 0) {
+        const durationSeconds = durationFrames * 0.01
+        const wpm = (words.length / durationSeconds) * 60
+        totalWpm += wpm
+        validTurns++
+      }
+    }
+  })
+  
+  return validTurns > 0 ? Math.round(totalWpm / validTurns) : 0
+}
+
+// 计算每会话的平均长停顿（>0.8秒）次数
+const getSessionAvgPauses = (session) => {
+  const userTurns = session.turns.filter(t => t.role === 'user' && t.pronunciation_score && t.pronunciation_score.words && t.pronunciation_score.words.length > 0)
+  if (userTurns.length === 0) return 0
+  
+  let totalPauses = 0
+  let validTurns = 0
+  
+  userTurns.forEach(turn => {
+    const words = turn.pronunciation_score.words
+    let pauseCount = 0
+    for (let i = 0; i < words.length - 1; i++) {
+      const curWord = words[i]
+      const nextWord = words[i + 1]
+      if (curWord.end_pos > 0 && nextWord.beg_pos > 0) {
+        const gap = nextWord.beg_pos - curWord.end_pos
+        if (gap > 80) {
+          pauseCount++
+        }
+      }
+    }
+    totalPauses += pauseCount
+    validTurns++
+  })
+  
+  return validTurns > 0 ? roundOneDecimal(totalPauses / validTurns) : 0
+}
+
+// 汇总统计语法错误的大类别分布比例
+const getGrammarErrorDistribution = (sessions) => {
+  const counts = {
+    verb: 0,
+    plural: 0,
+    article: 0,
+    preposition: 0,
+    other: 0
+  }
+  
+  sessions.forEach(s => {
+    s.turns.filter(t => t.role === 'user' && t.grammar_correction).forEach(t => {
+      const gc = t.grammar_correction
+      if (gc.original.toLowerCase().trim() !== gc.corrected.toLowerCase().trim()) {
+        const exp = (gc.explanation || "").toLowerCase()
+        if (exp.includes("时态") || exp.includes("动词") || exp.includes("过去") || exp.includes("进行") || exp.includes("完成") || exp.includes("verb") || exp.includes("tense")) {
+          counts.verb++
+        } else if (exp.includes("单复") || exp.includes("复数") || exp.includes("单数") || exp.includes("plural")) {
+          counts.plural++
+        } else if (exp.includes("冠词") || exp.includes("article")) {
+          counts.article++
+        } else if (exp.includes("介词") || exp.includes("preposition")) {
+          counts.preposition++
+        } else {
+          counts.other++
+        }
+      }
+    })
+  })
+  
+  return [
+    { name: '时态动词 (Verb)', value: counts.verb },
+    { name: '名词单复数 (Plural)', value: counts.plural },
+    { name: '冠词偏误 (Article)', value: counts.article },
+    { name: '介词错用 (Preposition)', value: counts.preposition },
+    { name: '其它语法细节 (Others)', value: counts.other }
+  ]
 }
 
 // 初始化图表
@@ -277,6 +484,20 @@ const initCharts = () => {
       return roundOneDecimal(sum / turns.length)
     })
 
+    const intonationScores = historyData.map(h => {
+      const turns = h.turns.filter(t => t.role === 'user' && t.pronunciation_score)
+      if (turns.length === 0) return h.overall_score || 0
+      const sum = turns.reduce((acc, curr) => acc + (curr.pronunciation_score.intonation_score !== undefined ? curr.pronunciation_score.intonation_score : (curr.pronunciation_score.fluency_score || 0)), 0)
+      return roundOneDecimal(sum / turns.length)
+    })
+
+    const liaisonScores = historyData.map(h => {
+      const turns = h.turns.filter(t => t.role === 'user' && t.pronunciation_score)
+      if (turns.length === 0) return h.overall_score || 0
+      const sum = turns.reduce((acc, curr) => acc + (curr.pronunciation_score.liaison_score !== undefined ? curr.pronunciation_score.liaison_score : (curr.pronunciation_score.accuracy_score || 0)), 0)
+      return roundOneDecimal(sum / turns.length)
+    })
+
     const trendOption = {
       backgroundColor: 'transparent',
       tooltip: {
@@ -287,7 +508,7 @@ const initCharts = () => {
         textStyle: { color: '#f3f4f6', fontSize: 12 }
       },
       legend: {
-        data: ['综合发音分', '发音准确度', '发音流利度', '发音完整度'],
+        data: ['综合发音分', '发音准确度', '发音流利度', '发音完整度', '语调与重音', '连读与爆破'],
         textStyle: { color: '#9ca3af', fontSize: 11 },
         top: 0
       },
@@ -352,6 +573,22 @@ const initCharts = () => {
           smooth: true,
           lineStyle: { width: 2, color: '#ec4899' },
           itemStyle: { color: '#ec4899' }
+        },
+        {
+          name: '语调与重音',
+          type: 'line',
+          data: intonationScores,
+          smooth: true,
+          lineStyle: { width: 2, color: '#c084fc' },
+          itemStyle: { color: '#c084fc' }
+        },
+        {
+          name: '连读与爆破',
+          type: 'line',
+          data: liaisonScores,
+          smooth: true,
+          lineStyle: { width: 2, color: '#f472b6' },
+          itemStyle: { color: '#f472b6' }
         }
       ]
     }
@@ -424,11 +661,200 @@ const initCharts = () => {
     }
     sceneChartInstance.setOption(pieOption)
   }
+
+  // ---- (3) WPM Trend Chart ----
+  if (rhythmChartRef.value) {
+    if (rhythmChartInstance) rhythmChartInstance.dispose()
+    rhythmChartInstance = echarts.init(rhythmChartRef.value)
+
+    const dates = historyData.map(h => formatDateShort(h.start_time))
+    const wpmData = historyData.map(h => getSessionAvgWpm(h))
+
+    const rhythmOption = {
+      backgroundColor: 'transparent',
+      tooltip: {
+        trigger: 'axis',
+        backgroundColor: 'rgba(17, 24, 39, 0.95)',
+        borderColor: 'rgba(99, 102, 241, 0.3)',
+        borderWidth: 1,
+        textStyle: { color: '#f3f4f6', fontSize: 12 }
+      },
+      grid: {
+        top: '15%',
+        left: '4%',
+        right: '4%',
+        bottom: '3%',
+        containLabel: true
+      },
+      xAxis: {
+        type: 'category',
+        boundaryGap: false,
+        data: dates,
+        axisLabel: { color: '#9ca3af', fontSize: 10 },
+        axisLine: { lineStyle: { color: 'rgba(255, 255, 255, 0.1)' } }
+      },
+      yAxis: {
+        type: 'value',
+        min: 60,
+        max: 200,
+        axisLabel: { color: '#9ca3af', fontSize: 10 },
+        splitLine: { lineStyle: { color: 'rgba(255, 255, 255, 0.05)' } }
+      },
+      series: [
+        {
+          name: '平均语速 (WPM)',
+          type: 'line',
+          data: wpmData,
+          smooth: true,
+          symbolSize: 6,
+          lineStyle: { width: 3, color: '#3b82f6' },
+          itemStyle: { color: '#3b82f6' },
+          markArea: {
+            silent: true,
+            itemStyle: {
+              color: 'rgba(16, 185, 129, 0.04)'
+            },
+            data: [
+              [
+                { name: '推荐语速区间 (110-150 WPM)', yAxis: 110 },
+                { yAxis: 150 }
+              ]
+            ],
+            label: {
+              position: 'insideRight',
+              color: 'rgba(16, 185, 129, 0.4)',
+              fontSize: 9
+            }
+          }
+        }
+      ]
+    }
+    rhythmChartInstance.setOption(rhythmOption)
+  }
+
+  // ---- (4) Pause Frequency Bar Chart ----
+  if (pausesChartRef.value) {
+    if (pausesChartInstance) pausesChartInstance.dispose()
+    pausesChartInstance = echarts.init(pausesChartRef.value)
+
+    const dates = historyData.map(h => formatDateShort(h.start_time))
+    const pauseData = historyData.map(h => getSessionAvgPauses(h))
+
+    const pausesOption = {
+      backgroundColor: 'transparent',
+      tooltip: {
+        trigger: 'axis',
+        backgroundColor: 'rgba(17, 24, 39, 0.95)',
+        borderColor: 'rgba(99, 102, 241, 0.3)',
+        borderWidth: 1,
+        textStyle: { color: '#f3f4f6', fontSize: 12 }
+      },
+      grid: {
+        top: '15%',
+        left: '4%',
+        right: '4%',
+        bottom: '3%',
+        containLabel: true
+      },
+      xAxis: {
+        type: 'category',
+        data: dates,
+        axisLabel: { color: '#9ca3af', fontSize: 10 },
+        axisLine: { lineStyle: { color: 'rgba(255, 255, 255, 0.1)' } }
+      },
+      yAxis: {
+        type: 'value',
+        axisLabel: { color: '#9ca3af', fontSize: 10 },
+        splitLine: { lineStyle: { color: 'rgba(255, 255, 255, 0.05)' } }
+      },
+      series: [
+        {
+          name: '均句长停顿次数',
+          type: 'bar',
+          barWidth: '35%',
+          data: pauseData,
+          itemStyle: {
+            color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+              { offset: 0, color: 'rgba(245, 158, 11, 0.8)' },
+              { offset: 1, color: 'rgba(245, 158, 11, 0.2)' }
+            ]),
+            borderRadius: [4, 4, 0, 0]
+          }
+        }
+      ]
+    }
+    pausesChartInstance.setOption(pausesOption)
+  }
+
+  // ---- (5) Grammar Errors Donut Chart ----
+  if (grammarPieRef.value) {
+    if (grammarPieInstance) grammarPieInstance.dispose()
+    grammarPieInstance = echarts.init(grammarPieRef.value)
+
+    const gData = getGrammarErrorDistribution(historyData)
+    const totalErrors = gData.reduce((acc, curr) => acc + curr.value, 0)
+    const displayData = totalErrors > 0 ? gData : [
+      { name: '暂无偏误分类记录', value: 1 }
+    ]
+
+    const grammarOption = {
+      backgroundColor: 'transparent',
+      tooltip: {
+        trigger: 'item',
+        formatter: totalErrors > 0 ? '{b}: {c}次 ({d}%)' : '暂无错误数据',
+        backgroundColor: 'rgba(17, 24, 39, 0.95)',
+        borderColor: 'rgba(99, 102, 241, 0.3)',
+        borderWidth: 1,
+        textStyle: { color: '#f3f4f6', fontSize: 12 }
+      },
+      legend: {
+        orient: 'vertical',
+        left: 'left',
+        textStyle: { color: '#9ca3af', fontSize: 10 },
+        top: 'middle'
+      },
+      series: [
+        {
+          name: '语法偏误',
+          type: 'pie',
+          radius: ['45%', '70%'],
+          center: ['65%', '50%'],
+          avoidLabelOverlap: false,
+          itemStyle: {
+            borderRadius: 6,
+            borderColor: '#111827',
+            borderWidth: 2
+          },
+          label: {
+            show: false,
+            position: 'center'
+          },
+          emphasis: {
+            label: {
+              show: totalErrors > 0,
+              fontSize: 11,
+              fontWeight: 'bold',
+              color: '#fff'
+            }
+          },
+          labelLine: {
+            show: false
+          },
+          data: displayData,
+          color: totalErrors > 0 ? ['#f87171', '#fbbf24', '#60a5fa', '#a78bfa', '#9ca3af'] : ['rgba(255,255,255,0.06)']
+        }
+      ]
+    }
+    grammarPieInstance.setOption(grammarOption)
+  }
 }
 
 const handleResize = () => {
   if (trendChartInstance) trendChartInstance.resize()
   if (sceneChartInstance) sceneChartInstance.resize()
+  if (rhythmChartInstance) rhythmChartInstance.resize()
+  if (pausesChartInstance) pausesChartInstance.resize()
+  if (grammarPieInstance) grammarPieInstance.resize()
 }
 
 onMounted(() => {
@@ -440,6 +866,9 @@ onBeforeUnmount(() => {
   window.removeEventListener('resize', handleResize)
   if (trendChartInstance) trendChartInstance.dispose()
   if (sceneChartInstance) sceneChartInstance.dispose()
+  if (rhythmChartInstance) rhythmChartInstance.dispose()
+  if (pausesChartInstance) pausesChartInstance.dispose()
+  if (grammarPieInstance) grammarPieInstance.dispose()
 })
 </script>
 
@@ -673,5 +1102,93 @@ onBeforeUnmount(() => {
 .active-dot {
   background: #10b981;
   box-shadow: 0 0 6px rgba(16, 185, 129, 0.5);
+}
+
+/* Secondary charts & widgets styling */
+.secondary-charts-row {
+  margin-top: 24px;
+}
+
+.half-card {
+  flex: 1;
+  min-width: 0; /* Prevents overflow in flexbox */
+}
+
+/* Hard words reviews wall */
+.hard-words-card {
+  display: flex;
+  flex-direction: column;
+}
+
+.hard-words-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  max-height: 280px;
+  overflow-y: auto;
+  padding: 4px;
+}
+
+.hard-word-badge {
+  background: rgba(239, 68, 68, 0.06);
+  border: 1px solid rgba(239, 68, 68, 0.15);
+  border-radius: 8px;
+  padding: 8px 12px;
+  display: inline-flex;
+  flex-direction: column;
+  gap: 4px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  min-width: 80px;
+}
+
+.hard-word-badge:hover {
+  background: rgba(239, 68, 68, 0.12);
+  border-color: rgba(239, 68, 68, 0.35);
+  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.15);
+}
+
+.hard-word-badge .word-name {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #f87171;
+}
+
+.hard-word-badge .word-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.68rem;
+  gap: 8px;
+}
+
+.hard-word-badge .word-score {
+  color: #fbbf24;
+  font-weight: 600;
+}
+
+.hard-word-badge .word-count {
+  color: var(--text-muted);
+}
+
+.hard-words-empty {
+  flex-grow: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 40px;
+  color: #34d399;
+}
+
+.hard-words-empty .all-perfect-icon {
+  font-size: 2.2rem;
+}
+
+.hard-words-empty .empty-text {
+  font-size: 0.85rem;
+  text-align: center;
+  opacity: 0.85;
 }
 </style>
