@@ -47,6 +47,15 @@
           <el-icon class="prompt-icon"><Microphone /></el-icon>
           <h3>准备好开始本次口语演练了吗？</h3>
           <p>我们将针对设定好的场景与背景知识库与你进行模拟对话。你的发音将被多维度评估，语法表述也将获得润色建议。</p>
+          
+          <div class="style-selector">
+            <span class="style-label">选择对话风格：</span>
+            <el-radio-group v-model="speakingStyle" size="default" class="custom-radio-group">
+              <el-radio-button label="colloquial">口语化 (Spoken)</el-radio-button>
+              <el-radio-button label="formal">书面化 (Formal)</el-radio-button>
+            </el-radio-group>
+          </div>
+
           <el-button type="primary" size="large" class="start-session-btn hover-scale" @click="startDialogueSession" :loading="startingSession">
             <span>进入练习会话</span>
           </el-button>
@@ -204,14 +213,25 @@
             </div>
 
             <div class="control-actions">
-              <!-- Rate controller -->
-              <div class="rate-controller">
-                <span class="label">播放语速:</span>
-                <el-radio-group v-model="playbackRate" size="default" @change="changePlaybackRate">
-                  <el-radio-button :value="0.8">0.8x</el-radio-button>
-                  <el-radio-button :value="1.0">1.0x</el-radio-button>
-                  <el-radio-button :value="1.2">1.2x</el-radio-button>
-                </el-radio-group>
+              <!-- Left controls containing speed and speaking style -->
+              <div class="left-controls">
+                <!-- Rate controller -->
+                <div class="rate-controller">
+                  <span class="label">播放语速:</span>
+                  <el-radio-group v-model="playbackRate" size="default" @change="changePlaybackRate">
+                    <el-radio-button :value="0.8">0.8x</el-radio-button>
+                    <el-radio-button :value="1.0">1.0x</el-radio-button>
+                    <el-radio-button :value="1.2">1.2x</el-radio-button>
+                  </el-radio-group>
+                </div>
+                <!-- Style Selector underneath speed control -->
+                <div class="style-controller" v-if="sessionStarted">
+                  <span class="label">对话风格:</span>
+                  <el-radio-group v-model="speakingStyle" size="default" @change="handleStyleChange" class="style-radio-group">
+                    <el-radio-button label="colloquial">口语化</el-radio-button>
+                    <el-radio-button label="formal">书面化</el-radio-button>
+                  </el-radio-group>
+                </div>
               </div>
 
               <!-- Main Mic Button -->
@@ -404,6 +424,7 @@ const turns = computed(() => store.dialogueTurns)
 const historyId = computed(() => store.activeHistoryId)
 
 const sessionStarted = ref(false)
+const speakingStyle = ref('colloquial')
 const startingSession = ref(false)
 const isRecording = ref(false)
 const isProcessing = ref(false)
@@ -636,6 +657,10 @@ const resumeDialogueSession = async (historyId) => {
     store.setActiveHistoryId(res.data.id)
     sessionStarted.value = true
     
+    if (res.data.speaking_style) {
+      speakingStyle.value = res.data.speaking_style
+    }
+    
     if (res.data.turns && res.data.turns.length > 0) {
       res.data.turns.forEach(turn => {
         store.addDialogueTurn(turn)
@@ -663,7 +688,8 @@ const startNewDialogueSession = async () => {
     const res = await axios.post(`${store.backendBaseUrl}/api/dialogues/start`, {
       user_id: 1, // 默认 ID=1 预注册用户
       scene_id: scene.value.id,
-      custom_params: activeParams.value
+      custom_params: activeParams.value,
+      speaking_style: speakingStyle.value
     })
     
     store.setActiveHistoryId(res.data.id)
@@ -690,6 +716,22 @@ const startNewDialogueSession = async () => {
     ElMessage.error(err.response?.data?.detail || '启动口语练习会话失败，请确保后端服务已开启并且数据库已经重置更新')
   } finally {
     startingSession.value = false
+  }
+}
+
+// 切换对话风格
+const handleStyleChange = async (val) => {
+  if (!historyId.value) return
+  try {
+    await axios.put(`${store.backendBaseUrl}/api/dialogues/${historyId.value}/style`, null, {
+      params: { speaking_style: val }
+    })
+    ElMessage.success(`对话风格已切换为: ${val === 'colloquial' ? '口语化 (Spoken)' : '书面化 (Formal)'}`)
+  } catch (err) {
+    console.error('切换对话风格失败:', err)
+    ElMessage.error('切换对话风格失败，请重试')
+    // 失败时回滚前端状态
+    speakingStyle.value = val === 'colloquial' ? 'formal' : 'colloquial'
   }
 }
 
@@ -1326,6 +1368,74 @@ const getWavDuration = (turn) => {
 </script>
 
 <style scoped>
+/* Speaking style selector styling */
+.style-selector {
+  margin-top: 16px;
+  margin-bottom: 24px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  justify-content: center;
+}
+
+.style-label {
+  font-size: 1.05rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.custom-radio-group :deep(.el-radio-button__inner) {
+  background: rgba(255, 255, 255, 0.04) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  color: var(--text-secondary) !important;
+}
+
+.custom-radio-group :deep(.el-radio-button__original-radio:checked + .el-radio-button__inner) {
+  background: var(--primary-color) !important;
+  border-color: var(--primary-color) !important;
+  color: #fff !important;
+  box-shadow: -1px 0 0 0 var(--primary-color) !important;
+}
+
+.left-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  justify-self: start;
+}
+
+.style-controller {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.style-controller .label {
+  font-size: 0.92rem;
+  color: var(--text-muted);
+  font-weight: 600;
+  width: 64px; /* Align label width with 播放语速 label */
+  text-align: right;
+}
+
+/* Align the rate controller label width for matching look */
+.rate-controller .label {
+  width: 64px;
+  text-align: right;
+}
+
+:deep(.style-controller .el-radio-button__inner) {
+  background: rgba(17, 24, 39, 0.6) !important;
+  border-color: rgba(255, 255, 255, 0.08) !important;
+  color: var(--text-secondary) !important;
+}
+
+:deep(.style-controller .el-radio-button__original-radio:checked + .el-radio-button__inner) {
+  background: var(--primary-color) !important;
+  color: #fff !important;
+  border-color: var(--primary-color) !important;
+}
+
 .practice-layout {
   padding: 16px;
   height: 100vh;

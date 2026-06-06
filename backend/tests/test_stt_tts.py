@@ -69,21 +69,27 @@ def test_tts_fallback_mock():
     if os.path.exists(fallback_path):
         os.remove(fallback_path)
         
-    # 我们用一个不存在的/非法的 voice 名称来故意触发异常，看是否会触发本地 Mock MP3 降级
-    print("  * 故意传入非法 voice 触发降级...")
-    success = text_to_speech(
-        text="Fallback test.",
-        output_path=fallback_path,
-        voice="non-existent-voice-name"
-    )
-    assert success is True
-    assert os.path.exists(fallback_path)
-    # 合理大小：因为 Mock 静音音频 base64 解码后大概只有 300 多个字节
-    file_size = os.path.getsize(fallback_path)
-    assert file_size > 0 and file_size < 1000
-    print(f"  * [OK] 触发降级成功。写入的 Mock 哑音频大小: {file_size} 字节")
-    
-    os.remove(fallback_path)
+    from app.core.config import settings as app_settings
+    orig_use = app_settings.USE_TENCENT_TTS
+    try:
+        app_settings.USE_TENCENT_TTS = False
+        # 我们用一个不存在的/非法的 voice 名称来故意触发异常，看是否会触发本地 Mock MP3 降级
+        print("  * 故意传入非法 voice 触发降级...")
+        success = text_to_speech(
+            text="Fallback test.",
+            output_path=fallback_path,
+            voice="non-existent-voice-name"
+        )
+        assert success is True
+        assert os.path.exists(fallback_path)
+        # 合理大小：因为 Mock 静音音频 base64 解码后大概只有 300 多个字节
+        file_size = os.path.getsize(fallback_path)
+        assert file_size > 0 and file_size < 1000
+        print(f"  * [OK] 触发降级成功。写入的 Mock 哑音频大小: {file_size} 字节")
+    finally:
+        app_settings.USE_TENCENT_TTS = orig_use
+        if os.path.exists(fallback_path):
+            os.remove(fallback_path)
 
 def test_tts_storage_upload():
     print("\n--- [4. TTS 产物七牛云存储上传测试] ---")

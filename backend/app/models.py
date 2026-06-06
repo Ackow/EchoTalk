@@ -59,6 +59,7 @@ class DialogueHistory(Base):
     start_time = Column(DateTime, default=datetime.utcnow) # 开始时间
     end_time = Column(DateTime, nullable=True) # 结束时间
     overall_score = Column(Float, nullable=True) # 综合评分
+    speaking_style = Column(String(20), nullable=True, default="colloquial") # 说话风格: 'colloquial' (口语化) 或 'formal' (书面化)
 
     # 关联关系
     user = relationship("User", back_populates="dialogues")

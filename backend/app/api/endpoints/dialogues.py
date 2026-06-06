@@ -43,6 +43,7 @@ def start_dialogue(req: DialogueStartRequest, db: Session = Depends(get_db)):
     history = DialogueHistory(
         user_id=req.user_id,
         scene_id=req.scene_id,
+        speaking_style=req.speaking_style or "colloquial",
         turns=[]
     )
     db.add(history)
@@ -245,3 +246,28 @@ def delete_dialogue(history_id: int, db: Session = Depends(get_db)):
     db.delete(history)
     db.commit()
     return {"message": "会话历史记录已成功删除"}
+
+
+@router.put("/{history_id}/style")
+def update_speaking_style(
+    history_id: int,
+    speaking_style: str,
+    db: Session = Depends(get_db)
+):
+    """
+    更新指定会话的说话风格 (口语化 或 书面化)
+    """
+    history = db.query(DialogueHistory).filter(DialogueHistory.id == history_id).first()
+    if not history:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"会话 ID '{history_id}' 不存在"
+        )
+    if speaking_style not in ["colloquial", "formal"]:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="说话风格必须为 'colloquial' 或 'formal'"
+        )
+    history.speaking_style = speaking_style
+    db.commit()
+    return {"message": "说话风格更新成功", "speaking_style": speaking_style}

@@ -139,9 +139,50 @@ def test_dialogue_pipeline_and_endpoints():
     
     print("\n[SUCCESS] 对话管道与 API 接口端到端整合测试全部通过！")
 
+
+def test_dynamic_grammar_correction_mock():
+    print("\n--- [动态语法纠错 Mock 逻辑单元测试开始] ---")
+    from app.services.pipeline import extract_item_from_text, mock_llm_response
+    
+    # 1. 测试从文本中提取物品名词
+    item1 = extract_item_from_text("give me your chocolate Baker all of them how much")
+    assert item1 == "chocolate Baker"
+    
+    item2 = extract_item_from_text("I want chocolate cake please")
+    assert item2 == "chocolate cake"
+    
+    item3 = extract_item_from_text("latte")
+    assert item3 == "latte"  # 应当保留原始输入的大小写
+
+    # 2. 测试 Mock LLM 纠错在原句上修改且保留核心词汇 (默认口语化风格)
+    res_coll = mock_llm_response("order", "give me your chocolate Baker all of them how much", speaking_style="colloquial")
+    gc_coll = res_coll["grammar_correction"]
+    assert gc_coll["original"] == "give me your chocolate Baker all of them how much"
+    assert "chocolate Baker" in gc_coll["corrected"]
+    assert "Could I have" in gc_coll["corrected"]
+    assert "How much is it?" in gc_coll["corrected"]
+    assert "Sure!" in res_coll["reply"]
+    print("  * [口语化] 纠错结果为:", gc_coll["corrected"])
+    print("  * [口语化] 对话回复为:", res_coll["reply"])
+    
+    # 3. 测试 Mock LLM 书面化风格
+    res_form = mock_llm_response("order", "give me your chocolate Baker all of them how much", speaking_style="formal")
+    gc_form = res_form["grammar_correction"]
+    assert gc_form["original"] == "give me your chocolate Baker all of them how much"
+    assert "chocolate Baker" in gc_form["corrected"]
+    assert "I would like to order" in gc_form["corrected"]
+    assert "How much does it cost?" in gc_form["corrected"]
+    assert "Certainly." in res_form["reply"]
+    print("  * [书面化] 纠错结果为:", gc_form["corrected"])
+    print("  * [书面化] 对话回复为:", res_form["reply"])
+    
+    print("\n[SUCCESS] 动态语法纠错 Mock 逻辑测试（口语化 & 书面化）成功通过！")
+
+
 if __name__ == "__main__":
     try:
         test_dialogue_pipeline_and_endpoints()
+        test_dynamic_grammar_correction_mock()
     except AssertionError as e:
         print(f"\n[FAIL] 断言校验失败: {e}")
         sys.exit(1)

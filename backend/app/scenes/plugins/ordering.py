@@ -40,6 +40,7 @@ class OrderingScene(BaseScene):
             "milk choices (oat, almond, skim, whole), or to-go/for-here. "
             "IMPORTANT: Today we are completely out of {out_of_stock_item}. If the customer asks for it, "
             "apologize politely and recommend blueberry muffins or chocolate bagels instead. "
+            "CRITICAL: When the customer asks for the bill or you provide the final price, you MUST calculate the total price strictly and mathematically using the menu prices provided in the RAG knowledge base (including size base prices and milk/pastry surcharges). Do not hallucinate or make up estimated prices. "
             "To simulate a busy morning queue, keep your responses extremely short (1 sentence, max 15 words). "
             "Once their food and drink items are finalized, request payment (cash or card) to end the transaction."
         )

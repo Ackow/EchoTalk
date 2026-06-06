@@ -30,10 +30,169 @@ def clean_llm_json(text: str) -> str:
         text = text[:-3]
     return text.strip()
 
-def mock_llm_response(scene_id: str, user_text: str, rag_context: str = "") -> Dict[str, Any]:
+def extract_item_from_text(user_text: str) -> Optional[str]:
+    """
+    从用户文本中提取可能的产品/项目名词（去除点餐常用语和停用词），以便在 Mock 对话中复用，增强拟真度。
+    """
+    text_lower = user_text.lower().strip()
+    # 移除常见前缀
+    for prefix in ["give me your", "give me", "i want to order", "i want", "i'd like to order", "i'd like", "could i have", "how about"]:
+        if text_lower.startswith(prefix):
+            text_lower = text_lower[len(prefix):].strip()
+            break
+            
+    # 移除常见后缀
+    for suffix in ["please", "how much", "how much is it", "all of them"]:
+        if text_lower.endswith(suffix):
+            text_lower = text_lower[:-len(suffix)].strip().rstrip(",;:")
+            
+    text_clean = text_lower.strip().rstrip("?.!")
+    if len(text_clean) > 2:
+        # 还原大小写：在原句中寻找该片段
+        start_idx = user_text.lower().find(text_clean)
+        if start_idx != -1:
+            return user_text[start_idx:start_idx + len(text_clean)]
+        return text_clean.title()
+    return None
+
+
+def dynamic_mock_correction(user_text: str, scene_type: str, speaking_style: str = "colloquial") -> Dict[str, str]:
+    """
+    根据用户输入的词汇和场景类型，动态生成基于原句修改的语法纠错（Mock 版），
+    支持根据 speaking_style (colloquial vs formal) 切换修改的目标风格，
+    避免直接替换为完全无关的硬编码句子，并保留用户提到的核心名词（如 chocolate Baker 等）。
+    """
+    text = user_text.strip().rstrip("?.!")
+    text_lower = text.lower()
+
+    corrections = []
+    corrected = text
+
+    # Cafe / Order scene
+    if scene_type == "order" or scene_type == "cafe":
+        if text_lower.startswith("give me"):
+            rest = text[7:].strip()
+            if rest.lower().endswith("how much"):
+                items = rest[:-8].strip().rstrip(",;:")
+                if speaking_style == "formal":
+                    corrected = f"I would like to order the {items}. How much does it cost?"
+                    corrections.append("建议将命令句 'give me' 替换为更正式的 'I would like to order'")
+                    corrections.append("将口语简短问价 'how much' 规范化为 'How much does it cost?'")
+                else:
+                    corrected = f"Could I have {items}, please? How much is it?"
+                    corrections.append("将直接的命令句 'give me' 改为更礼貌的请求 'Could I have ... please?'")
+                    corrections.append("将句尾简短的 'how much' 规范化为完整的问句 'How much is it?'")
+            else:
+                if speaking_style == "formal":
+                    corrected = f"I would like to order the {rest}, please."
+                    corrections.append("建议将命令句 'give me' 替换为更正式的 'I would like to order'")
+                else:
+                    corrected = f"Could I have {rest}, please?"
+                    corrections.append("将直接的命令句 'give me' 改为更礼貌的请求 'Could I have ... please?'")
+        elif text_lower.startswith("i want"):
+            rest = text[6:].strip()
+            if rest.lower().endswith("how much"):
+                items = rest[:-8].strip().rstrip(",;:")
+                if speaking_style == "formal":
+                    corrected = f"I would like to order the {items}. How much does it cost?"
+                    corrections.append("将口语化的 'I want' 替换为更正式的 'I would like to order'")
+                    corrections.append("将口语简短问价 'how much' 规范化为 'How much does it cost?'")
+                else:
+                    corrected = f"I would like to order {items}. How much is it?"
+                    corrections.append("将口语化的 'I want' 优化为更得体的 'I would like to order'")
+                    corrections.append("将句尾简短的 'how much' 规范化为完整的问句 'How much is it?'")
+            else:
+                if speaking_style == "formal":
+                    corrected = f"I would like to order the {rest}."
+                    corrections.append("将口语化的 'I want' 替换为更正式的 'I would like to order'")
+                else:
+                    corrected = f"I would like to order {rest}."
+                    corrections.append("将口语化的 'I want' 优化为更得体的 'I would like to order'")
+        else:
+            if "how much" in text_lower:
+                if text_lower.endswith("how much"):
+                    main_part = text[:-8].strip().rstrip(",;:")
+                    if speaking_style == "formal":
+                        corrected = f"I would like to order the {main_part}. How much does it cost?"
+                        corrections.append("使用正式句式并规范化价格询问为 'How much does it cost?'")
+                    else:
+                        corrected = f"I'd like to get {main_part}. How much is it?"
+                        corrections.append("规范化问句中的价格询问方式")
+                else:
+                    corrected = text.replace("how much", "how much is it" if speaking_style != "formal" else "how much does it cost")
+                    corrections.append("规范化价格询问表达")
+            else:
+                if speaking_style == "formal":
+                    corrected = f"I would like to request: {text}."
+                    corrections.append("在书面/正式表达中，添加 'I would like to request'")
+                else:
+                    corrected = f"I'd like to order: {text}."
+                    corrections.append("在句首添加礼貌的点餐常用语 'I'd like to order'")
+
+    # Interview scene
+    elif scene_type == "interview":
+        if "practice english" in text_lower:
+            corrected = text.replace("practice english", "practice speaking English" if speaking_style != "formal" else "practice speaking the English language")
+            corrections.append("优化 'practice English' 表达使其更符合英语母语习惯")
+        elif text_lower.startswith("i want to"):
+            corrected = "I would like to" + text[9:]
+            corrections.append("建议将 'I want to' 替换为更正式的 'I would like to'")
+        else:
+            if speaking_style == "formal":
+                corrected = f"I would like to state that {text[0].lower() + text[1:] if text else ''}"
+                corrections.append("在正式面试中，使用 'I would like to state...' 显得更加沉稳专业")
+            else:
+                corrected = f"I would like to share that {text[0].lower() + text[1:] if text else ''}"
+                corrections.append("在面试表达中，可以使用更自信和职业化的句式开头")
+
+    # Meeting scene
+    elif scene_type == "meeting":
+        if "tell you" in text_lower:
+            corrected = text.replace("tell you", "update you on" if speaking_style != "formal" else "present to you the update on")
+            corrections.append("在工作会议中，替换 'tell you' 显得更加职业/正式")
+        elif text_lower.startswith("i want"):
+            corrected = ("I would like to " if speaking_style == "formal" else "I'd like to ") + text[6:].strip()
+            corrections.append("建议将口语化的 'I want' 改为更适合会议汇报的表达")
+        else:
+            if speaking_style == "formal":
+                corrected = f"I would like to inform the team that {text[0].lower() + text[1:] if text else ''}"
+                corrections.append("在正式商务会议中，使用 'I would like to inform...' 显得格外正式庄重")
+            else:
+                corrected = f"I'd like to mention that {text[0].lower() + text[1:] if text else ''}"
+                corrections.append("在同步会议中，使用 'I'd like to mention/state...' 会显得更加专业")
+
+    # Fallback / General
+    else:
+        if text_lower.startswith("i want"):
+            corrected = "I would like to " + text[6:].strip()
+            corrections.append("使用 'I would like to' 比 'I want' 听起来更温和得体")
+        else:
+            corrected = text
+            corrections.append("句式微调，使得体性更加符合设定的说话风格")
+
+    # Capitalization and final punctuation
+    if corrected:
+        corrected = corrected.strip()
+        corrected = corrected[0].upper() + corrected[1:]
+        if not corrected.endswith((".", "?", "!")):
+            if any(q in corrected.lower() for q in ["how", "what", "could", "would", "can", "is there"]):
+                corrected += "?"
+            else:
+                corrected += "."
+
+    explanation = f"语法建议（{ '书面化' if speaking_style == 'formal' else '口语化' }风格）：" + "；".join(corrections) + "。已保留您原本表达的核心内容。"
+    
+    return {
+        "original": user_text,
+        "corrected": corrected,
+        "explanation": explanation
+    }
+
+
+def mock_llm_response(scene_id: str, user_text: str, rag_context: str = "", speaking_style: str = "colloquial") -> Dict[str, Any]:
     """
     未配置大模型 API Key 时的本地 Mock AI 角色对话及语法纠错生成器。
-    根据不同的场景返回高度拟真且结合上下文/知识库的回复与纠错结果。
+    根据不同的场景以及所选择的 speaking_style (colloquial vs formal) 返回回复与纠错结果。
     """
     scene_id_lower = scene_id.lower()
     
@@ -49,22 +208,31 @@ def mock_llm_response(scene_id: str, user_text: str, rag_context: str = "") -> D
                     found_keyword = kw
                     break
             if found_keyword:
-                reply = f"Interesting. Based on the reference documents, how would you handle {found_keyword} issues and optimize performance in React Native?"
+                if speaking_style == "formal":
+                    reply = f"Thank you for sharing. According to our technical documentation, how would you address {found_keyword} concerns and ensure proper optimization in React Native?"
+                else:
+                    reply = f"Interesting. Based on the reference documents, how would you handle {found_keyword} issues and optimize performance in React Native?"
             else:
                 reply = "Understood. Let's look at the document requirements: how would you address potential API integration bottlenecks under heavy loads?"
         else:
-            reply = "That sounds like a great start. Tell me about your experience with React Native and how you manage state in large-scale mobile apps."
-        grammar_correction = {
-            "original": user_text,
-            "corrected": "I would like to practice speaking English for a developer job interview.",
-            "explanation": "如果您说的是 practice English，这里微调为 practice speaking English 更加地道。"
-        } if has_error else {
+            if speaking_style == "formal":
+                reply = "Thank you. Please describe your professional experience with React Native, specifically focusing on your state management strategies in enterprise mobile applications."
+            else:
+                reply = "That sounds like a great start. Tell me about your experience with React Native and how you manage state in large-scale mobile apps."
+        
+        grammar_correction = dynamic_mock_correction(user_text, "interview", speaking_style) if has_error else {
             "original": user_text,
             "corrected": user_text,
             "explanation": "没有发现明显的语法错误，表达很流利！"
         }
     elif "order" in scene_id_lower or "cafe" in scene_id_lower:
-        if rag_context:
+        item = extract_item_from_text(user_text)
+        if item:
+            if speaking_style == "formal":
+                reply = f"Certainly. I shall prepare the {item} for you. May I inquire what size you would prefer, and would you like to consume it here or take it away?"
+            else:
+                reply = f"Sure! I can get the {item} started for you. What size would you like for that, and will that be for here or to go?"
+        elif rag_context:
             keywords = ["latte", "espresso", "americano", "cappuccino", "bagel", "muffin", "croissant", "sandwich", "tea"]
             found_keyword = None
             for kw in keywords:
@@ -72,16 +240,19 @@ def mock_llm_response(scene_id: str, user_text: str, rag_context: str = "") -> D
                     found_keyword = kw
                     break
             if found_keyword:
-                reply = f"Got it. A {found_keyword}. What size would you like for that, and do you want any milk or syrup with it?"
+                if speaking_style == "formal":
+                    reply = f"Understood. A {found_keyword}. What is your preferred size, and would you care for any milk or syrup?"
+                else:
+                    reply = f"Got it. A {found_keyword}. What size would you like for that, and do you want any milk or syrup with it?"
             else:
                 reply = "Sure, I can get that started for you. Would you like any pastries, like a fresh croissant or muffin, to go with your drink?"
         else:
-            reply = "Sure! A large vanilla latte and a slice of cheesecake. Would you like that hot or iced? And will that be for here or to go?"
-        grammar_correction = {
-            "original": user_text,
-            "corrected": "Hello! I'd like to order a large vanilla latte and a slice of cheesecake.",
-            "explanation": "口语表达中，使用 I'd like to 比 I want to 听起来更加礼貌得体。"
-        } if has_error else {
+            if speaking_style == "formal":
+                reply = "Certainly. A large vanilla latte and a slice of cheesecake. Would you prefer it hot or iced, and is it for here or to go?"
+            else:
+                reply = "Sure! A large vanilla latte and a slice of cheesecake. Would you like that hot or iced? And will that be for here or to go?"
+            
+        grammar_correction = dynamic_mock_correction(user_text, "order", speaking_style) if has_error else {
             "original": user_text,
             "corrected": user_text,
             "explanation": "点餐用语符合规范，没有发现语法错误！"
@@ -95,33 +266,32 @@ def mock_llm_response(scene_id: str, user_text: str, rag_context: str = "") -> D
                     found_keyword = kw
                     break
             if found_keyword:
-                reply = f"Thanks for the update. Since you mentioned {found_keyword} is a critical factor, what specific support or resources do you need to speed things up?"
+                if speaking_style == "formal":
+                    reply = f"Thank you for the update. Since you have identified {found_keyword} as a critical factor, what specific support or resources do you require to accelerate the timeline?"
+                else:
+                    reply = f"Thanks for the update. Since you mentioned {found_keyword} is a critical factor, what specific support or resources do you need to speed things up?"
             else:
                 reply = "I see. Based on our launch roadmap in the references, can we shift the QA timeline, or is the delay strictly on development?"
         else:
-            reply = "I understand the status. How long do you think it will take to unblock the API integration, and can we get a revised estimation by today?"
-        grammar_correction = {
-            "original": user_text,
-            "corrected": "I'd like to update you on the frontend progress and the blockers we face.",
-            "explanation": "在同步会议中，使用 update you on progress 比 tell you the progress 听起来更加专业和本土化。"
-        } if has_error else {
+            if speaking_style == "formal":
+                reply = "I acknowledge the status. Could you provide a timeline for unblocking the API integration, and can we obtain a revised estimation by the end of today?"
+            else:
+                reply = "I understand the status. How long do you think it will take to unblock the API integration, and can we get a revised estimation by today?"
+            
+        grammar_correction = dynamic_mock_correction(user_text, "meeting", speaking_style) if has_error else {
             "original": user_text,
             "corrected": user_text,
             "explanation": "表达简明扼要，语法正确，非常符合会议沟通习惯！"
         }
     else:
-        # 针对任意未定义模版的自定义场景，尝试提取用户词汇，进行自适应模拟对话追问
         words = [w.strip(".,?!\"()") for w in user_text.split() if len(w) > 4 and w.lower() not in ["would", "about", "could", "there", "their", "where", "which"]]
         if words:
             key_term = words[-1]
             reply = f"I see. Since you mentioned '{key_term}', could you tell me more about how that fits into your practice scenario?"
         else:
             reply = f"I understand. Let's continue practicing. You said: '{user_text}'. What would you like to add next?"
-        grammar_correction = {
-            "original": user_text,
-            "corrected": user_text,
-            "explanation": "句子结构基本完整，未检测到重大语法硬伤。"
-        }
+            
+        grammar_correction = dynamic_mock_correction(user_text, "general", speaking_style)
 
     return {
         "reply": reply,
@@ -132,7 +302,8 @@ async def generate_llm_response(
     scene_id: str,
     user_text: str,
     rag_context: str,
-    conversation_history: list
+    conversation_history: list,
+    speaking_style: str = "colloquial"
 ) -> Dict[str, Any]:
     """
     根据场景设置、前序历史、RAG 召回块以及脱敏后的用户文本，调用大语言模型。
@@ -173,7 +344,7 @@ async def generate_llm_response(
             status="success",
             extra_info="未配置大模型 Key，自动降级至 Mock 角色对话生成器。"
         )
-        return mock_llm_response(scene_id, user_text, rag_context)
+        return mock_llm_response(scene_id, user_text, rag_context, speaking_style)
 
     # 2. 从加载器获取场景 System Prompt
     # 临时建一个内存 db 查询，如果不可用直接用静态缓存
@@ -186,11 +357,35 @@ async def generate_llm_response(
         evaluation_rules = "请针对用户的语法准确性进行评价。"
 
     # 3. 构造大模型 Prompt 和 JSON Schema 约束
+    style_guidelines = ""
+    if speaking_style == "formal":
+        style_guidelines = (
+            "STYLE - FORMAL/WRITTEN ENGLISH:\n"
+            "1. You must respond in a formal, professional, and grammatically standard written English style. Avoid casual slang, abbreviations (e.g. use 'do not' instead of 'don't' where appropriate for maximum formality, though standard contractions are allowed if they fit the role), and filler words.\n"
+            "2. Keep the responses well-structured and polite. If the scene is an interview, behave as a formal interviewer. If the scene is cafe ordering, behave as a polite, standard barista.\n"
+            "3. For 'grammar_correction' -> 'corrected', correct the user's grammar to make it sound formal, professional, and grammatically impeccable, while preserving original items/nouns."
+        )
+    else:  # colloquial (default)
+        style_guidelines = (
+            "STYLE - COLLOQUIAL/SPOKEN ENGLISH:\n"
+            "1. You must respond in a natural, colloquial spoken English style. Actively use contractions (e.g. I'm, I'd, we've, don't, gonna, wanna) and occasional natural spoken filler words (e.g. 'Well, ...', 'Actually, ...', 'You know, ...', 'So, ...').\n"
+            "2. Keep replies concise, mimicking real face-to-face spoken conversation (1-2 sentences). Avoid long lecturing paragraphs.\n"
+            "3. Practice active listening: acknowledge the user's response briefly (e.g., 'Oh, that's interesting!', 'Got it.', 'Okay, cool.') before asking follow-up questions.\n"
+            "4. Incorporate scene-specific spoken vocabulary:\n"
+            "   - If this is a Cafe scene, use barista phrasings like 'What can I get started for you today?', 'Any room for cream?', 'For here or to go?'.\n"
+            "   - If this is a Business Meeting scene, use coworker idioms like 'touch base', 'circle back', 'loop in', 'blocker', 'keep me posted'.\n"
+            "5. For 'grammar_correction' -> 'corrected', make corrections that sound natural, polite, and fluent in daily spoken conversation rather than overly academic or textbook-like."
+        )
+
     instruction_prompt = (
         f"\n\n--- BUSINESS RULES ---\n"
         f"You must evaluate the user's latest input for grammatical correctness and naturalness. "
         f"Specific scene evaluation guidelines:\n{evaluation_rules}\n\n"
-        f"CRITICAL: You must reply to the user as your assigned character AND output your analysis in a STRICT JSON format. "
+        f"CRITICAL: You must reply to the user as your assigned character AND output your analysis in a STRICT JSON format.\n"
+        f"CRITICAL GRAMMAR CORRECTION RULES:\n"
+        f"1. In 'grammar_correction' -> 'corrected', you MUST keep the user's original meaning, core vocabulary, and specific items (e.g., if the user said 'chocolate Baker', keep 'chocolate Baker' or slightly fix it to 'chocolate babka' / 'chocolate bakery items' if it is a typo, but DO NOT replace it with 'vanilla latte' or other unrelated food/drink). Do not fabricate completely new requests.\n"
+        f"2. Make corrections on top of the user's original sentence structure rather than rewriting it from scratch into a different scenario.\n\n"
+        f"{style_guidelines}\n\n"
         f"The JSON response must contain exactly the following structure:\n"
         f"{{\n"
         f'  "reply": "Your character\'s conversational response in English. Keep it natural, conversational, and relatively concise (1-3 sentences).",\n'
@@ -210,15 +405,54 @@ async def generate_llm_response(
 
     # 添加 RAG 背景库知识（如果有的话）
     if rag_context:
+        # Determine the role for the RAG instruction based on system prompt
+        system_prompt_lower = system_prompt.lower()
+        if "barista" in system_prompt_lower or "cafe" in system_prompt_lower or "cashier" in system_prompt_lower:
+            role_description = "barista/cashier"
+            ref_description = "cafe menu and customer service manual"
+        elif "interviewer" in system_prompt_lower or "interview" in system_prompt_lower:
+            role_description = "interviewer"
+            ref_description = "candidate's background/resume, company product details, or specific technical criteria"
+        elif "manager" in system_prompt_lower or "meeting" in system_prompt_lower or "chairperson" in system_prompt_lower:
+            role_description = "chairperson or colleague"
+            ref_description = "meeting notes, project requirements, schedules, or technical data"
+        else:
+            role_description = "practice partner"
+            ref_description = "reference knowledge base"
+
+        # Check if RAG context has money/pricing content to dynamically enforce pricing constraint
+        has_pricing_content = (
+            "$" in rag_context 
+            or "¥" in rag_context 
+            or "元" in rag_context 
+            or "price" in rag_context.lower() 
+            or "cost" in rag_context.lower() 
+            or "fee" in rag_context.lower()
+            or "charge" in rag_context.lower()
+            or "menu" in rag_context.lower()
+            or "billing" in rag_context.lower()
+        )
+
+        pricing_instruction = ""
+        if has_pricing_content:
+            pricing_instruction = (
+                f"CRITICAL PRICE CONSTRAINT (STRICT ENFORCEMENT):\n"
+                f"1. When the user asks for the bill, checkout, or total price of items/services, you MUST calculate the total price mathematically and strictly according to the exact prices, fees, and surcharges listed in the reference knowledge base.\n"
+                f"2. Check for item options, sizes, and customizations. Add any premium alternatives or surcharges precisely.\n"
+                f"3. You MUST sum up these values mathematically to get the exact total. DO NOT estimate, hallucinate, or make up prices or totals under any circumstances (e.g. if the item is $4.25 and customization is free/no charge, the total is exactly $4.25, NOT $4.50 or any other estimated amount).\n"
+                f"4. If any items or services ordered are specified as out-of-stock or unavailable in the reference, apologize politely and suggest a listed alternative.\n\n"
+            )
+
+        rag_content = (
+            f"[Scene Reference Knowledge Base (PII Redacted)]:\n{rag_context}\n\n"
+            f"As the {role_description}, you must actively incorporate the above {ref_description} "
+            f"into your responses. Be context-specific, professional, and realistic based on this knowledge base rather than asking generic questions.\n\n"
+            f"{pricing_instruction}"
+        )
+
         messages.append({
             "role": "system", 
-            "content": (
-                f"[Scene Reference Knowledge Base (PII Redacted)]:\n{rag_context}\n\n"
-                f"As the interviewer, you must actively incorporate the above reference knowledge base "
-                f"(which contains the candidate's background/resume, company product details, or specific technical criteria) "
-                f"into your questions. Ask realistic, context-specific, and deep questions based on this knowledge base "
-                f"rather than generic textbook questions. Challenge the candidate professionally as a real interviewer would."
-            )
+            "content": rag_content
         })
 
     # 添加历史对话轮次
@@ -347,7 +581,8 @@ async def run_dialogue_turn_pipeline(
         scene_id=history.scene_id,
         user_text=user_text_safe,
         rag_context=rag_text_safe,
-        conversation_history=history_turns_list
+        conversation_history=history_turns_list,
+        speaking_style=getattr(history, "speaking_style", "colloquial")
     ))
 
     # 等待大模型生成完成，以便开始 TTS
@@ -488,7 +723,8 @@ async def run_dialogue_turn_pipeline_stream(
         scene_id=history.scene_id,
         user_text=user_text_safe,
         rag_context=rag_text_safe,
-        conversation_history=history_turns_list
+        conversation_history=history_turns_list,
+        speaking_style=getattr(history, "speaking_style", "colloquial")
     ))
 
     # 等待大模型生成完成

@@ -70,6 +70,7 @@ class DialogueHistoryBase(BaseModel):
 
 class DialogueStartRequest(DialogueHistoryBase):
     custom_params: Optional[Dict[str, Any]] = None # 会话开始时可定制的动态参数，会覆盖场景默认值
+    speaking_style: Optional[str] = "colloquial" # 说话风格: 'colloquial' (口语化) 或 'formal' (书面化)
 
 class DialogueHistoryResponse(BaseModel):
     id: int
@@ -78,6 +79,7 @@ class DialogueHistoryResponse(BaseModel):
     start_time: datetime
     end_time: Optional[datetime] = None
     overall_score: Optional[float] = None
+    speaking_style: Optional[str] = "colloquial"
     turns: List[DialogueTurnResponse] = []
 
     class Config:

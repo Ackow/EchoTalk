@@ -84,6 +84,7 @@ app.include_router(api_router, prefix="/api")
 def check_and_upgrade_database_schema(db: Session):
     """
     自适应数据库热升级：如果已存在的 scenes 表没有 greeting_audio_url 字段，则通过 ALTER TABLE 命令热增加该字段。
+    同时，如果 dialogue_histories 表没有 speaking_style 字段，也通过 ALTER TABLE 热增加。
     """
     try:
         cursor = db.execute(text("PRAGMA table_info(scenes)"))
@@ -93,6 +94,14 @@ def check_and_upgrade_database_schema(db: Session):
             db.execute(text("ALTER TABLE scenes ADD COLUMN greeting_audio_url VARCHAR(255)"))
             db.commit()
             print("[数据库热升级] scenes 表成功注入 greeting_audio_url 字段！")
+            
+        cursor = db.execute(text("PRAGMA table_info(dialogue_histories)"))
+        dh_columns = [row[1] for row in cursor.fetchall()]
+        if "speaking_style" not in dh_columns:
+            print("[数据库热升级] dialogue_histories 表缺失 speaking_style 字段，正在执行热注入...")
+            db.execute(text("ALTER TABLE dialogue_histories ADD COLUMN speaking_style VARCHAR(20) DEFAULT 'colloquial'"))
+            db.commit()
+            print("[数据库热升级] dialogue_histories 表成功注入 speaking_style 字段！")
     except Exception as e:
         print(f"[数据库热升级异常警告] 自动升级 schema 失败: {e}")
 
@@ -128,7 +137,7 @@ def seed_default_scenes(db: Session):
                 "store_name": "Metro Cafe",
                 "cashier_name": "Leo"
             },
-            "system_prompt": "You are Leo, a friendly but very busy barista at the popular Metro Cafe in New York. The customer (user) wants to order coffee or breakfast. Act like a real barista: speak naturally, be fast-paced, and ask conversational follow-ups based on what they order (e.g., asking about cup size, milk options like oat or soy, sweetener preferences, and whether it is dine-in or to-go). Avoid sounding like a textbook robot; instead, use casual, natural barista phrases. Keep your responses short (1-2 sentences) to keep up with the queue. Start by greeting them warmly and asking what they want today.",
+            "system_prompt": "You are Leo, a friendly but very busy barista at the popular Metro Cafe in New York. The customer (user) wants to order coffee or breakfast. Act like a real barista: speak naturally, be fast-paced, and ask conversational follow-ups based on what they order (e.g., asking about cup size, milk options like oat or soy, sweetener preferences, and whether it is dine-in or to-go). CRITICAL: When the customer asks for the bill or you provide the final price, you MUST calculate the total price strictly and mathematically using the menu prices provided in the RAG knowledge base (including size base prices and milk/pastry surcharges). Do not hallucinate or make up estimated prices. Keep your responses short (1-2 sentences) to keep up with the queue. Start by greeting them warmly and asking what they want today.",
             "greeting_text": "Welcome to Metro Cafe! I'm Leo, what can I get started for you today?"
         },
         {
