@@ -88,6 +88,15 @@ function createWindow() {
   mainWindow.once('ready-to-show', () => {
     mainWindow.show()
   })
+
+  // 阻止 window.open 弹出新窗口，外部链接使用系统浏览器打开
+  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    const { shell } = require('electron')
+    if (url.startsWith('http://') || url.startsWith('https://')) {
+      shell.openExternal(url)
+    }
+    return { action: 'deny' }
+  })
 }
 
 app.whenReady().then(() => {

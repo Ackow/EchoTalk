@@ -633,10 +633,24 @@ const deleteScene = (scene) => {
 }
 
 // Export Scene Package (.zip)
-const exportScene = (scene) => {
+const exportScene = async (scene) => {
   const exportUrl = `${store.backendBaseUrl}/api/scenes/${scene.id}/export`
-  window.open(exportUrl, '_blank')
-  ElMessage.success(`正在打包生成场景包【scene_${scene.id}.zip】，即将开始下载...`)
+  try {
+    ElMessage.info(`正在打包生成场景包【scene_${scene.id}.zip】...`)
+    const response = await axios.get(exportUrl, { responseType: 'blob' })
+    const blob = new Blob([response.data], { type: 'application/zip' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `scene_${scene.id}.zip`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+    ElMessage.success(`场景包【scene_${scene.id}.zip】下载完成！`)
+  } catch (err) {
+    ElMessage.error('导出场景包失败，请检查后端服务。')
+  }
 }
 
 // Import Scene Package (.zip)
