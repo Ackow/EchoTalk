@@ -36,7 +36,12 @@ def test_document_extraction_and_splitting():
         # 3. 对文本执行切片分块（设置 chunk_size = 300, overlap = 50）
         chunk_size = 300
         chunk_overlap = 50
-        chunks = get_document_chunks(file_path, chunk_size=chunk_size, chunk_overlap=chunk_overlap)
+        chunks = get_document_chunks(
+            file_path, 
+            chunk_size=chunk_size, 
+            chunk_overlap=chunk_overlap, 
+            keep_user_sections_whole=False
+        )
         
         print(f"切片数量: {len(chunks)} 个分块")
         assert len(chunks) > 0, "分块切割结果不能为空！"
@@ -74,10 +79,39 @@ def test_gb18030_emoji_document():
         if os.path.exists(temp_file):
             os.remove(temp_file)
 
+def test_custom_display_title_parsing():
+    """
+    测试能够成功解析标题中的可见性和自定义中文名称标签，并进行内容清理
+    """
+    test_text = "## Test Section [user] [chinese:自定义中文标题]\n\nThis is some test content."
+    temp_file = os.path.join(DATA_DIR, "temp_custom_title_test.txt")
+    
+    try:
+        with open(temp_file, "w", encoding="utf-8") as f:
+            f.write(test_text)
+            
+        chunks = get_document_chunks(temp_file, keep_user_sections_whole=True)
+        assert len(chunks) == 1, "切片数量应该为 1"
+        chunk = chunks[0]
+        
+        # 验证字段
+        assert chunk["visibility"] == "user", f"可见性期望为 user，实际为: {chunk['visibility']}"
+        assert chunk["title"] == "自定义中文标题", f"中文标题期望为 自定义中文标题，实际为: {chunk['title']}"
+        
+        # 验证标题清理，内容中不应当包含 [user] 和 [chinese:...]
+        assert "[user]" not in chunk["content"], "内容中不应包含 [user] 标签"
+        assert "chinese" not in chunk["content"], "内容中不应包含 [chinese] 标签"
+        assert "## Test Section" in chunk["content"], "内容中应包含清理后的标题"
+        print("[SUCCESS] 成功解析并清理标题中的自定义中文显示标题标签！")
+    finally:
+        if os.path.exists(temp_file):
+            os.remove(temp_file)
+
 if __name__ == "__main__":
     try:
         test_document_extraction_and_splitting()
         test_gb18030_emoji_document()
+        test_custom_display_title_parsing()
     except AssertionError as e:
         print(f"\n[FAIL] 测试发生错误: {e}")
         sys.exit(1)

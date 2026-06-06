@@ -2,17 +2,66 @@
 
 This brief outlines our contingency plans and development tasks for the upcoming Q3 product release.
 
-## 1. Project Timeline and Deadlines
-- Code Freeze: Friday, June 12th.
-- QA & Staging Testing: June 15th to June 19th.
-- Production Deployment: Monday, June 22nd.
+---
 
-## 2. Current Frontend Delay and Blockages
-- The frontend team is currently behind schedule on the main checkout module.
-- **Root Cause**: The backend payment gateway integration API has been delayed, preventing frontend integration tests.
-- **Impact**: The checkout checkout flow remains untested, posing a high risk to the release timeline.
+## 1. Project Timeline and Deadlines [user] [chinese:项目日程与截止期限]
 
-## 3. Contingency Action Items
-- **Frontend Workaround**: The frontend developer (the user) must implement local mock payment responses using mock JSON files immediately. This allows frontend testing to proceed independently.
-- **Deadline**: This mock system must be completed by Tuesday, June 9th.
-- **PM Follow-up**: David (Project Manager) will schedule a daily sync with the third-party gateway provider to speed up API delivery.
+| Milestone | Deadline | Status & Notes |
+| :--- | :--- | :--- |
+| **Code Freeze** | Friday, June 12th | All feature development complete, merged into release branch. |
+| **QA & Staging Testing** | June 15th - June 19th | Comprehensive regression testing, focusing on blocker bugs. |
+| **Production Deployment** | Monday, June 22nd | Canary deployment and gradual rollout to all production users. |
+
+---
+
+## 2. Current Frontend Delay and Blockages [user] [chinese:前端延迟与阻塞现状]
+
+- **Delayed Module**: Main Checkout Module progress is significantly behind schedule.
+- **Root Cause**: The integration API for the backend payment gateway has been delayed, preventing frontend end-to-end testing.
+- **Impact**: The checkout flow remains untested with live or sandbox APIs, posing a high risk to the June 12th code freeze and release schedule.
+
+---
+
+## 3. Contingency Action Items [user] [chinese:应急行动预案]
+
+### Frontend Workaround
+The frontend developer (the user) must immediately implement local mock responses using static JSON structures to isolate backend dependencies. This ensures that frontend validation, user interactions, and boundary cases can be verified independently without requiring the live payment gateway API.
+
+- **Mock Completion Deadline**: The payment mock system must be implemented and operational by **Tuesday, June 9th**.
+- **Project Manager Action**: David (PM) will establish daily sync meetings with the third-party gateway provider to accelerate API delivery.
+
+### Mock API Specifications
+The mock implementation must cover the following endpoint and data schema:
+- **Endpoint**: `POST /api/v1/payment/checkout`
+- **Mock Response Body**:
+  - `transaction_id`: String (UUIDv4 format)
+  - `status`: String (`"success"` or `"failed"`)
+  - `amount`: Float (Calculated dynamically to match the RAG cafe menu items and surcharges)
+  - `error_code`: String (Null on success; can be `"insufficient_funds"`, `"gateway_timeout"`, etc. on failure)
+  - `timestamp`: String (ISO 8601 formatted timestamp)
+
+### Deployment & Rollback Strategy
+On the launch day (June 22nd), in case the live payment integration causes production issues:
+- **Rollback Trigger**: If the payment error rate exceeds 5% within the first 10 minutes post-release.
+- **Rollback Guideline**: The frontend developer must ensure the previous stable release bundle (`v2.4.1`) is cached and ready. Upon trigger, the rollback to the stable version must be executed within **3 minutes**.
+
+---
+
+## 4. PM Meeting Management Guidelines & Assessment Criteria [ai] [chinese:PM会议管理与评估标准]
+
+- **AI Roleplay Settings (David)**:
+  - As the Product Manager (PM), maintain a result-oriented, clear, and direct communication style.
+  - Express concern regarding the checkout module delay and press the developer to explain the concrete details of their mock strategy.
+  - Review the mock API field specifications and verify rollback readiness.
+
+- **Core Meeting Questions**:
+  1. *“What fields are you planning to mock for the checkout gateway, and how will we test the insufficient funds error path?”*
+  2. *“In case the mock payment checks pass QA, but the third-party gateway goes unstable on launch day, what is our rollback strategy and how fast can we execute it?”*
+
+- **Evaluation Criteria**:
+  - **API Mock Specifications**:
+    - **Excellent**: Candidate lists specific fields (`status`, `transaction_id`, `error_code`) and explains how they will simulate error paths (e.g. network latency, user balance errors).
+    - **Good**: Candidate suggests mock responses but does not details fields or error handling patterns.
+  - **Rollback Strategy**:
+    - **Excellent**: Candidate mentions caching version `v2.4.1` and specifies a clear recovery timeline (e.g. within 3 minutes).
+    - **Pass**: Candidate mentions rolling back but does not describe the bundle cache or the recovery timeline.

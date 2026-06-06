@@ -1,7 +1,49 @@
 import os
 import re
-from typing import List
+from typing import List, Dict, Union
 from pypdf import PdfReader
+
+# ──────────────────────────────────────────────
+# 分块输出格式：
+# 返回 List[Dict]，每个分块包含:
+#   {
+#       "section": str,      # 节名称（如 "menu", "barista_workflow", "general"）
+#       "content": str,      # 分块文本内容
+#       "visibility": str    # "user" 或 "ai_only"（默认 ai_only，后续可调）
+#   }
+# ──────────────────────────────────────────────
+
+# Markdown 标题正则（仅匹配二级标题，避免三级子标题拆分导致重复标题与表格破损）
+HEADING_PATTERN = re.compile(r'^(##)\s+(.+)$', re.MULTILINE)
+
+# 用于检测节类别的关键词映射
+SECTION_KEYWORDS: Dict[str, List[str]] = {
+    "menu": ["$", "price", "menu", "espresso", "latte", "cappuccino", "americano",
+             "cold brew", "matcha", "chai latte", "hot chocolate", "breakfast",
+             "bakery", "muffin", "bagel", "avocado toast", "surcharge", "pricing",
+             "菜单", "价格", "价目", "点餐", "套餐"],
+    "customization": ["tall", "grande", "venti", "size", "milk options", "oat milk",
+                      "almond milk", "soy milk", "sweetener", "syrup", "half-sweet",
+                      "ice levels", "temperature", "customization", "surcharges",
+                      "定制", "规格", "杯型", "冰度", "糖度", "加冰"],
+    "barista_workflow": ["barista", "workflow", "greeting", "upsell", "dine-in",
+                         "to-go", "payment", "queue", "inventory", "out of stock",
+                         "barista action", "service workflow", "steps",
+                         "流程", "收银", "话术", "工作流", "动作", "服务规范"],
+    "vocabulary": ["how to ask", "how to order", "vocabulary", "can i get",
+                   "i'd like", "could i have", "terminology", "slang", "oral practice",
+                   "常用词汇", "口语表达", "表达", "词汇"],
+    "interview": ["interview", "candidate", "behavioral", "technical", "frontend",
+                  "react", "vue", "javascript", "star method", "tell me about yourself",
+                  "面试", "候选人", "自我介绍", "提问"],
+    "meeting": ["meeting", "agenda", "deadline", "milestone", "sprint",
+                "retrospective", "blocker", "sync", "alignment",
+                "会议", "议程", "议题", "同步"],
+}
+
+# 默认对用户可见的节
+USER_VISIBLE_SECTIONS = {"menu", "customization", "vocabulary", "interview_questions"}
+
 
 class RecursiveTextSplitter:
     """
@@ -28,7 +70,7 @@ class RecursiveTextSplitter:
 
         # 定义合法边界字符（空格、换行、中英文常用标点）
         boundaries = [' ', '\n', '\r', '。', '！', '？', '.', '!', '?', ';', '；', ',', '，']
-        
+
         # 检查候选串的前 20 个字符，寻找第一个边界符号
         first_boundary = -1
         for i in range(min(20, len(candidate))):
@@ -64,7 +106,7 @@ class RecursiveTextSplitter:
 
         # 按找到的分隔符拆分文本
         splits = text.split(separator) if separator != "" else list(text)
-        
+
         # 将拆分后的小分块组合成符合大小和重叠要求的最终块
         chunks = []
         current_chunk = ""
@@ -120,7 +162,7 @@ def extract_text_from_txt_or_md(file_path: str) -> str:
         except UnicodeDecodeError:
             continue
 
-    # 兜底方案：如果所有正常解码均失败，则使用 utf-8 配合 errors="replace" 强制读取，防止导入彻底失败
+    # 兜底方案
     try:
         with open(file_path, "r", encoding="utf-8", errors="replace") as f:
             return f.read()
@@ -145,12 +187,166 @@ def extract_text_from_file(file_path: str) -> str:
         raise ValueError(f"暂不支持的文件格式: {ext}。请上传 PDF, TXT 或 Markdown 文档。")
 
 
-def get_document_chunks(file_path: str, chunk_size: int = 400, chunk_overlap: int = 50) -> List[str]:
+def _detect_section_from_heading(heading_text: str) -> str:
     """
-    集成提取与切片：输入文档物理路径，自动读取内容并进行分块切片。
+    根据 Markdown 标题文本判断其所属的节类别。
+    """
+    h_lower = heading_text.lower()
+
+    for section_name, keywords in SECTION_KEYWORDS.items():
+        for kw in keywords:
+            if kw in h_lower:
+                return section_name
+
+    return "general"
+
+
+def _detect_section_from_content(content: str) -> str:
+    """
+    根据文本内容的关键词检测所属节类别（用于没有标题的纯文本段落）。
+    """
+    c_lower = content.lower()
+
+    for section_name, keywords in SECTION_KEYWORDS.items():
+        for kw in keywords:
+            if kw in c_lower:
+                return section_name
+
+    return "general"
+
+
+def _split_document_into_sections(text: str) -> List[Dict[str, str]]:
+    """
+    将文档按 Markdown 标题 (## 级别) 拆分为节。
+    返回 [{ "heading": str, "content": str, "section": str, "visibility": Optional[str] }, ...]
+    """
+    # 查找所有标题位置
+    heading_matches = list(HEADING_PATTERN.finditer(text))
+
+    if not heading_matches:
+        # 没有标题：整篇作为一个节
+        return [{
+            "heading": "",
+            "content": text.strip(),
+            "section": _detect_section_from_content(text),
+            "visibility": None
+        }]
+
+    sections = []
+    for i, match in enumerate(heading_matches):
+        heading_text = match.group(2).strip()
+        start = match.end()
+        end = heading_matches[i + 1].start() if i + 1 < len(heading_matches) else len(text)
+        content = text[start:end].strip()
+
+        # 检测标题中的可见性修饰符：[user] / [用户] / [ai] / [仅ai] / [仅 ai]
+        h_lower = heading_text.lower()
+        heading_visibility = None
+        if "[user]" in h_lower or "[用户]" in h_lower:
+            heading_visibility = "user"
+        elif "[ai]" in h_lower or "[仅ai]" in h_lower or "[仅 ai]" in h_lower:
+            heading_visibility = "ai_only"
+
+        # 检测标题中的中文显示名称修饰符：[chinese:XXX] / [中文:XXX]
+        chinese_match = re.search(r'\[(?:chinese|中文)\s*:\s*([^\]]+)\]', heading_text, flags=re.IGNORECASE)
+        heading_chinese_title = None
+        if chinese_match:
+            heading_chinese_title = chinese_match.group(1).strip()
+
+        # 清理标题文本，去掉可见性标记和显示名标记，展示更干净的标题
+        cleaned_heading = re.sub(r'\s*\[(user|用户|ai|仅\s*ai)\]\s*', '', heading_text, flags=re.IGNORECASE).strip()
+        cleaned_heading = re.sub(r'\s*\[(?:chinese|中文)\s*:\s*[^\]]+\]\s*', '', cleaned_heading, flags=re.IGNORECASE).strip()
+
+        section_name = _detect_section_from_heading(cleaned_heading)
+        sections.append({
+            "heading": cleaned_heading,
+            "content": content,
+            "section": section_name,
+            "visibility": heading_visibility,
+            "title": heading_chinese_title
+        })
+
+    return sections
+
+
+def get_document_chunks(
+    file_path: str,
+    chunk_size: int = 400,
+    chunk_overlap: int = 50,
+    force_visibility: str = None,
+    keep_user_sections_whole: bool = True
+) -> List[Dict[str, str]]:
+    """
+    集成提取与切片：输入文档物理路径，自动读取内容并执行分节感知的切片。
+
+    返回结构化分块列表，每个分块为:
+    {
+        "section": str,       # 节名称（如 "menu", "barista_workflow", "general"）
+        "content": str,       # 分块文本内容
+        "visibility": str     # "user" 或 "ai_only"（根据节类型自动推断默认值）
+    }
     """
     text = extract_text_from_file(file_path)
     # 清理多余空行，精简格式
     text = re.sub(r'\n{3,}', '\n\n', text)
-    splitter = RecursiveTextSplitter(chunk_size=chunk_size, chunk_overlap=chunk_overlap)
-    return splitter.split_text(text)
+
+    # 1. 先按 Markdown 标题拆分节
+    sections = _split_document_into_sections(text)
+
+    # 检测文件名自动可见性分类前缀
+    filename = os.path.basename(file_path).lower()
+    filename_visibility = None
+    if filename.startswith("user_") or filename.startswith("user-"):
+        filename_visibility = "user"
+    elif filename.startswith("ai_") or filename.startswith("ai-"):
+        filename_visibility = "ai_only"
+
+    structured_chunks = []
+    for sec in sections:
+        sec_name = sec["section"]
+        sec_content = sec["content"]
+
+        if not sec_content:
+            continue
+
+        # 确定可见性规则优先级：
+        # 1. 显式接口参数 (force_visibility)
+        # 2. 文件名前缀 (filename_visibility)
+        # 3. 章节标题修饰符 (sec.get("visibility"))
+        # 4. 根据节类别默认推断
+        if force_visibility in ("user", "ai_only"):
+            final_visibility = force_visibility
+        elif filename_visibility is not None:
+            final_visibility = filename_visibility
+        elif sec.get("visibility") is not None:
+            final_visibility = sec["visibility"]
+        else:
+            is_user_visible = sec_name in USER_VISIBLE_SECTIONS
+            final_visibility = "user" if is_user_visible else "ai_only"
+
+        # 提取节标题 + 内容作为基础文本
+        heading_prefix = f"## {sec['heading']}\n\n" if sec["heading"] else ""
+        full_text = heading_prefix + sec_content
+
+        # 如果启用 keep_user_sections_whole 且该章节对用户可见，则使用超大窗口（不切片），防止表格损坏与标题重复
+        if keep_user_sections_whole and final_visibility == "user":
+            current_chunk_size = 10000
+            current_overlap = 0
+        else:
+            current_chunk_size = chunk_size
+            current_overlap = chunk_overlap
+
+        # 对本节内容进行递归切片
+        splitter = RecursiveTextSplitter(chunk_size=current_chunk_size, chunk_overlap=current_overlap)
+        text_chunks = splitter.split_text(full_text)
+
+        for tc in text_chunks:
+            if tc.strip():
+                structured_chunks.append({
+                    "section": sec_name,
+                    "content": tc,
+                    "visibility": final_visibility,
+                    "title": sec.get("title")
+                })
+
+    return structured_chunks

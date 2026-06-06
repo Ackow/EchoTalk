@@ -74,9 +74,9 @@
         </div>
         
         <div class="card-footer">
-          <el-button 
-            type="primary" 
-            class="start-btn hover-scale" 
+          <el-button
+            type="primary"
+            class="start-btn hover-scale"
             @click="startPractice(scene)"
           >
             <el-icon><ChatDotRound /></el-icon>
@@ -91,6 +91,8 @@
         <p>暂无场景，点击上方按钮创建一个吧！</p>
       </div>
     </div>
+
+
 
     <!-- Configure Scene Dialog -->
     <el-dialog
@@ -166,6 +168,16 @@
               <p class="rag-tip">上传特定场景背景资料（如公司产品信息、面试秘籍、咖啡厅菜单等），AI 会结合这些背景来回答你的提问，且会自动屏蔽个人隐私信息。</p>
             </div>
 
+            <!-- Upload Visibility Mode Selector -->
+            <div class="upload-mode-selector">
+              <span class="selector-label">上传规则：</span>
+              <el-radio-group v-model="uploadVisibilityMode" size="default">
+                <el-radio-button value="auto">🤖 智能自动识别</el-radio-button>
+                <el-radio-button value="user">👀 全部设为用户可见</el-radio-button>
+                <el-radio-button value="ai_only">🔒 全部设为仅 AI 可见</el-radio-button>
+              </el-radio-group>
+            </div>
+
             <!-- Upload Zone -->
             <el-upload
               drag
@@ -205,6 +217,68 @@
             </div>
             <div v-else class="rag-empty-files">
               <p>当前场景暂未关联任何背景知识库文档</p>
+            </div>
+
+            <!-- Sections Visibility Config -->
+            <div class="rag-sections-config" v-if="sectionsOverview.length > 0">
+              <div class="section-list-header">
+                <span>分节可见性设置 (可见划分)</span>
+              </div>
+              <div class="section-overview-items">
+                <div v-for="sec in sectionsOverview" :key="sec.section" class="section-overview-item">
+                  <div class="sec-info">
+                    <span class="sec-name font-display">{{ sec.title || getSectionTitle(sec.section) }}</span>
+                    <span class="sec-meta">{{ sec.chunk_count }} 个特征文本分块</span>
+                  </div>
+                  <div class="sec-actions">
+                    <el-select 
+                      v-model="sec.visibility" 
+                      size="small" 
+                      style="width: 130px;" 
+                      @change="handleVisibilityChange(sec.section, sec.visibility)"
+                      :disabled="ragLoading"
+                      class="custom-select"
+                    >
+                      <el-option label="👀 用户可见" value="user" />
+                      <el-option label="🔒 仅 AI 可见" value="ai_only" />
+                    </el-select>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </el-tab-pane>
+
+        <!-- Tab 3: Background Knowledge Preview -->
+        <el-tab-pane label="背景知识预览" name="knowledge">
+          <div class="knowledge-tab-content">
+            <!-- Loading State -->
+            <div v-if="knowledgeLoading" class="knowledge-loading" v-loading="true" element-loading-text="正在获取场景知识..." style="height: 200px"></div>
+
+            <!-- Error State -->
+            <div v-else-if="knowledgeError" class="knowledge-empty">
+              <el-icon class="empty-icon"><WarningFilled /></el-icon>
+              <p>{{ knowledgeError }}</p>
+            </div>
+
+            <!-- Empty (no knowledge available) -->
+            <div v-else-if="!hasKnowledge" class="knowledge-empty">
+              <el-icon class="empty-icon"><Reading /></el-icon>
+              <p>该场景暂无对用户可见的背景知识。</p>
+              <p class="empty-hint">你可以在「RAG 场景知识库文档」标签页中上传文档以生成背景知识。</p>
+            </div>
+
+            <!-- Knowledge Content -->
+            <div v-else class="knowledge-content">
+              <div v-for="(section, idx) in knowledgeSections" :key="idx" class="knowledge-section-card">
+                <!-- Section Header -->
+                <div class="section-header">
+                  <el-icon><Reading /></el-icon>
+                  <h3 class="section-title">{{ section.title || getSectionTitle(section.section) }}</h3>
+                </div>
+                <!-- Section Body as rendered Markdown -->
+                <div class="section-body markdown-body" v-html="renderMarkdown(section.content)"></div>
+              </div>
             </div>
           </div>
         </el-tab-pane>
@@ -298,6 +372,7 @@ import { useRouter } from 'vue-router'
 import { useAppStore } from '../store/useAppStore'
 import axios from 'axios'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { marked } from 'marked'
 
 const router = useRouter()
 const store = useAppStore()
@@ -310,10 +385,102 @@ const createVisible = ref(false)
 const activeTab = ref('params')
 const activeScene = ref(null)
 
+const uploadVisibilityMode = ref('auto')
+
 const savingConfig = ref(false)
 const creatingScene = ref(false)
 // ⭐ 关键修改点 2：增加专门控制 RAG 知识库上传解析状态的 loading 变量
 const ragLoading = ref(false)
+
+// Knowledge Preview State
+const knowledgeLoading = ref(false)
+const knowledgeError = ref('')
+const hasKnowledge = ref(false)
+const knowledgeSections = ref([])
+
+// RAG Sections visibility list
+const sectionsOverview = ref([])
+
+const fetchSectionsOverview = async (sceneId) => {
+  if (!sceneId) return
+  try {
+    const res = await axios.get(`${store.backendBaseUrl}/api/scenes/${sceneId}/knowledge/sections`)
+    sectionsOverview.value = res.data.sections || []
+  } catch (err) {
+    console.error('获取分节概览失败:', err)
+  }
+}
+
+const handleVisibilityChange = async (sectionName, newVisibility) => {
+  if (!activeScene.value) return
+  ragLoading.value = true
+  try {
+    await axios.patch(
+      `${store.backendBaseUrl}/api/scenes/${activeScene.value.id}/knowledge/sections`,
+      {
+        section: sectionName,
+        visibility: newVisibility
+      }
+    )
+    const foundSec = sectionsOverview.value.find(s => s.section === sectionName)
+    const displayName = foundSec?.title || getSectionTitle(sectionName)
+    ElMessage.success(`分节【${displayName}】的可见性已更新为【${newVisibility === 'user' ? '用户可见' : '仅 AI 可见'}】`)
+    
+    // Refresh knowledge list since visibility changed
+    fetchKnowledge(activeScene.value.id)
+  } catch (err) {
+    ElMessage.error(err.response?.data?.detail || '更新可见性失败')
+    // Revert local state
+    fetchSectionsOverview(activeScene.value.id)
+  } finally {
+    ragLoading.value = false
+  }
+}
+
+const fetchKnowledge = async (sceneId) => {
+  if (!sceneId) return
+  knowledgeLoading.value = true
+  knowledgeError.value = ''
+  hasKnowledge.value = false
+  knowledgeSections.value = []
+
+  try {
+    const res = await axios.get(`${store.backendBaseUrl}/api/scenes/${sceneId}/knowledge`)
+    const data = res.data
+    hasKnowledge.value = data.has_knowledge
+    knowledgeSections.value = data.sections || []
+  } catch (err) {
+    knowledgeError.value = err.response?.data?.detail || '获取场景知识失败，请检查后端服务'
+  } finally {
+    knowledgeLoading.value = false
+  }
+}
+
+watch(activeTab, (newTab) => {
+  if (newTab === 'knowledge' && activeScene.value) {
+    fetchKnowledge(activeScene.value.id)
+  }
+})
+
+// Display helpers for background knowledge
+const sectionTitles = {
+  menu:           '☕ 菜单与价格',
+  customization:  '⚙️ 定制选项',
+  vocabulary:     '📖 常用口语表达',
+  interview:      '💼 面试指南',
+  meeting:        '📋 会议议程',
+  general:        '📄 通用知识',
+  barista_workflow: '🔧 服务流程',
+}
+
+const getSectionTitle = (section) => {
+  return sectionTitles[section] || section
+}
+
+const renderMarkdown = (text) => {
+  if (!text) return ''
+  return marked(text)
+}
 
 // Config Form
 const configForm = reactive({
@@ -412,7 +579,7 @@ const formatDate = (isoStr) => {
 }
 
 // Config Actions
-const openConfigDialog = (scene) => {
+const openConfigDialog = (scene, defaultTab = 'params') => {
   activeScene.value = scene
   configForm.name = scene.name
   configForm.description = scene.description
@@ -425,8 +592,15 @@ const openConfigDialog = (scene) => {
     value: String(val)
   }))
 
-  activeTab.value = 'params'
+  activeTab.value = defaultTab
   configVisible.value = true
+
+  // Fetch sections overview for RAG visibility config
+  fetchSectionsOverview(scene.id)
+
+  if (defaultTab === 'knowledge') {
+    fetchKnowledge(scene.id)
+  }
 }
 
 const addConfigParam = () => {
@@ -485,6 +659,10 @@ const handleUpload = async (options) => {
   const formData = new FormData()
   formData.append('file', file)
 
+  if (uploadVisibilityMode.value !== 'auto') {
+    formData.append('force_visibility', uploadVisibilityMode.value)
+  }
+
   // 开启解析中动画状态
   ragLoading.value = true
 
@@ -499,6 +677,7 @@ const handleUpload = async (options) => {
     )
     ElMessage.success('知识库文档上传并向量化成功！')
     activeScene.value = res.data
+    fetchSectionsOverview(activeScene.value.id)
 
     // Update state
     const idx = scenes.value.findIndex(s => s.id === activeScene.value.id)
@@ -533,6 +712,7 @@ const clearRagDocs = () => {
       )
       ElMessage.success('知识库清除成功！')
       activeScene.value = res.data
+      sectionsOverview.value = []
 
       // Update state
       const idx = scenes.value.findIndex(s => s.id === activeScene.value.id)
@@ -850,6 +1030,63 @@ const handleImportScene = async (options) => {
   gap: 12px;
 }
 
+/* Configure Scene Dialog / Create Custom Scene Dialog Premium Button Styling */
+:deep(.custom-dialog .el-button--primary) {
+  background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%) !important;
+  border: none !important;
+  border-radius: 8px !important;
+  color: #ffffff !important;
+  font-weight: 600 !important;
+  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3) !important;
+  transition: var(--transition-smooth) !important;
+  padding: 8px 18px !important;
+  height: 36px !important;
+}
+
+:deep(.custom-dialog .el-button--primary:hover) {
+  transform: translateY(-1px) !important;
+  box-shadow: 0 6px 16px rgba(99, 102, 241, 0.45) !important;
+  filter: brightness(1.1) !important;
+}
+
+:deep(.custom-dialog .el-button:not(.el-button--primary):not(.el-button--danger):not(.el-button--success):not(.el-button--text):not(.is-link)) {
+  background: rgba(255, 255, 255, 0.04) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  color: var(--text-secondary) !important;
+  border-radius: 8px !important;
+  font-weight: 500 !important;
+  transition: var(--transition-smooth) !important;
+  padding: 8px 18px !important;
+  height: 36px !important;
+}
+
+:deep(.custom-dialog .el-button:not(.el-button--primary):not(.el-button--danger):not(.el-button--success):not(.el-button--text):not(.is-link):hover) {
+  background: rgba(255, 255, 255, 0.08) !important;
+  border-color: rgba(255, 255, 255, 0.15) !important;
+  color: var(--text-primary) !important;
+  transform: translateY(-1px) !important;
+}
+
+:deep(.custom-dialog .el-radio-button__inner) {
+  background: rgba(255, 255, 255, 0.03) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  color: var(--text-secondary) !important;
+  transition: var(--transition-smooth) !important;
+}
+
+:deep(.custom-dialog .el-radio-button__original-radio:checked + .el-radio-button__inner) {
+  background: rgba(99, 102, 241, 0.15) !important;
+  border-color: var(--primary-color) !important;
+  color: #a5b4fc !important;
+  box-shadow: none !important;
+}
+
+:deep(.custom-dialog .el-radio-button__inner:hover) {
+  color: var(--text-primary) !important;
+  background: rgba(255, 255, 255, 0.06) !important;
+}
+
+
 .import-uploader-inline {
   display: inline-block;
 }
@@ -931,8 +1168,15 @@ const handleImportScene = async (options) => {
   margin-top: auto;
 }
 
+.card-footer {
+  display: flex;
+  gap: 8px;
+}
+
+
+
 .start-btn {
-  width: 100%;
+  flex: 1;
   font-weight: 600;
   border-radius: 8px;
   background: #1f2937 !important;
@@ -1137,5 +1381,203 @@ const handleImportScene = async (options) => {
   padding: 30px;
   color: var(--text-muted);
   font-size: 0.85rem;
+}
+
+/* Background Knowledge Tab Styles */
+.knowledge-tab-content {
+  max-height: 50vh;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-right: 6px;
+}
+
+.knowledge-loading,
+.knowledge-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 20px;
+  text-align: center;
+  gap: 12px;
+  color: var(--text-secondary);
+}
+
+.empty-icon {
+  font-size: 2.5rem;
+  color: var(--text-muted);
+}
+
+.empty-hint {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  max-width: 360px;
+}
+
+.knowledge-content {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.knowledge-section-card {
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: 10px;
+  padding: 14px 16px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.section-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.section-title {
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.section-body {
+  font-size: 0.9rem;
+  line-height: 1.65;
+  color: var(--text-secondary);
+  word-wrap: break-word;
+  word-break: break-word;
+  font-family: inherit;
+  margin: 0;
+}
+
+.section-body :deep(p) {
+  margin: 0 0 8px 0;
+}
+.section-body :deep(p:last-child) {
+  margin-bottom: 0;
+}
+.section-body :deep(ul), .section-body :deep(ol) {
+  margin: 0 0 8px 0;
+  padding-left: 20px;
+}
+.section-body :deep(li) {
+  margin-bottom: 4px;
+}
+.section-body :deep(strong) {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+.section-body :deep(h1), .section-body :deep(h2), .section-body :deep(h3) {
+  margin: 12px 0 6px 0;
+  color: var(--text-primary);
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.section-body :deep(pre),
+.section-body :deep(code) {
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+/* RAG Sections Visibility Config */
+.rag-sections-config {
+  margin-top: 24px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  padding-top: 20px;
+}
+
+.section-list-header {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 12px;
+  border-left: 3px solid var(--primary-color);
+  padding-left: 8px;
+}
+
+.section-overview-items {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 250px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.section-overview-item {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  border-radius: 6px;
+  padding: 10px 14px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.sec-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.sec-name {
+  font-size: 0.85rem;
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.sec-meta {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.custom-select :deep(.el-select__wrapper),
+.custom-select :deep(.el-input__wrapper) {
+  background: rgba(99, 102, 241, 0.06) !important;
+  box-shadow: 0 0 0 1px rgba(99, 102, 241, 0.25) inset !important;
+  border-radius: 6px !important;
+  transition: var(--transition-smooth) !important;
+}
+
+.custom-select :deep(.el-select__wrapper:hover),
+.custom-select :deep(.el-input__wrapper:hover) {
+  box-shadow: 0 0 0 1px var(--primary-color) inset !important;
+  background: rgba(99, 102, 241, 0.1) !important;
+}
+
+.custom-select :deep(.el-select__wrapper.is-focus),
+.custom-select :deep(.el-select__wrapper.is-focused),
+.custom-select :deep(.el-input__wrapper.is-focus) {
+  box-shadow: 0 0 0 1px var(--primary-color) inset, 0 0 8px rgba(99, 102, 241, 0.35) !important;
+  background: rgba(99, 102, 241, 0.1) !important;
+}
+
+.custom-select :deep(.el-select__selected-item),
+.custom-select :deep(.el-select__placeholder),
+.custom-select :deep(.el-input__inner) {
+  color: #a5b4fc !important;
+  font-weight: 600 !important;
+}
+
+.custom-select :deep(.el-select__caret) {
+  color: var(--primary-color) !important;
+}
+
+/* RAG Upload selector style */
+.upload-mode-selector {
+  margin-bottom: 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.selector-label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-secondary);
 }
 </style>

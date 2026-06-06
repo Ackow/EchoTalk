@@ -23,7 +23,12 @@ def test_rag_flow():
     # 1. 载入面试指南并进行分块
     interview_file = os.path.join(DATA_DIR, "interview_prep.txt")
     assert os.path.exists(interview_file)
-    chunks = get_document_chunks(interview_file, chunk_size=300, chunk_overlap=50)
+    chunks = get_document_chunks(
+        interview_file, 
+        chunk_size=300, 
+        chunk_overlap=50, 
+        keep_user_sections_whole=False
+    )
     print(f"解析 interview_prep.txt 得到 {len(chunks)} 个分块。")
     
     # 2. 将分块录入到 RAG 向量数据库

@@ -4,17 +4,27 @@ import io
 import json
 import zipfile
 from datetime import datetime
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from typing import List
 
 from app.api.deps import get_db
 from app.models import Scene, DialogueHistory
-from app.schemas import SceneResponse, SceneCreate, SceneUpdate, SceneQueryRequest, SceneQueryResponse
+from app.schemas import (
+    SceneResponse, SceneCreate, SceneUpdate,
+    SceneQueryRequest, SceneQueryResponse,
+    SceneKnowledgeResponse, KnowledgeSection,
+    SceneSectionsResponse, SectionOverview,
+    SectionVisibilityUpdate,
+)
 from app.core.config import settings
 from app.services.document import get_document_chunks
-from app.services.rag import add_documents_to_scene, query_scene_knowledge, clear_scene_knowledge
+from app.services.rag import (
+    add_documents_to_scene, query_scene_knowledge, clear_scene_knowledge,
+    get_user_visible_chunks, get_scene_section_overview as get_rag_section_overview,
+    load_index, save_index
+)
 
 router = APIRouter()
 
@@ -135,6 +145,7 @@ def update_scene(scene_id: str, scene_in: SceneUpdate, db: Session = Depends(get
 def upload_scene_document(
     scene_id: str,
     file: UploadFile = File(...),
+    force_visibility: str = Form(None),
     db: Session = Depends(get_db)
 ):
     """
@@ -167,7 +178,7 @@ def upload_scene_document(
             shutil.copyfileobj(file.file, buffer)
 
         # 提取并分块
-        chunks = get_document_chunks(temp_file_path)
+        chunks = get_document_chunks(temp_file_path, force_visibility=force_visibility)
         if not chunks:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -257,6 +268,90 @@ def query_scene_rag(scene_id: str, req: SceneQueryRequest, db: Session = Depends
         scene_id=scene_id,
         query=req.query,
         results=matched_chunks
+    )
+
+
+@router.get("/{scene_id}/knowledge", response_model=SceneKnowledgeResponse)
+def get_scene_knowledge(scene_id: str, db: Session = Depends(get_db)):
+    """
+    获取场景中对用户可见的知识库内容（菜单、价格、常用词汇等），
+    供前端在对话开始前或以侧边参考面板的形式展示给用户。
+
+    仅返回 visibility="user" 的分节内容，
+    内部流程、库存告警、服务规范等 ai_only 分节不会暴露。
+    """
+    scene = db.query(Scene).filter(Scene.id == scene_id).first()
+    if not scene:
+        raise HTTPException(status_code=404, detail=f"场景 '{scene_id}' 未找到")
+
+    user_chunks = get_user_visible_chunks(scene_id)
+
+    return SceneKnowledgeResponse(
+        scene_id=scene_id,
+        has_knowledge=len(user_chunks) > 0,
+        sections=user_chunks
+    )
+
+
+@router.get("/{scene_id}/knowledge/sections", response_model=SceneSectionsResponse)
+def get_scene_section_overview(scene_id: str, db: Session = Depends(get_db)):
+    """
+    获取场景知识库的全部分节概览（含 visibility 信息），
+    供（后续）管理界面使用。返回每个分节的名称、可见性和分块数量。
+    """
+    scene = db.query(Scene).filter(Scene.id == scene_id).first()
+    if not scene:
+        raise HTTPException(status_code=404, detail=f"场景 '{scene_id}' 未找到")
+
+    sections = get_rag_section_overview(scene_id)
+
+    return SceneSectionsResponse(
+        scene_id=scene_id,
+        sections=sections
+    )
+
+
+@router.patch("/{scene_id}/knowledge/sections", response_model=SceneKnowledgeResponse)
+def update_section_visibility(
+    scene_id: str,
+    update: SectionVisibilityUpdate,
+    db: Session = Depends(get_db)
+):
+    """
+    修改场景知识库中某个分节的可见性（user ↔ ai_only）。
+    此操作会读取当前 JSON 文件，更新对应 section 的所有分块后重新持久化。
+    """
+    scene = db.query(Scene).filter(Scene.id == scene_id).first()
+    if not scene:
+        raise HTTPException(status_code=404, detail=f"场景 '{scene_id}' 未找到")
+
+    if update.visibility not in ("user", "ai_only"):
+        raise HTTPException(status_code=400, detail="visibility 必须为 'user' 或 'ai_only'")
+
+    # 读取当前索引
+    index, chunks = load_index(scene_id)
+    if index is None or not chunks:
+        raise HTTPException(status_code=404, detail="该场景尚无知识库内容")
+
+    # 更新指定 section 所有分块的可见性
+    updated_count = 0
+    for chunk in chunks:
+        if chunk.get("section") == update.section:
+            chunk["visibility"] = update.visibility
+            updated_count += 1
+
+    if updated_count == 0:
+        raise HTTPException(status_code=404, detail=f"分节 '{update.section}' 不存在")
+
+    # 重新持久化
+    save_index(scene_id, index, chunks)
+
+    # 返回更新后用户可见的内容
+    user_chunks = get_user_visible_chunks(scene_id)
+    return SceneKnowledgeResponse(
+        scene_id=scene_id,
+        has_knowledge=len(user_chunks) > 0,
+        sections=user_chunks
     )
 
 

@@ -101,3 +101,31 @@ class SceneQueryResponse(BaseModel):
     query: str
     results: List[str]
 
+
+# --- 场景知识预览相关模式 ---
+class KnowledgeSection(BaseModel):
+    section: str = Field(description="节名称，如 menu, barista_workflow, vocabulary")
+    content: str = Field(description="该节的完整文本内容")
+    title: Optional[str] = Field(None, description="自定义中文显示标题")
+
+class SceneKnowledgeResponse(BaseModel):
+    scene_id: str
+    has_knowledge: bool
+    sections: List[KnowledgeSection] = Field(default_factory=list, description="对用户可见的知识库分节列表")
+
+
+# --- 场景分节概览相关模式 ---
+class SectionOverview(BaseModel):
+    section: str = Field(description="节名称")
+    visibility: str = Field(description="'user' 或 'ai_only'")
+    chunk_count: int = Field(description="该节下的分块数量")
+    title: Optional[str] = Field(None, description="自定义中文显示标题")
+
+class SceneSectionsResponse(BaseModel):
+    scene_id: str
+    sections: List[SectionOverview] = Field(default_factory=list)
+
+class SectionVisibilityUpdate(BaseModel):
+    section: str = Field(description="要修改的节名称")
+    visibility: str = Field(description="新的可见性: 'user' 或 'ai_only'")
+

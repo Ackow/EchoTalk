@@ -131,6 +131,99 @@ def check_and_upgrade_database_schema(db: Session):
     except Exception as e:
         print(f"[数据库热升级异常警告] 自动升级 schema 失败: {e}")
 
+def seed_rag_for_scene(db: Session, scene_id: str, scene_obj: Scene):
+    """
+    检查指定场景是否需要种子填充其 RAG 知识库。如果需要，则读取 tests/data 下对应的预置文件，
+    解析并导入 FAISS 库，同步更新/校准 RAG 元数据（支持内容改变后的自动升级）。
+    """
+    # 场景与种子文件映射关系
+    mapping = {
+        "ordering": "cafe_menu.txt",
+        "interview": "interview_prep.txt",
+        "meeting": "meeting_brief.txt"
+    }
+    filename = mapping.get(scene_id)
+    if not filename:
+        return
+
+    # 确认物理种子文件存在
+    import datetime
+    import hashlib
+    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    file_path = os.path.join(base_dir, "tests", "data", filename)
+    if not os.path.exists(file_path):
+        print(f"[RAG 种子异常] 未找到场景 '{scene_id}' 的种子文档: {file_path}")
+        return
+
+    # 计算物理文件的 MD5 哈希
+    hash_md5 = hashlib.md5()
+    try:
+        with open(file_path, "rb") as f:
+            for chunk in iter(lambda: f.read(4096), b""):
+                hash_md5.update(chunk)
+        file_hash = hash_md5.hexdigest()
+    except Exception as e:
+        print(f"[RAG 种子异常] 无法计算文件 '{filename}' 的哈希: {e}")
+        return
+
+    # 检查是否已挂载该文件
+    metadata = scene_obj.rag_metadata if scene_obj.rag_metadata else []
+    existing_item = next((item for item in metadata if item.get("filename") == filename), None)
+    
+    # 如果已存在，且哈希值一致，直接跳过
+    if existing_item and existing_item.get("file_hash") == file_hash:
+        print(f"[RAG 种子检查] 场景 '{scene_id}' 的 RAG 种子文档 '{filename}' 已存在且无变化，跳过 RAG 初始化。")
+        return
+
+    # 如果存在但哈希值不一致，或者由于历史升级遗留（之前没有 file_hash 字段），则重置旧索引并重新导入
+    is_upgrade = existing_item is not None
+    if is_upgrade:
+        print(f"[RAG 种子升级] 检测到场景 '{scene_id}' 的种子文档 '{filename}' 内容有更新（或缺失哈希标识），正在重置索引并重新填充...")
+        from app.services.rag import clear_scene_knowledge
+        try:
+            clear_scene_knowledge(scene_id)
+        except Exception as e:
+            print(f"[RAG 种子升级警告] 清空旧 RAG 库失败: {e}")
+        metadata = [item for item in metadata if item.get("filename") != filename]
+
+    print(f"[RAG 种子填充] 正在为场景 '{scene_id}' 导入种子文档 '{filename}'...")
+    try:
+        from app.services.document import get_document_chunks
+        from app.services.rag import add_documents_to_scene
+
+        # 1. 解析并分块
+        chunks = get_document_chunks(file_path)
+        if not chunks:
+            print(f"[RAG 种子异常] 文档 '{filename}' 解析分块为空，无法导入。")
+            return
+
+        # 2. 写入 FAISS 库并持久化索引
+        add_documents_to_scene(scene_id, chunks)
+
+        # 3. 更新元数据
+        new_metadata = list(metadata)
+        new_metadata = [item for item in new_metadata if item.get("filename") != filename]
+        
+        content_type = "text/markdown" if filename.endswith(".md") else "text/plain"
+        new_metadata.append({
+            "filename": filename,
+            "content_type": content_type,
+            "chunk_count": len(chunks),
+            "uploaded_at": datetime.datetime.utcnow().isoformat(),
+            "file_hash": file_hash
+        })
+        
+        scene_obj.rag_metadata = new_metadata
+        db.add(scene_obj)
+        db.commit()
+        db.refresh(scene_obj)
+        action_str = "升级校准" if is_upgrade else "初始化录入"
+        print(f"[RAG 种子成功] 场景 '{scene_id}' 成功{action_str}种子文档 '{filename}'（共 {len(chunks)} 个分块）。")
+    except Exception as e:
+        db.rollback()
+        print(f"[RAG 种子填充失败] 场景 '{scene_id}' 录入种子文档出现异常: {e}")
+
+
 def seed_default_scenes(db: Session):
     """
     预置种子数据：自动注册面试、点餐、同步会议等三大开箱即用口语练习场景
@@ -226,6 +319,12 @@ def seed_default_scenes(db: Session):
                 rag_metadata=[]
             )
             db.add(scene)
+            db.commit()
+            db.refresh(scene)
+            
+            # 初始化录入场景对应的 RAG 知识库
+            seed_rag_for_scene(db, scene.id, scene)
+            
             init_status.update("seeding", f"「{scene_name}」已就绪 ✓", progress_base + 15, f"完成场景 {idx+1}/{total_scenes}")
         else:
             init_status.update("seeding", f"校验「{scene_name}」...", progress_base + 10, f"检查场景 {idx+1}/{total_scenes}")
@@ -240,6 +339,8 @@ def seed_default_scenes(db: Session):
                 # 重新预合成打招呼语音
                 existing.greeting_audio_url = generate_and_upload_greeting_audio(existing.id, scene_data["greeting_text"])
                 db.add(existing)
+                db.commit()
+                db.refresh(existing)
             # 如果存在但缺失问候语音频 (针对老库热升级的兼容性填充)
             elif not existing.greeting_audio_url and existing.greeting_text:
                 print(f"[种子自动修复] 场景 '{existing.id}' 缺少问候语音频，正在执行补偿生成...")
@@ -252,6 +353,8 @@ def seed_default_scenes(db: Session):
                     text_to_speech(existing.greeting_text, local_path)
                     existing.greeting_audio_url = upload_audio_to_kodo(local_path, filename)
                     db.add(existing)
+                    db.commit()
+                    db.refresh(existing)
                     print(f"[种子自动修复] 场景 '{existing.id}' 问候语语音已完美填充！")
                 except Exception as e:
                     print(f"[种子补偿生成异常] 场景 {existing.id} 合成失败: {e}")
@@ -262,6 +365,9 @@ def seed_default_scenes(db: Session):
                                 os.remove(local_path)
                             except Exception:
                                 pass
+                                
+            # 种子检测与增量填充该场景的 RAG 知识库
+            seed_rag_for_scene(db, existing.id, existing)
     db.commit()
 
 # ══════════════════════════════════════════════════════════════════════════════

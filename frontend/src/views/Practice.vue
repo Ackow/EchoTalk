@@ -31,6 +31,16 @@
             <span class="val">{{ val }}</span>
           </div>
         </div>
+        <el-button
+          type="primary"
+          size="default"
+          class="knowledge-btn hover-scale"
+          @click="toggleKnowledgePanel"
+          :disabled="!hasKnowledge"
+        >
+          <el-icon><Reading /></el-icon>
+          <span>场景参考</span>
+        </el-button>
         <el-button type="danger" size="default" class="settle-btn hover-scale" @click="handleSettle" :disabled="turns.length < 2">
           <el-icon><CircleCheck /></el-icon>
           <span>结束并结算</span>
@@ -40,8 +50,44 @@
 
     <!-- Main Content Grid -->
     <div class="practice-grid">
+      <!-- Floating, Draggable, Resizable Knowledge Reference Panel -->
+      <transition name="slide-right">
+        <div 
+          v-show="showKnowledgePanel" 
+          ref="drawerRef"
+          class="knowledge-drawer glass-panel"
+          :style="{ left: panelPosition.x + 'px', top: panelPosition.y + 'px' }"
+        >
+          <div class="knowledge-drawer-header" @mousedown="startDrag">
+            <el-icon><Reading /></el-icon>
+            <span class="drawer-title">场景知识参考</span>
+            <el-button type="primary" link class="drawer-close-btn" @click="showKnowledgePanel = false">
+              <el-icon><Close /></el-icon>
+            </el-button>
+          </div>
+          <div class="knowledge-drawer-body" v-loading="knowledgeLoading">
+            <div v-if="knowledgeLoading" style="height: 200px"></div>
+            <div v-else-if="knowledgeError" class="knowledge-empty">
+              <p>{{ knowledgeError }}</p>
+            </div>
+            <div v-else-if="!hasKnowledge" class="knowledge-empty">
+              <p>暂无用户可见知识内容。</p>
+            </div>
+            <div v-else class="knowledge-sections">
+              <div v-for="(sec, idx) in knowledgeSections" :key="idx" class="knowledge-section-card">
+                <div class="sec-header">
+                  <el-icon><Reading /></el-icon>
+                  <span class="sec-title">{{ sec.title || getSectionTitle(sec.section) }}</span>
+                </div>
+                <div class="sec-body markdown-body" v-html="renderMarkdown(sec.content)"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </transition>
+
       <!-- Left side: Dialogue Area -->
-      <section class="dialogue-box glass-panel">
+      <section :class="['dialogue-box', 'glass-panel', { 'with-knowledge-drawer': showKnowledgePanel }]">
         <!-- Waiting state before session starts -->
         <div v-if="!sessionStarted" class="start-session-prompt">
           <el-icon class="prompt-icon"><Microphone /></el-icon>
@@ -598,12 +644,13 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, computed, nextTick } from 'vue'
+import { ref, onMounted, onUnmounted, computed, nextTick, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAppStore } from '../store/useAppStore'
 import EChartsRadar from '../components/EChartsRadar.vue'
 import axios from 'axios'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { marked } from 'marked'
 
 const router = useRouter()
 const route = useRoute()
@@ -653,6 +700,125 @@ const selectedTurnIndex = ref(null)
 const expandedTurns = ref({})
 // 存储流式数据包的处理提示文案
 const processingStatusText = ref('发音评估与思考中...')
+
+// Knowledge Reference Panel State
+const showKnowledgePanel = ref(false)
+const knowledgeLoading = ref(false)
+const knowledgeError = ref('')
+const hasKnowledge = ref(false)
+const knowledgeSections = ref([])
+
+// Floating Draggable Panel State
+const drawerRef = ref(null)
+const panelPosition = ref({ x: 20, y: 80 })
+const isDragging = ref(false)
+let dragStart = { x: 0, y: 0 }
+let initialPos = { x: 0, y: 0 }
+
+const startDrag = (event) => {
+  // Prevent dragging on button clicks
+  if (event.target.closest('.drawer-close-btn') || event.target.closest('button')) {
+    return
+  }
+  isDragging.value = true
+  dragStart.x = event.clientX
+  dragStart.y = event.clientY
+  
+  const el = drawerRef.value
+  if (el) {
+    initialPos.x = el.offsetLeft
+    initialPos.y = el.offsetTop
+  } else {
+    initialPos.x = panelPosition.value.x
+    initialPos.y = panelPosition.value.y
+  }
+  
+  document.addEventListener('mousemove', onDrag)
+  document.addEventListener('mouseup', stopDrag)
+}
+
+const onDrag = (event) => {
+  if (!isDragging.value) return
+  const dx = event.clientX - dragStart.x
+  const dy = event.clientY - dragStart.y
+  
+  const el = drawerRef.value
+  if (el) {
+    const nextX = Math.max(0, Math.min(window.innerWidth - 100, initialPos.x + dx))
+    const nextY = Math.max(0, Math.min(window.innerHeight - 100, initialPos.y + dy))
+    
+    // Direct DOM styling updates bypass Vue diffing/re-render for maximum performance
+    el.style.left = nextX + 'px'
+    el.style.top = nextY + 'px'
+  }
+}
+
+const stopDrag = () => {
+  isDragging.value = false
+  document.removeEventListener('mousemove', onDrag)
+  document.removeEventListener('mouseup', stopDrag)
+  
+  // Sync the final drag coordinates back to Vue's reactive state
+  const el = drawerRef.value
+  if (el) {
+    panelPosition.value.x = el.offsetLeft
+    panelPosition.value.y = el.offsetTop
+  }
+}
+
+// Watch for scene change to check if it has background knowledge
+watch(scene, async (newScene) => {
+  if (newScene?.id) {
+    try {
+      const res = await axios.get(`${store.backendBaseUrl}/api/scenes/${newScene.id}/knowledge`)
+      hasKnowledge.value = res.data.has_knowledge
+      knowledgeSections.value = res.data.sections || []
+    } catch (err) {
+      console.error('获取场景知识失败:', err)
+      hasKnowledge.value = false
+    }
+  }
+}, { immediate: true })
+
+const toggleKnowledgePanel = async () => {
+  if (showKnowledgePanel.value) {
+    showKnowledgePanel.value = false
+    return
+  }
+  // 首次打开时获取知识
+  if (!knowledgeSections.value.length && scene.value?.id) {
+    knowledgeLoading.value = true
+    knowledgeError.value = ''
+    try {
+      const res = await axios.get(`${store.backendBaseUrl}/api/scenes/${scene.value.id}/knowledge`)
+      const data = res.data
+      hasKnowledge.value = data.has_knowledge
+      knowledgeSections.value = data.sections || []
+    } catch (err) {
+      knowledgeError.value = err.response?.data?.detail || '获取场景知识失败'
+      hasKnowledge.value = false
+    } finally {
+      knowledgeLoading.value = false
+    }
+  }
+  showKnowledgePanel.value = true
+}
+
+const sectionTitles = {
+  menu: '☕ 菜单与价格',
+  customization: '⚙️ 定制选项',
+  vocabulary: '📖 常用口语表达',
+  interview: '💼 面试指南',
+  meeting: '📋 会议议程',
+  general: '📄 通用知识',
+}
+
+const getSectionTitle = (s) => sectionTitles[s] || s
+
+const renderMarkdown = (text) => {
+  if (!text) return ''
+  return marked(text)
+}
 const currentBigStatus = ref('上传语音')
 const currentPlayfulRemark = ref('正在安全上传您的音频...')
 
@@ -1942,6 +2108,206 @@ const getWavDuration = (turn) => {
 </script>
 
 <style scoped>
+/* Floating, Draggable, Resizable Knowledge Reference Panel */
+.knowledge-drawer {
+  position: absolute;
+  width: 380px;
+  height: 520px;
+  min-width: 320px;
+  min-height: 250px;
+  max-width: 700px;
+  max-height: 80vh;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  background: rgba(17, 24, 39, 0.95) !important;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  overflow: hidden;
+  resize: both; /* Enable browser native resize handle at bottom-right */
+  transition: none !important; /* Disable transition on coordinates and size changes to prevent dragging and resizing lag */
+}
+
+/* Custom resize handle indicator at the bottom-right corner */
+.knowledge-drawer::after {
+  content: '';
+  position: absolute;
+  bottom: 4px;
+  right: 4px;
+  width: 8px;
+  height: 8px;
+  border-right: 2px solid rgba(255, 255, 255, 0.4);
+  border-bottom: 2px solid rgba(255, 255, 255, 0.4);
+  pointer-events: none;
+}
+
+.knowledge-drawer-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  flex-shrink: 0;
+  cursor: grab;
+  user-select: none;
+}
+
+.knowledge-drawer-header:active {
+  cursor: grabbing;
+}
+
+.drawer-title {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  flex: 1;
+}
+
+.drawer-close-btn {
+  font-size: 1.1rem;
+  color: var(--text-muted) !important;
+  transition: all 0.2s ease !important;
+  padding: 0 !important;
+  min-height: auto !important;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+}
+
+.drawer-close-btn:hover {
+  color: #ef4444 !important;
+  background: rgba(239, 68, 68, 0.12) !important;
+}
+
+.knowledge-drawer-body {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 12px 16px;
+}
+
+.knowledge-empty {
+  color: var(--text-muted);
+  text-align: center;
+  padding: 30px 10px;
+  font-size: 0.85rem;
+}
+
+.knowledge-sections {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.knowledge-section-card {
+  background: rgba(0, 0, 0, 0.15);
+  border-radius: 8px;
+  padding: 10px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.sec-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.sec-title {
+  font-size: 0.9rem;
+}
+
+.sec-body {
+  font-size: 0.82rem;
+  line-height: 1.6;
+  color: var(--text-secondary);
+  word-wrap: break-word;
+  word-break: break-word;
+  font-family: inherit;
+  margin: 0;
+}
+
+.sec-body :deep(p) {
+  margin: 0 0 8px 0;
+}
+.sec-body :deep(p:last-child) {
+  margin-bottom: 0;
+}
+.sec-body :deep(ul), .sec-body :deep(ol) {
+  margin: 0 0 8px 0;
+  padding-left: 20px;
+}
+.sec-body :deep(li) {
+  margin-bottom: 4px;
+}
+.sec-body :deep(strong) {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+.sec-body :deep(h1), .sec-body :deep(h2), .sec-body :deep(h3) {
+  margin: 12px 0 6px 0;
+  color: var(--text-primary);
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.sec-body :deep(pre),
+.sec-body :deep(code) {
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+/* Slide-right transition for the drawer */
+.slide-right-enter-active,
+.slide-right-leave-active {
+  transition: transform 0.25s ease, opacity 0.25s ease !important;
+}
+.slide-right-enter-from {
+  transform: translateX(-100%);
+  opacity: 0;
+}
+.slide-right-leave-to {
+  transform: translateX(-30px);
+  opacity: 0;
+}
+
+/* Shift dialogue box left when drawer opens */
+.with-knowledge-drawer {
+  margin-left: 0;
+}
+
+/* Knowledge button in header */
+.knowledge-btn {
+  background: rgba(255, 255, 255, 0.03) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  color: var(--text-secondary) !important;
+}
+
+.knowledge-btn:hover {
+  background: rgba(99, 102, 241, 0.1) !important;
+  border-color: rgba(99, 102, 241, 0.3) !important;
+  color: var(--primary-color) !important;
+}
+
+.knowledge-btn.is-disabled {
+  opacity: 0.35 !important;
+  cursor: not-allowed !important;
+}
+
+/* Practice grid needs relative positioning for absolute drawer */
+.practice-grid {
+  position: relative;
+}
+
 /* Speaking style selector styling */
 .style-selector {
   margin-top: 16px;

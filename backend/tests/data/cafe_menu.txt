@@ -1,24 +1,117 @@
-# Metro Cafe Ordering Guide and Customer Service Manual
+# Metro Cafe Ordering Guide & Barista Knowledge Base
 
-Welcome to Metro Cafe! This manual details our operational menu and order customization policies.
+Welcome to the official RAG Knowledge Base and Service Manual for **Metro Cafe** (located in Manhattan, New York). This document contains comprehensive menu items, customization options, barista workflows, practical customer dialogue templates, and critical vocabulary notes for daily cafe operations.
 
-## 1. Beverage Offerings
+---
 
-### Espresso Drinks
-- **Espresso**: Single shot ($2.50), Double shot ($3.50).
-- **Americano**: Hot or iced. Standard water and espresso.
-- **Caffe Latte**: Espresso with steamed milk and a thin layer of foam.
-- **Cappuccino**: Equal parts espresso, steamed milk, and milk foam.
+## 1. Complete Menu & Pricing [user] [chinese:精品菜单与价格]
 
-### Customization Options
-- **Sizes**: Tall (12 oz), Grande (16 oz), Venti (20 oz).
-- **Milk Selections**: Whole milk (default), Skim milk (no charge). Premium alternatives: Oat milk (extra $0.60), Almond milk (extra $0.60).
-- **Temperature**: Extra hot, standard hot, or iced.
+### ☕ Espresso & Coffee
 
-## 2. Food & Pastry Catalog
+| Beverage Name (Item) | Sizes & Prices | Description & Barista Notes |
+| :--- | :--- | :--- |
+| **Espresso** | Single: **$2.50** <br> Double: **$3.50** | The base of all milk-based drinks. Served in a small demitasse cup with rich crema. |
+| **Caffe Americano** | Tall: **$3.25** <br> Grande: **$3.75** <br> Venti: **$4.25** | Rich espresso diluted with hot water (or poured over ice for iced versions). |
+| **Caffe Latte** | Tall: **$4.00** <br> Grande: **$4.50** <br> Venti: **$5.00** | Rich espresso combined with steamed milk and a thin layer of microfoam. |
+| **Cappuccino** | Tall: **$4.00** <br> Grande: **$4.50** <br> Venti: **$5.00** | Equal parts espresso, steamed milk, and thick milk foam. Can be ordered **"Wet"** (more steamed milk, less foam) or **"Dry"** (mostly foam, very little milk). |
+| **Flat White** | One Size: **$4.50** | Double ristretto shots (sweeter, more concentrated espresso) with velvety microfoam. |
+| **Cold Brew** | Tall: **$4.25** <br> Grande: **$4.75** <br> Venti: **$5.25** | Slow-steeped in cold water for 20 hours. Low acidity, smooth mouthfeel, and naturally sweeter. |
 
-### Baked Goods
-- **Bagels**: Plain, Sesame, or Everything. Served with butter or cream cheese.
-- **Muffins**: Freshly baked Blueberry or Double Chocolate.
-- **Croissants**: Butter croissants and Almond croissants.
-- **IMPORTANT INVENTORY NOTICE**: Today, our bakery supplier failed to deliver, so all croissants are COMPLETELY OUT OF STOCK. Do not promise them to customers. If a customer requests a croissant, suggest blueberry muffins or everything bagels instead.
+### 🍵 Non-Coffee Beverages
+
+| Beverage Name (Item) | Sizes & Prices | Description & Barista Notes |
+| :--- | :--- | :--- |
+| **Matcha Latte** | Tall: **$4.50** <br> Grande: **$5.00** <br> Venti: **$5.50** | Stone-ground Japanese green tea sweetened and whisked with steamed milk. |
+| **Chai Latte** | Tall: **$4.25** <br> Grande: **$4.75** <br> Venti: **$5.25** | Black tea infused with spices (cardamom, cinnamon, ginger) and steamed milk. |
+| **Hot Chocolate** | Tall: **$3.50** <br> Grande: **$4.00** <br> Venti: **$4.50** | Steamed milk with premium chocolate syrup, topped with optional whipped cream. |
+
+---
+
+## 2. Order Customization & Surcharges [user] [chinese:定制选项及服务费]
+
+During rush hour, baristas must ask and customize every order according to customer preferences:
+
+### 📏 Sizes
+- **Tall**: 12 oz (approx. 350ml) - *Default 1 espresso shot*
+- **Grande**: 16 oz (approx. 470ml) - *Default 2 espresso shots*
+- **Venti**: 20 oz (approx. 590ml) - *Default 2 espresso shots (3 shots for iced versions)*
+
+### 🥛 Milk Options
+- **Standard (No Charge)**:
+  - **Whole Milk**: Default milk for lattes and cappuccinos, offering the richest flavor.
+  - **Skim Milk / Non-fat Milk**: Lighter option with no fat.
+- **Alternatives (Surcharge $0.60)**:
+  - **Oat Milk**: Very popular! Creamy texture with a natural oat flavor, perfect for lattes.
+  - **Almond Milk**: Nutty flavor and lower calories.
+  - **Soy Milk**: High plant-protein with a slightly sweet taste.
+
+### 🍯 Sweeteners & Syrups (Surcharge $0.50)
+- **Syrup Flavors**: Vanilla, Caramel, Hazelnut, Sugar-Free Vanilla.
+- **Sweetener Packets**: Sugar in the Raw, Splenda / Stevia.
+- **Sweetness Control**: **"Half-sweet"** or **"Half-pump"** (reduces syrup pumps by half).
+
+### 🌡️ Temperature & Ice Levels
+- **Hot Options**: Standard Hot (~150°F / 65°C) or **Extra Hot** (~170°F / 77°C - recommended for takeaway).
+- **Iced Options**: Standard Ice, **Light Ice** (less ice, more beverage), or **No Ice**.
+
+---
+
+## 3. Breakfast & Bakery Items [user] [chinese:早餐点心与烘焙]
+
+### 🥪 Food & Pastry
+
+| Pastry / Item | Price | Customization & Options |
+| :--- | :--- | :--- |
+| **Avocado Toast** | **$7.50** | Toasted sourdough bread topped with mashed fresh avocado, chili flakes, and cherry tomatoes. |
+| **Artisanal Muffins** | **$3.75** | Options: **Blueberry** or **Double Chocolate**. Served warm by default. |
+| **New York Bagels** | **$4.00** | Options: **Plain**, **Sesame**, or **Everything** (topped with garlic, onion, poppy seeds). <br>*Customization*: Sliced and toasted, served with **Cream Cheese** or **Butter** on the side. |
+
+> ⚠️ **CRITICAL INVENTORY NOTICE**:
+> - **All croissants (Butter, Almond, Chocolate Croissants) are COMPLETELY OUT OF STOCK today** due to a supplier delivery failure.
+> - **Barista Dialogue Guide**: If a customer requests a croissant, politely explain they are sold out and suggest a blueberry muffin or a toasted everything bagel as an alternative: *"Sorry, we are completely out of croissants today due to a delivery delay. Would you like to try our fresh blueberry muffin or a toasted everything bagel instead?"*
+
+---
+
+## 4. Barista Standard Service Workflow [ai] [chinese:咖啡师标准服务流程]
+
+To keep the queue moving quickly in a busy Manhattan cafe, baristas must follow these steps:
+
+```mermaid
+graph TD
+    A[1. Greeting & Name Entry] --> B[2. Core Order & Size Selection]
+    B --> C[3. Milk & Temperature Customizations]
+    C --> D[4. Upsell Suggestion: Food/Pastries]
+    D --> E[5. Confirm Order & Dine-in/To-go]
+    E --> F[6. Payment Processing & Name on Cup]
+```
+
+1. **Friendly Greeting**: *"Hi there! Welcome to Metro Cafe. What can I get started for you?"*
+2. **Size & Customization Inquiry**: If they order a latte/cappuccino, immediately ask: *"What size would that be?"* and *"Any milk preferences like oat or soy?"*
+3. **Upsell Food**: *"Would you like to pair that with a warm blueberry muffin or avocado toast today?"*
+4. **Dining Preference**: *"Is that for here or to go?"* (Or *"Dine-in or takeaway?"*)
+5. **Payment & Name Collection**: *"Perfect! That comes to $X.XX. How would you like to pay today? And could I get a name for your cup?"*
+
+---
+
+## 5. Essential Cafe Vocabulary & Oral Practice Notes [user] [chinese:基础词汇与口语表达]
+
+### 💁 Barista Common Phrases (How to Ask)
+* *"What can I get started for you today?"* (Greeting customers at the counter)
+* *"What size can I get for you? We have Tall, Grande, and Venti."* (Inquiring about cup sizes)
+* *"Would you like room for cream?"* (Asked for drip/black coffee or Americano to leave space for milk)
+* *"Dine-in or to-go?"* / *"For here or to go?"* (Asking for dining preference)
+* *"Do you want that warmed up?"* (For warming up muffins, bagels, or bread)
+
+### 🙋 Customer Common Phrases (How to Order)
+* *"Can I get a Grande iced oat milk latte, please?"* (Ordering a customized iced latte)
+* *"I'd like a double-shot espresso, macchiato style."* (Ordering espresso "marked" with a dollop of foam)
+* *"Make it half-decaf and extra hot."* (Specifying temperature and decaf preference)
+* *"Hold the whipped cream, please."* (Requesting no whipped cream)
+* *"Can I have that toasted with cream cheese on the side?"* (Ordering a toasted bagel with cream cheese served separately)
+
+### ☕ Specialty Coffee Terminology (Slang)
+* **Decaf**: Decaffeinated coffee.
+* **Half-Caff**: A blend of half regular espresso shots and half decaf shots.
+* **Dirty Chai**: A Chai Latte with an added shot of espresso.
+* **Espresso Macchiato**: Espresso "marked" with a dollop of warm milk foam.
+* **Single Origin**: Coffee beans sourced from a single farm or region.

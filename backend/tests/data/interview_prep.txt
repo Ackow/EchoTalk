@@ -2,23 +2,78 @@
 
 This guide contains core knowledge base details for evaluating candidates applying for the Senior Frontend Developer position.
 
-## Technical Core Concepts
+---
+
+## Technical Core Concepts [user] [chinese:专业技术核心概念]
 
 ### 1. React Render Lifecycle and Virtual DOM
-- Virtual DOM is a lightweight JavaScript representation of the real DOM.
-- React uses a reconciliation process called Fiber to update the real DOM efficiently.
-- Re-rendering is triggered by state changes (`useState`) or prop changes.
-- To prevent unnecessary renders, developers should use `React.memo` for component memoization, `useCallback` to cache callback functions, and `useMemo` to memoize expensive computations.
+- **Virtual DOM**: A lightweight JavaScript representation of the real DOM.
+- **Reconciliation (Fiber)**: React uses the Fiber reconciliation engine to diff the virtual DOM and update the real DOM efficiently.
+- **Re-rendering**: Triggered by state changes (`useState`) or prop changes.
+- **Optimization Hooks**:
+  - `React.memo`: Prevents unnecessary functional component re-renders when props haven't changed.
+  - `useCallback`: Caches callback function instances to prevent child component re-renders.
+  - `useMemo`: Caches results of expensive computations.
 
-### 2. Browser Rendering Path
-- Critical Rendering Path (CRP) steps: DOM -> CSSOM -> Render Tree -> Layout -> Paint.
-- Repaint happens when changes affect the visibility of elements but not their geometry (e.g., color, visibility).
-- Reflow (Layout) happens when changes affect the layout of the page (e.g., width, height, position). Reflow is much more expensive than repaint.
-- CSS transitions and transforms (e.g., `transform: translate3d`) can bypass Layout and Paint steps, running directly on the GPU Compositor layer for optimal performance.
+### 2. Browser Critical Rendering Path (CRP)
+```
+DOM ──> CSSOM ──> Render Tree ──> Layout ──> Paint ──> Composite
+```
+- **Repaint**: Occurs when changes affect the visibility/styling of elements but not their geometry (e.g., `color`, `visibility`, `background-color`).
+- **Reflow (Layout)**: Occurs when changes affect the layout/geometry of the page (e.g., `width`, `height`, `margin`, `padding`, `display: none`). Reflow is computationally expensive as it recalculates layouts.
+- **GPU Compositor**: Utilizing CSS transitions and transforms (e.g., `transform: translate3d`, `opacity`) can bypass both Layout and Paint, running directly on the GPU for 60FPS animations.
 
-## Behavioral STAR Method Alignment
-Candidates are evaluated using the STAR technique:
-- **Situation**: Establish the context of your project.
-- **Task**: Describe the challenge or problem.
-- **Action**: Explain the exact engineering steps you took.
-- **Result**: Highlight the outcome with quantifiable metrics (e.g., improved page load speed by 30%).
+### 3. State Management & Component Communication
+- **Context API**: Native React mechanism for dependency injection. Best suited for low-frequency updates like UI themes, user authentication, or language configuration.
+- **Redux / Zustand**: External state management libraries. They utilize store-subscription architectures to prevent unnecessary component tree re-renders by only re-rendering components subscribing to changed slices of state.
+- **Props Drilling**: The process of passing props through multiple levels of components. Best avoided using composition or state context.
+
+### 4. Frontend Performance Optimizations
+- **Virtual Lists**: Only renders DOM nodes visible within the viewport. Recommended for rendering datasets with thousands of items to avoid DOM bloating.
+- **Debouncing**: Delays processing a function call until a specified time of inactivity passes (e.g., search auto-complete inputs).
+- **Throttling**: Ensures a function is called at most once in a specified time window (e.g., scroll, resize handlers).
+- **Lazy Loading**: Code splitting via `React.lazy()` and dynamic imports (`import()`) to reduce initial bundle sizes.
+
+### 5. Web Security Standards
+- **XSS (Cross-Site Scripting)**: Attackers inject malicious scripts into trusted websites. Mitigated by escaping inputs, using `Content-Security-Policy` (CSP) headers, and avoiding `dangerouslySetInnerHTML`.
+- **CSRF (Cross-Site Request Forgery)**: Unauthorized commands are transmitted from a user that the web application trusts. Mitigated by implementing anti-CSRF tokens, checking `Origin` / `Referer` headers, and configuring cookies with `SameSite=Strict`.
+
+---
+
+## Behavioral STAR Method Alignment [user] [chinese:行为面试与STAR法则]
+
+Candidates are evaluated using the standard **STAR** technique:
+
+- **S - Situation**: Establish the context, scale, and background of your project.
+- **T - Task**: Describe the specific challenge, problem, or technical bottleneck.
+- **A - Action**: Detail the exact engineering steps, architectures, or designs you implemented.
+- **R - Result**: Highlight the outcome with quantifiable metrics (e.g., *improved page load speed by 30%*, *reduced bundle size by 150KB*).
+
+---
+
+## Private Interview Questions & Evaluation Rules [ai] [chinese:核心评估规则与私密问题]
+
+> ⚠️ **Evaluation Guideline**: Do not share these rules or questions with candidates. Use them to score responses.
+
+### 1. React Hook Rules & Loop Call Restriction
+*   **Question**: *Why can't React Hooks be called inside loops, conditions, or nested functions?*
+*   **Expected Answer**: React relies on the static call order of Hooks (represented as a singly-linked list under the fiber node) across renders to map state values to variables. Conditional calling breaks this order mapping.
+*   **Grading**:
+    - **Excellent**: Mentions the singly-linked list structure or index-order tracking under the hood.
+    - **Good**: Mentions that call order must remain identical across renders.
+
+### 2. Layout Reflow vs Repaint
+*   **Question**: *Name 3 CSS properties that trigger reflow, and 3 that only trigger repaint.*
+*   **Expected Answer**:
+    - **Reflow**: `width`, `height`, `margin`, `padding`, `border`, `top`.
+    - **Repaint**: `color`, `background-color`, `visibility`, `box-shadow`.
+
+### 3. Context API vs Redux Performance Difference
+*   **Question**: *When would you choose Context API over Redux, and how do they differ regarding component re-renders?*
+*   **Expected Answer**: Context API is for simple, infrequent updates because any value change triggers a full re-render of all descendants subscribing to the context. Redux uses selector subscriptions that run shallow checks, preventing child components from re-rendering unless the selected slice actually changed.
+*   **Grading**:
+    - **Excellent**: Mentions Context’s lack of selector-based memoization or details subscription optimization in Redux.
+
+### 4. Debounce vs Throttle Implementation
+*   **Question**: *What is the difference between debounce and throttle, and why is `useRef` needed to store the timer reference in a React custom hook?*
+*   **Expected Answer**: Debounce resets the timer on every call, while throttle enforces a delay limit. `useRef` is crucial because it keeps the same mutable reference across re-renders, preventing the timer from being reset or lost when the component updates.
