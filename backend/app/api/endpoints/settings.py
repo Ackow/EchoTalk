@@ -128,6 +128,7 @@ CONFIG_FIELDS = [
     "TENCENT_APPID",
     "TENCENT_SECRET_ID",
     "TENCENT_SECRET_KEY",
+    "USE_TENCENT_TTS",
     "QINIU_ACCESS_KEY",
     "QINIU_SECRET_KEY",
     "QINIU_BUCKET_NAME",
@@ -154,7 +155,7 @@ def get_config():
     """
     result = {}
     for field in CONFIG_FIELDS:
-        val = getattr(settings, field, "")
+        val = getattr(settings, field, None)
         if field in SENSITIVE_FIELDS:
             # 如果配置了有效值且非占位的 mock-key，则返回掩码
             if val and val != "mock-key":
@@ -162,7 +163,10 @@ def get_config():
             else:
                 result[field] = ""
         else:
-            result[field] = val or ""
+            if isinstance(val, bool):
+                result[field] = val
+            else:
+                result[field] = val if val is not None else ""
     return result
 
 

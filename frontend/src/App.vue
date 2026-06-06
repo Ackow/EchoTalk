@@ -18,7 +18,7 @@
 
           <!-- App Name -->
           <h1 class="splash-title text-gradient">EchoTalk</h1>
-          <p class="splash-subtitle">云音口语练习平台</p>
+          <p class="splash-subtitle">云音口语</p>
 
           <!-- Status Area -->
           <div class="splash-status-wrap">

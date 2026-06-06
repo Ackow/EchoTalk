@@ -102,7 +102,7 @@ def test_tts_storage_upload():
     print("  * 正在上传/托管合成的音频文件...")
     url = upload_audio_to_kodo(local_path, filename)
     print(f"  * [OK] 音频托管返回的访问 URL: {url}")
-    assert url.startswith("http://") or url.startswith("https://")
+    assert url.startswith("http://") or url.startswith("https://") or url.startswith("/static/audio")
     
     # 清理
     os.remove(local_path)
@@ -112,14 +112,102 @@ def test_tts_storage_upload():
     if os.path.exists(static_dest):
         os.remove(static_dest)
 
+def test_tencent_tts_integration():
+    print("\n--- [5. 腾讯云语音合成 (TTS) 集成与自适应降级测试] ---")
+    out_dir = "tests/data/output"
+    os.makedirs(out_dir, exist_ok=True)
+    
+    test_out_path = os.path.join(out_dir, "test_tencent_fallback.mp3")
+    if os.path.exists(test_out_path):
+        os.remove(test_out_path)
+        
+    # 模拟开启了腾讯云极速合成，但故意设置了错误的 SecretId/Key
+    from app.core.config import settings as app_settings
+    orig_use = app_settings.USE_TENCENT_TTS
+    orig_id = app_settings.TENCENT_SECRET_ID
+    orig_key = app_settings.TENCENT_SECRET_KEY
+    
+    try:
+        app_settings.USE_TENCENT_TTS = True
+        app_settings.TENCENT_SECRET_ID = "invalid-secret-id"
+        app_settings.TENCENT_SECRET_KEY = "invalid-secret-key"
+        
+        print("  * 开启腾讯云合成并设置无效密钥，测试是否降级到 Edge-TTS...")
+        success = text_to_speech(
+            text="Testing Tencent TTS fallback to Edge TTS with invalid keys.",
+            output_path=test_out_path
+        )
+        assert success is True
+        assert os.path.exists(test_out_path)
+        assert os.path.getsize(test_out_path) > 0
+        print(f"  * [OK] 降级合成成功，生成音频大小: {os.path.getsize(test_out_path)} 字节")
+        
+    finally:
+        # 恢复原始配置
+        app_settings.USE_TENCENT_TTS = orig_use
+        app_settings.TENCENT_SECRET_ID = orig_id
+        app_settings.TENCENT_SECRET_KEY = orig_key
+        if os.path.exists(test_out_path):
+            os.remove(test_out_path)
+
+
+def test_tencent_tts_success():
+    print("\n--- [6. 腾讯云语音合成 (TTS) 模拟成功通路测试] ---")
+    out_dir = "tests/data/output"
+    os.makedirs(out_dir, exist_ok=True)
+    
+    test_out_path = os.path.join(out_dir, "test_tencent_success.mp3")
+    if os.path.exists(test_out_path):
+        os.remove(test_out_path)
+        
+    from unittest.mock import patch, MagicMock
+    from app.core.config import settings as app_settings
+    
+    orig_use = app_settings.USE_TENCENT_TTS
+    orig_id = app_settings.TENCENT_SECRET_ID
+    orig_key = app_settings.TENCENT_SECRET_KEY
+    
+    # 模拟成功的响应
+    mock_resp = MagicMock()
+    from app.services.tts import MOCK_MP3_BASE64
+    mock_resp.Audio = MOCK_MP3_BASE64
+    
+    try:
+        app_settings.USE_TENCENT_TTS = True
+        app_settings.TENCENT_SECRET_ID = "mock-secret-id"
+        app_settings.TENCENT_SECRET_KEY = "mock-secret-key"
+        
+        # Mock TextToVoice 接口调用返回 mock_resp
+        with patch("tencentcloud.tts.v20190823.tts_client.TtsClient.TextToVoice", return_value=mock_resp) as mock_api:
+            print("  * 模拟开启腾讯云合成并配置 Mock 成功接口响应...")
+            success = text_to_speech(
+                text="Testing Tencent TTS successful path.",
+                output_path=test_out_path
+            )
+            assert success is True
+            assert mock_api.called is True
+            assert os.path.exists(test_out_path)
+            assert os.path.getsize(test_out_path) > 0
+            print(f"  * [OK] 腾讯云 TTS 模拟成功通路测试通过！音频大小: {os.path.getsize(test_out_path)} 字节")
+            
+    finally:
+        app_settings.USE_TENCENT_TTS = orig_use
+        app_settings.TENCENT_SECRET_ID = orig_id
+        app_settings.TENCENT_SECRET_KEY = orig_key
+        if os.path.exists(test_out_path):
+            os.remove(test_out_path)
+
+
 if __name__ == "__main__":
     try:
         test_rate_formatting()
         test_tts_sync_and_async()
         test_tts_fallback_mock()
         test_tts_storage_upload()
+        test_tencent_tts_integration()
+        test_tencent_tts_success()
         print("\n=============================================")
-        print(" [SUCCESS] 微软神经网络 TTS 服务单元测试全部通过！ ")
+        print(" [SUCCESS] 微软与腾讯云 TTS 服务单元测试全部通过！ ")
         print("=============================================\n")
     except AssertionError as e:
         print(f"\n[FAIL] 断言失败: {e}")

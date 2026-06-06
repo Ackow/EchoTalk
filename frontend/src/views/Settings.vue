@@ -98,6 +98,11 @@
                     <el-input v-model="configForm.TENCENT_SECRET_KEY" type="password" show-password placeholder="请输入腾讯云 SecretKey" />
                   </el-form-item>
                 </div>
+                <div class="form-row" style="margin-top: 10px;">
+                  <el-form-item label="启用腾讯云语音合成 (TTS)" class="flex-item">
+                    <el-switch v-model="configForm.USE_TENCENT_TTS" active-text="启用腾讯云极速合成" inactive-text="降级使用 Edge-TTS" />
+                  </el-form-item>
+                </div>
               </el-form>
             </el-tab-pane>
 
@@ -271,6 +276,7 @@ const configForm = ref({
   TENCENT_APPID: '',
   TENCENT_SECRET_ID: '',
   TENCENT_SECRET_KEY: '',
+  USE_TENCENT_TTS: false,
   QINIU_ACCESS_KEY: '',
   QINIU_SECRET_KEY: '',
   QINIU_BUCKET_NAME: '',

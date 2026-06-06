@@ -68,6 +68,7 @@ backend/static/audio/*
 backend/static/rag/*
 !backend/static/rag/.gitkeep
 backend/logs/*
+backend/settings.json
 
 # --- 前端桌面端构建与依赖 (Node/Vite/Electron) ---
 node_modules/
@@ -78,3 +79,5 @@ frontend/yarn-error.log
 frontend/package-lock.json
 frontend/.eslintcache
 frontend/.temp/
+
+tests/data/output/*

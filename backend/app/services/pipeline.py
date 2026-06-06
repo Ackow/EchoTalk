@@ -337,14 +337,10 @@ async def run_dialogue_turn_pipeline(
     matched_chunks = query_scene_knowledge(history.scene_id, user_text_raw, top_k=2)
     rag_raw_text = "\n".join(matched_chunks) if matched_chunks else ""
 
-    # 5. 【步骤三】大模型隐私信息智能脱敏 (PII Redaction) - 并发执行
-    user_pii_task = loop.run_in_executor(None, anonymize_text_via_llm, user_text_raw)
-    if rag_raw_text:
-        rag_pii_task = loop.run_in_executor(None, anonymize_text_via_llm, rag_raw_text)
-        user_text_safe, rag_text_safe = await asyncio.gather(user_pii_task, rag_pii_task)
-    else:
-        user_text_safe = await user_pii_task
-        rag_text_safe = ""
+    # 5. 【步骤三】大模型隐私信息智能脱敏 (PII Redaction)
+    # 仅对用户动态输入的内容进行脱敏，知识库属于静态参考文本，无需脱敏以省去大量的 API 请求时间
+    user_text_safe = await loop.run_in_executor(None, anonymize_text_via_llm, user_text_raw)
+    rag_text_safe = rag_raw_text
 
     # 6. 【步骤四】大模型角色演练回答 + 语法纠错
     llm_task = asyncio.create_task(generate_llm_response(
@@ -480,14 +476,10 @@ async def run_dialogue_turn_pipeline_stream(
     matched_chunks = query_scene_knowledge(history.scene_id, user_text_raw, top_k=2)
     rag_raw_text = "\n".join(matched_chunks) if matched_chunks else ""
 
-    # 进行敏感信息过滤 - 并发执行
-    user_pii_task = loop.run_in_executor(None, anonymize_text_via_llm, user_text_raw)
-    if rag_raw_text:
-        rag_pii_task = loop.run_in_executor(None, anonymize_text_via_llm, rag_raw_text)
-        user_text_safe, rag_text_safe = await asyncio.gather(user_pii_task, rag_pii_task)
-    else:
-        user_text_safe = await user_pii_task
-        rag_text_safe = ""
+    # 进行敏感信息过滤
+    # 仅对用户动态输入的内容进行脱敏，知识库属于静态参考文本，无需脱敏以省去大量的 API 请求时间
+    user_text_safe = await loop.run_in_executor(None, anonymize_text_via_llm, user_text_raw)
+    rag_text_safe = rag_raw_text
 
     # 5. 步骤三：开启大模型回复生成 (在此处直接 yield 'llm' 状态，使前端可以展示思考气泡，填补等待真空)
     yield {"status": "llm", "message": "AI 正在组织语言，撰写角色回复~"}

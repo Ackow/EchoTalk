@@ -38,6 +38,7 @@ class Settings(BaseSettings):
     TENCENT_APPID: Optional[str] = None
     TENCENT_SECRET_ID: Optional[str] = None
     TENCENT_SECRET_KEY: Optional[str] = None
+    USE_TENCENT_TTS: bool = False
 
     # 获取可写的基础运行目录
     @property

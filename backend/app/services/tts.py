@@ -5,6 +5,7 @@ from typing import Optional, Union
 from concurrent.futures import ThreadPoolExecutor
 
 import edge_tts
+from app.core.config import settings
 from app.core.logger import log_api_call
 
 # 1 秒静音 MP3 文件的 Base64 编码，用于网络不可用或请求超时等异常时的本地 Mock 降级
@@ -72,6 +73,105 @@ def _write_mock_mp3(output_path: str) -> bool:
         print(f"[TTS Mock 写入异常] 写入 Mock MP3 失败: {str(e)}")
         return False
 
+def _rate_to_tencent_speed(rate: Union[str, int, float, None]) -> float:
+    """
+    将百分比或浮点语速转换为腾讯云 [-2.0, 2.0] 的 speed。
+    1.0 (或 "+0%") -> 0.0
+    1.2 (或 "+20%") -> 1.0
+    1.5 (或 "+50%") -> 2.0
+    0.8 (或 "-20%") -> -1.0
+    0.6 (或 "-40%") -> -2.0
+    """
+    if rate is None:
+        return 0.0
+    multiplier = 1.0
+    if isinstance(rate, (int, float)):
+        multiplier = float(rate)
+    elif isinstance(rate, str):
+        rate = rate.strip()
+        if rate.endswith("%"):
+            try:
+                val = float(rate[:-1].strip()) / 100.0
+                multiplier = 1.0 + val
+            except ValueError:
+                multiplier = 1.0
+        else:
+            try:
+                multiplier = float(rate)
+            except ValueError:
+                multiplier = 1.0
+
+    if multiplier >= 1.0:
+        if multiplier <= 1.2:
+            speed = (multiplier - 1.0) / 0.2
+        else:
+            speed = 1.0 + (multiplier - 1.2) / 0.3
+            if speed > 2.0:
+                speed = 2.0
+    else:
+        if multiplier >= 0.8:
+            speed = (multiplier - 1.0) / 0.2
+        else:
+            speed = -1.0 + (multiplier - 0.8) / 0.2
+            if speed < -2.0:
+                speed = -2.0
+    return round(speed, 2)
+
+
+def _tencent_text_to_speech_sync(
+    text: str,
+    output_path: str,
+    voice_type: int,
+    speed: float,
+    secret_id: str,
+    secret_key: str
+) -> bool:
+    """
+    同步调用腾讯云 TTS TextToVoice 接口并将合成音频保存至 output_path。
+    """
+    from tencentcloud.common import credential
+    from tencentcloud.common.exception.tencent_cloud_sdk_exception import TencentCloudSDKException
+    from tencentcloud.tts.v20190823 import tts_client, models
+    import uuid
+
+    try:
+        cred = credential.Credential(secret_id, secret_key)
+        client = tts_client.TtsClient(cred, "ap-guangzhou")
+
+        req = models.TextToVoiceRequest()
+        req.Text = text
+        req.SessionId = str(uuid.uuid4())
+        req.VoiceType = voice_type
+        req.Volume = 0
+        req.Speed = speed
+        req.ProjectId = 0
+        
+        # 根据 output_path 后缀自动设置 Codec
+        ext = os.path.splitext(output_path)[1].lower()
+        if ext == ".mp3":
+            req.Codec = "mp3"
+        elif ext == ".wav":
+            req.Codec = "wav"
+        else:
+            req.Codec = "mp3"
+            
+        req.SampleRate = 16000
+
+        resp = client.TextToVoice(req)
+        
+        if resp.Audio:
+            audio_bytes = base64.b64decode(resp.Audio)
+            with open(output_path, "wb") as f:
+                f.write(audio_bytes)
+            return True
+        else:
+            raise Exception("Tencent TTS response did not contain Audio data.")
+            
+    except TencentCloudSDKException as err:
+        raise Exception(f"TencentCloudSDKException: {err.message} (code: {err.code})")
+    except Exception as e:
+        raise e
+
 
 async def async_text_to_speech(
     text: str,
@@ -84,6 +184,76 @@ async def async_text_to_speech(
     使用 edge-tts 免 Key 合成高质量的神经网络语音，并保存至 output_path。
     若合成抛出异常或网络不通，将自动启动降级逻辑，写入本地 Mock 静音音频。
     """
+    # 1. 检查是否配置并启用了腾讯云 TTS
+    use_tencent = settings.USE_TENCENT_TTS
+    secret_id = settings.TENCENT_SECRET_ID
+    secret_key = settings.TENCENT_SECRET_KEY
+    
+    if use_tencent and secret_id and secret_key:
+        if len(text) > 500:
+            log_api_call(
+                api_type="文字转语音 (TTS)",
+                provider="Tencent Cloud",
+                url="https://tts.tencentcloudapi.com",
+                model="101017",
+                action="腾讯云极速语音合成 (async_text_to_speech)",
+                status="failed",
+                extra_info=f"文本长度为 {len(text)} 超过腾讯极速版 500 字符限制。自动降级使用微软 Edge-TTS。"
+            )
+        else:
+            tencent_voice = 101017  # 默认高品质英文女声
+            tencent_speed = _rate_to_tencent_speed(rate)
+            
+            # 确保保存音频的父级目录存在
+            dir_name = os.path.dirname(output_path)
+            if dir_name:
+                os.makedirs(dir_name, exist_ok=True)
+                
+            log_api_call(
+                api_type="文字转语音 (TTS)",
+                provider="Tencent Cloud",
+                url="https://tts.tencentcloudapi.com",
+                model=str(tencent_voice),
+                action="腾讯云极速语音合成 (async_text_to_speech)",
+                status="pending",
+                extra_info=f"文本内容: '{text[:40]}...', 语速: {tencent_speed} (原始 rate: {rate})"
+            )
+            
+            try:
+                success = await asyncio.to_thread(
+                    _tencent_text_to_speech_sync,
+                    text,
+                    output_path,
+                    tencent_voice,
+                    tencent_speed,
+                    secret_id,
+                    secret_key
+                )
+                if success and os.path.exists(output_path) and os.path.getsize(output_path) > 0:
+                    log_api_call(
+                        api_type="文字转语音 (TTS)",
+                        provider="Tencent Cloud",
+                        url="https://tts.tencentcloudapi.com",
+                        model=str(tencent_voice),
+                        action="腾讯云极速语音合成 (async_text_to_speech)",
+                        status="success",
+                        extra_info=f"腾讯云极速合成成功。保存路径: '{output_path}'，大小: {os.path.getsize(output_path)} 字节。"
+                    )
+                    return True
+                else:
+                    raise Exception("Tencent TTS returned success but output file is empty or missing.")
+            except Exception as e:
+                log_api_call(
+                    api_type="文字转语音 (TTS)",
+                    provider="Tencent Cloud",
+                    url="https://tts.tencentcloudapi.com",
+                    model=str(tencent_voice),
+                    action="腾讯云极速语音合成 (async_text_to_speech)",
+                    status="failed",
+                    extra_info=f"请求腾讯云极速 TTS 接口发生异常: {str(e)}。将自动降级使用微软 Edge-TTS。"
+                )
+                # 抛出异常后继续向下执行微软 Edge-TTS 降级逻辑
+
     formatted_rate = _format_rate(rate)
     proxy = _get_proxy()
 
