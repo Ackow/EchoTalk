@@ -117,7 +117,7 @@ EchoTalk（云音口语）是一款 **AI 驱动的英语口语陪练桌面应用
 
 ## 🏗️ 系统架构
 
-![](/img/technology stack.png)
+![](/img/technology_stack.png)
 
 
 ### 对话管道详解
