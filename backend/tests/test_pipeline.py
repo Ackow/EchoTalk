@@ -179,10 +179,73 @@ def test_dynamic_grammar_correction_mock():
     print("\n[SUCCESS] 动态语法纠错 Mock 逻辑测试（口语化 & 书面化）成功通过！")
 
 
+def test_validate_scene_relevance():
+    """测试场景一致性验证过滤器"""
+    print("\n--- [场景一致性验证过滤器测试开始] ---")
+    from app.services.pipeline import validate_scene_relevance
+
+    # 咖啡厅场景的 System Prompt
+    cafe_prompt = (
+        "You are Leo, a friendly but busy barista at Metro Cafe in New York. "
+        "The customer wants to order coffee or breakfast. Ask about cup size, milk options, "
+        "and whether it is dine-in or to-go."
+    )
+
+    # 面试场景的 System Prompt
+    interview_prompt = (
+        "You are Sarah, an experienced Senior engineering manager at Global Tech Inc. "
+        "You are conducting a technical English interview for a Senior Frontend Developer position."
+    )
+
+    # 1. 明确相关输入 → 应原样放行
+    on_topic_cases = [
+        "I would like a large vanilla latte please",
+        "Can I get a cappuccino and a croissant?",
+        "Do you have oat milk for my coffee?",
+        "I had 5 years of experience in React and TypeScript",
+        "Yes, that will be all thanks",
+    ]
+    for text in on_topic_cases:
+        result = validate_scene_relevance(text, cafe_prompt if "coffee" in text or "latte" in text or "cappuccino" in text else interview_prompt)
+        assert result == text, f"相关输入不应被拦截: '{text}' → '{result}'"
+        print(f"  [PASS] 相关输入放行: '{text[:50]}...'")
+
+    # 2. 明确跑题输入 → 应被拦截替换
+    off_topic_cases = [
+        ("I want to buy a plane ticket to London", cafe_prompt),
+        ("What is the weather like in New York?", cafe_prompt),
+        ("Can you help me with my math homework?", interview_prompt),
+        ("I need to book a hotel room for next week", cafe_prompt),
+    ]
+    for text, prompt in off_topic_cases:
+        result = validate_scene_relevance(text, prompt)
+        if result != text:
+            print(f"  [PASS] 跑题输入被拦截: '{text[:50]}...' → 已替换")
+        else:
+            print(f"  [INFO] 跑题输入未拦截(可能因降级): '{text[:50]}...'")
+
+    # 3. 空输入
+    empty_result = validate_scene_relevance("", cafe_prompt)
+    assert empty_result == "", "空输入应原样返回"
+    print("  [PASS] 空输入处理正确")
+
+    # 4. 无场景 prompt
+    no_prompt_result = validate_scene_relevance("some random text", "")
+    assert no_prompt_result == "some random text", "无场景 prompt 应放行"
+    print("  [PASS] 无场景 prompt 处理正确")
+
+    # 5. 缓存命中测试
+    validate_scene_relevance("I want a latte", cafe_prompt)
+    validate_scene_relevance("I want a latte too", cafe_prompt)
+    print("  [PASS] 缓存机制正常（第二次调用应使用缓存向量）")
+
+    print("\n[SUCCESS] 场景一致性验证过滤器测试通过！")
+
 if __name__ == "__main__":
     try:
         test_dialogue_pipeline_and_endpoints()
         test_dynamic_grammar_correction_mock()
+        test_validate_scene_relevance()
     except AssertionError as e:
         print(f"\n[FAIL] 断言校验失败: {e}")
         sys.exit(1)

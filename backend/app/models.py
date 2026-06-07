@@ -43,6 +43,10 @@ class Scene(Base):
     # 场景的第一句打招呼首发音频托管地址，预先生成好以加速会话启动
     greeting_audio_url = Column(String(255), nullable=True)
 
+    # 场景域关键词：运行 pipeline 时用于场景一致性验证的本地化预提取关键词
+    # 在场景创建/导入时由 extract_domain_keywords() 自动填充，无需手动维护
+    domain_keywords = Column(JSON, default=list)
+
     # 关联关系
     dialogues = relationship("DialogueHistory", back_populates="scene")
 

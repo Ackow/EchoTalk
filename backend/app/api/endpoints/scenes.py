@@ -19,6 +19,7 @@ from app.schemas import (
     SectionVisibilityUpdate,
 )
 from app.core.config import settings
+from app.services.pipeline import extract_domain_keywords
 from app.services.document import get_document_chunks
 from app.services.rag import (
     add_documents_to_scene, query_scene_knowledge, clear_scene_knowledge,
@@ -106,6 +107,10 @@ def create_scene(scene_in: SceneCreate, db: Session = Depends(get_db)):
         greeting_audio_url=greeting_audio_url,
         rag_metadata=[]
     )
+    db.add(scene)
+    db.commit()
+    db.refresh(scene)
+    scene.domain_keywords = extract_domain_keywords(scene.system_prompt, "")
     db.add(scene)
     db.commit()
     db.refresh(scene)
@@ -493,7 +498,10 @@ def import_scene(
                     
             db.commit()
             db.refresh(scene)
-            
+            scene.domain_keywords = extract_domain_keywords(scene.system_prompt, "")
+            db.add(scene)
+            db.commit()
+            db.refresh(scene)
             return scene
             
     except HTTPException:

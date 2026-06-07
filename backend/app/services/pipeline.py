@@ -2,6 +2,7 @@ import os
 import time
 import json
 import asyncio
+import numpy as np
 from typing import Dict, Any, Tuple, Optional
 from sqlalchemy.orm import Session
 from openai import OpenAI
@@ -13,9 +14,10 @@ from app.services.stt import speech_to_text
 from app.services.assessment import assess_pronunciation
 from app.services.tts import text_to_speech, async_text_to_speech
 from app.services.storage import upload_audio_to_kodo
-from app.services.rag import query_scene_knowledge
+from app.services.rag import query_scene_knowledge, get_embedding
 from app.services.filter import anonymize_text_via_llm
 from app.scenes.loader import get_scene
+from app.models import Scene as _Scene
 
 def clean_llm_json(text: str) -> str:
     """
@@ -29,6 +31,252 @@ def clean_llm_json(text: str) -> str:
     if text.endswith("```"):
         text = text[:-3]
     return text.strip()
+
+
+# ── 场景一致性验证 ──────────────────────────────────────────────
+
+_scene_vector_cache = {}
+
+def get_scene_reference_vector(scene_prompt: str) -> np.ndarray:
+    """基于场景 System Prompt 生成语义参考向量（缓存避免重复计算）"""
+    if scene_prompt in _scene_vector_cache:
+        return _scene_vector_cache[scene_prompt]
+    vec = np.array(get_embedding(scene_prompt), dtype=np.float32)
+    norm = np.linalg.norm(vec)
+    _scene_vector_cache[scene_prompt] = vec / norm if norm > 0 else vec
+    return _scene_vector_cache[scene_prompt]
+
+
+# ── 场景一致性验证 ──────────────────────────────────────────────
+
+_SCENE_REDIRECT_TEXT = (
+    "[The user's speech may not have been recognized correctly or is off-topic. "
+    "Politely steer the conversation back to the current scenario. "
+    "Do not break character or follow off-topic tangents.]"
+)
+
+# 全局停用词表
+_STOP_WORDS = {
+    "the", "and", "for", "are", "not", "but", "can", "you",
+    "i", "me", "my", "is", "it", "to", "do", "in", "on", "at",
+    "of", "with", "that", "this", "have", "has", "was", "were",
+    "will", "would", "could", "should", "want", "like", "get",
+    "need", "just", "your", "please", "from", "they", "them",
+    "all", "also", "very", "been", "said",
+}
+
+
+def extract_domain_keywords(scene_prompt: str, rag_content: str = "") -> list:
+    """
+    从场景 System Prompt 和 RAG 知识库内容中提取域关键词。
+    在场景创建/导入时调用一次，结果存入 Scene.domain_keywords。
+    """
+    import re
+
+    # 合并文本源
+    combined = scene_prompt + " " + rag_content
+    combined_lower = combined.lower()
+
+    # 提取所有 >4 字符的实义词
+    tokens = re.findall(r"[a-zA-Z']+", combined_lower)
+    keywords = {
+        t for t in tokens
+        if len(t) > 4 and t not in _STOP_WORDS
+    }
+
+    # 词频排序，取 Top 60
+    from collections import Counter
+    freq = Counter(tokens)
+    ranked = sorted(keywords, key=lambda w: -freq.get(w, 0))
+
+    return ranked[:60]
+
+# 场景域名词典 —— 每个场景允许出现的核心名词/概念
+# 用于 Embedding 不精确时的快速硬拦截
+_SCENE_DOMAIN_WORDS = {
+    "interview": {
+        "skills", "experience", "project", "react", "vue", "javascript", "python",
+        "frontend", "backend", "developer", "engineering", "coding", "software",
+        "framework", "git", "api", "database", "testing", "team", "company",
+        "position", "career", "technology", "code", "algorithm", "architecture",
+        "design", "system", "product", "management", "leadership", "responsibility",
+        "learn", "improve", "worked", "built", "created", "managed", "solved", "thanks", "thank",
+    },
+    "ordering": {
+        "coffee", "latte", "cappuccino", "espresso", "americano", "mocha",
+        "tea", "milk", "sugar", "cream", "syrup", "size", "cup", "drink",
+        "food", "menu", "order", "bill", "pay", "price", "breakfast",
+        "sandwich", "bagel", "muffin", "croissant", "cake", "cookie",
+        "oat milk", "soy milk", "almond milk", "ice", "hot", "small",
+        "medium", "large", "here", "to go", "take away", "change",
+        "total", "much", "cost", "receipt", "enough", "ready", "done", "thank", "thanks",
+    },
+    "meeting": {
+        "project", "timeline", "deadline", "milestone", "sprint", "release",
+        "update", "progress", "status", "blocker", "issue", "bug", "feature",
+        "team", "task", "schedule", "delivery", "q3", "q4", "goal",
+        "resource", "priority", "plan", "launch", "product", "client",
+        "stakeholder", "budget", "scope", "requirement", "feedback",
+        "agenda", "action", "next", "step", "review", "approve",
+    },
+}
+
+
+def _check_scene_domain_mismatch(user_text: str, scene_prompt: str, domain_keywords: list = None) -> bool:
+    """
+    词项域硬过滤。
+    优先使用预提取的 domain_keywords（来自数据库 Scene.domain_keywords），
+    其次使用内置场景预定义词典，最后从 Prompt 实时提取。
+    """
+    text_lower = user_text.lower()
+    import re as _re
+
+    if domain_keywords:
+        # 使用数据库中预提取的关键词（自定义场景 + 内置场景均支持）
+        domain = set(domain_keywords)
+    else:
+        # 从 Prompt 推断场景 ID
+        prompt_lower = scene_prompt[:200].lower()
+        scene_id = "custom"
+        for sid, keywords in {
+            "interview": ["interview", "hiring", "candidate"],
+            "ordering": ["cafe", "barista", "coffee", "menu", "order"],
+            "meeting": ["meeting", "sync", "standup", "retro"],
+        }.items():
+            if any(kw in prompt_lower for kw in keywords):
+                scene_id = sid
+                break
+
+        if scene_id == "custom":
+            # 无预存关键词的自定义场景：实时从 Prompt 提取
+            prompt_tokens = _re.findall(r"[a-zA-Z']+", prompt_lower)
+            domain = {
+                t for t in prompt_tokens
+                if len(t) > 4 and t not in _STOP_WORDS
+            }
+            if len(domain) < 5:
+                return False
+        else:
+            domain = _SCENE_DOMAIN_WORDS.get(scene_id, set())
+
+    # 如果自动提取为空，保守放行
+    if not domain:
+        return False
+
+    # 提取用户输入中的实义词（名词/动词，排除停用词）
+    tokens = _re.findall(r"[a-zA-Z']+", text_lower)
+    content_words = {t for t in tokens if len(t) > 2 and t not in {
+        "the", "and", "for", "are", "not", "but",  "can", "you",
+        "i", "me", "my", "is", "it", "to", "do", "in", "on", "at",
+        "of", "with", "that", "this", "have", "has", "was", "were",
+        "will", "would", "could", "should", "want", "like", "get",
+        "need", "just", "your", "please",
+    }}
+
+    if not content_words:
+        return False
+
+    # 检查是否命中场景域
+    matched = content_words & domain
+
+    # 如果完全没有命中场景词汇，认为是跑题
+    return len(matched) == 0
+
+
+def validate_scene_relevance(user_text: str, scene_prompt: str, threshold: float = 0.30, domain_keywords: list = None) -> str:
+    """
+    语义一致性验证过滤器。
+    三阶段策略：
+      1. 词项硬过滤 —— 检测用户输入中包含明显不属于该场景的名词/概念
+      2. Embedding 相似度快速过滤
+      3. 灰色区间用 LLM 二次确认
+    所有引擎不可用时自动放行。
+
+    参数:
+      domain_keywords: 预提取的场景域关键词（来自 Scene.domain_keywords 字段）
+    """
+    if not user_text or not scene_prompt:
+        return user_text
+
+    # 阶段 0：词项硬过滤（不依赖 Embedding/LLM）
+    if _check_scene_domain_mismatch(user_text, scene_prompt, domain_keywords):
+        return _SCENE_REDIRECT_TEXT
+
+    try:
+        # 取场景 prompt 的前 200 字符作为参考（核心角色定义，去掉了冗长的指令）
+        reference = scene_prompt[:200]
+        scene_vec = get_scene_reference_vector(reference)
+        user_vec = np.array(get_embedding(user_text), dtype=np.float32)
+        user_norm = np.linalg.norm(user_vec)
+        if user_norm == 0:
+            return user_text
+        user_vec = user_vec / user_norm
+
+        similarity = float(np.dot(scene_vec, user_vec))
+
+        # 阶段 1：高相似度 → 明确相关，直接放行
+        if similarity >= threshold:
+            return user_text
+
+        # 阶段 2：低相似度 → 明确不相关，拦截
+        if similarity < 0.20:
+            from app.core.logger import logger
+            logger.warning(
+                f"[场景一致性拦截] 相似度 {similarity:.3f} < 0.20，明确跑题 "
+                f"用户输入: '{user_text[:60]}...'"
+            )
+            return _SCENE_REDIRECT_TEXT
+
+        # 阶段 3：灰色区间 (0.20 ~ threshold)，用 LLM 做二次确认
+        from app.core.logger import logger
+        logger.info(
+            f"[场景一致性确认] 相似度 {similarity:.3f} 在灰色区间，请求 LLM 二次确认 "
+            f"用户输入: '{user_text[:60]}...'"
+        )
+        if _is_off_topic_via_llm(user_text, scene_prompt):
+            return _SCENE_REDIRECT_TEXT
+        return user_text
+
+    except Exception as e:
+        print(f"[场景一致性验证降级] Embedding/LLM 调用异常: {e}，跳过验证")
+        return user_text
+
+
+def _is_off_topic_via_llm(user_text: str, scene_prompt: str) -> bool:
+    """
+    用 LLM 二次确认用户输入是否与场景相关。
+    使用极轻量的 prompt，单 token 输出 'Y' / 'N'。
+    """
+    try:
+        api_key, base_url, model_name = None, None, None
+        if settings.DEEPSEEK_API_KEY:
+            api_key = settings.DEEPSEEK_API_KEY
+            base_url = settings.DEEPSEEK_BASE_URL
+            model_name = settings.DEEPSEEK_MODEL
+        elif settings.OPENAI_API_KEY and settings.OPENAI_API_KEY != "mock-key":
+            api_key = settings.OPENAI_API_KEY
+            base_url = settings.OPENAI_BASE_URL
+            model_name = settings.OPENAI_MODEL
+
+        if not api_key:
+            # LLM 不可用时：灰色区间内保守放行
+            return False
+
+        client = OpenAI(api_key=api_key, base_url=base_url)
+        resp = client.chat.completions.create(
+            model=model_name,
+            messages=[
+                {"role": "system", "content": "You are a relevance classifier. Reply with exactly 'Y' if the user's input is related to the given conversation scenario, or 'N' if it is off-topic or unrelated."},
+                {"role": "user", "content": f"Scenario: {scene_prompt[:300]}\n\nUser input: {user_text}"}
+            ],
+            temperature=0.0,
+            max_tokens=5
+        )
+        answer = resp.choices[0].message.content.strip().upper()
+        return answer != "Y"
+    except Exception:
+        return False
+
 
 def extract_item_from_text(user_text: str) -> Optional[str]:
     """
@@ -650,6 +898,11 @@ async def run_dialogue_turn_pipeline(
     user_text_safe = await loop.run_in_executor(None, anonymize_text_via_llm, user_text_raw)
     rag_text_safe = rag_raw_text
 
+    # 🔥 场景一致性验证：检测 ASR 误识别或用户跑题
+    scene_db = db.query(_Scene).filter(_Scene.id == history.scene_id).first()
+    if scene_db and scene_db.system_prompt:
+        user_text_safe = validate_scene_relevance(user_text_safe, scene_db.system_prompt, domain_keywords=scene_db.domain_keywords)
+
     # 6. 【步骤四】大模型角色演练回答 + 语法纠错
     llm_task = asyncio.create_task(generate_llm_response(
         scene_id=history.scene_id,
@@ -821,6 +1074,11 @@ async def run_dialogue_turn_pipeline_stream(
                 user_text_safe = await loop.run_in_executor(None, anonymize_text_via_llm, user_text_raw)
                 rag_text_safe = rag_raw_text
 
+                # 🔥 场景一致性验证 (流式版)
+                scene_db2 = db.query(_Scene).filter(_Scene.id == history.scene_id).first()
+                if scene_db2 and scene_db2.system_prompt:
+                    user_text_safe = validate_scene_relevance(user_text_safe, scene_db2.system_prompt, domain_keywords=scene_db2.domain_keywords)
+
                 # 5. 步骤三：开启大模型回复生成 (在此处直接 yield 'llm' 状态，使前端可以展示思考气泡，填补等待真空)
                 post_status("llm", "AI 正在组织语言，撰写角色回复~")
 
@@ -924,7 +1182,7 @@ async def run_dialogue_turn_pipeline_stream(
                 extra_info=f"Pipeline 流式模式顺利通关。会话ID: {history_id}，finished: {llm_result.get('finished', False)}"
             )
 
-            post_status("done", extra_data={
+            post_status("done", "thank", "thanks", extra_data={
                 "result": [user_data, ai_data],
                 "finished": bool(llm_result.get("finished", False))
             })

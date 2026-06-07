@@ -29,6 +29,15 @@
 
 ---
 
+## 🌐产品官网
+
+<p align="center">
+	<a src="https://echotalk.ackow.cn"><strong>官网链接</strong></a>
+	<a src="https://echotalk-2pi.pages.dev/"><strong>备用链接</strong></a>
+</p>
+
+---
+
 ## 📖 项目简介
 
 EchoTalk（云音口语）是一款 **AI 驱动的英语口语陪练桌面应用**，旨在帮助用户在沉浸式场景中进行真实的英语对话训练。应用深度融合 **ASR 语音识别**、**大语言模型角色扮演**、**语音评测引擎** 与 **TTS 语音合成** 等技术，构建了从"听"到"说"再到"评"的完整口语学习闭环。

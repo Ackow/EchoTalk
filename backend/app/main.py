@@ -94,7 +94,13 @@ def check_and_upgrade_database_schema(db: Session):
             db.execute(text("ALTER TABLE scenes ADD COLUMN greeting_audio_url VARCHAR(255)"))
             db.commit()
             print("[数据库热升级] scenes 表成功注入 greeting_audio_url 字段！")
-            
+
+        if "domain_keywords" not in columns:
+            print("[数据库热升级] scenes 表缺失 domain_keywords 字段，正在执行热注入...")
+            db.execute(text("ALTER TABLE scenes ADD COLUMN domain_keywords TEXT"))
+            db.commit()
+            print("[数据库热升级] scenes 表成功注入 domain_keywords 字段！")
+
         cursor = db.execute(text("PRAGMA table_info(dialogue_histories)"))
         dh_columns = [row[1] for row in cursor.fetchall()]
         if "speaking_style" not in dh_columns:
@@ -319,7 +325,8 @@ def seed_default_scenes(db: Session):
                 system_prompt=scene_data["system_prompt"],
                 greeting_text=greeting_text,
                 greeting_audio_url=greeting_audio_url,
-                rag_metadata=[]
+                rag_metadata=[],
+                domain_keywords=[]
             )
             db.add(scene)
             db.commit()
@@ -383,6 +390,13 @@ def seed_default_scenes(db: Session):
                                 
             # 种子检测与增量填充该场景的 RAG 知识库
             seed_rag_for_scene(db, existing.id, existing)
+
+            # 为已存在的场景补充域关键词（兼容旧库升级）
+            if not existing.domain_keywords:
+                from app.services.pipeline import extract_domain_keywords
+                existing.domain_keywords = extract_domain_keywords(existing.system_prompt, "")
+                db.add(existing)
+
     db.commit()
 
 # ══════════════════════════════════════════════════════════════════════════════
