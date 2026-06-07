@@ -238,6 +238,7 @@ def seed_default_scenes(db: Session):
             "description": "模拟外企软件工程师英文技术面试，考察专业术语、沟通能力与逻辑表达。",
             "category": "interview",
             "default_params": {
+                "difficulty": "hard",
                 "personality": "professional and slightly strict",
                 "company_name": "Global Tech Inc.",
                 "job_title": "Senior Frontend Developer",
@@ -252,6 +253,7 @@ def seed_default_scenes(db: Session):
             "description": "在纽约街头咖啡馆点一份早餐与咖啡，练习日常口语、定制化订单与结账表达。",
             "category": "ordering",
             "default_params": {
+                "difficulty": "easy",
                 "personality": "friendly but busy",
                 "store_name": "Metro Cafe",
                 "cashier_name": "Leo"
@@ -265,6 +267,7 @@ def seed_default_scenes(db: Session):
             "description": "参与跨国项目组的产品发布准备会议，讨论进度延误、解决方案与任务分工。",
             "category": "meeting",
             "default_params": {
+                "difficulty": "medium",
                 "personality": "result-oriented and collaborative",
                 "chairperson_name": "David",
                 "topic": "Frontend delay for the Q3 product launch"
@@ -328,6 +331,15 @@ def seed_default_scenes(db: Session):
             init_status.update("seeding", f"「{scene_name}」已就绪 ✓", progress_base + 15, f"完成场景 {idx+1}/{total_scenes}")
         else:
             init_status.update("seeding", f"校验「{scene_name}」...", progress_base + 10, f"检查场景 {idx+1}/{total_scenes}")
+            dirty = False
+            if not existing.default_params:
+                existing.default_params = {}
+            if "difficulty" not in existing.default_params:
+                params = dict(existing.default_params)
+                params["difficulty"] = scene_data["default_params"].get("difficulty", "medium")
+                existing.default_params = params
+                dirty = True
+            
             # 如果系统提示词或问候语与预置种子不一致，进行自动校准更新，确保用户获得最佳体验
             if existing.system_prompt != scene_data["system_prompt"] or existing.greeting_text != scene_data["greeting_text"]:
                 print(f"[种子自动更新] 场景 '{existing.id}' 配置与种子不一致，正在执行升级校准...")
@@ -338,6 +350,9 @@ def seed_default_scenes(db: Session):
                 init_status.update("seeding", f"正在升级「{scene_name}」语音...", progress_base + 5, "重新合成问候语")
                 # 重新预合成打招呼语音
                 existing.greeting_audio_url = generate_and_upload_greeting_audio(existing.id, scene_data["greeting_text"])
+                dirty = True
+                
+            if dirty:
                 db.add(existing)
                 db.commit()
                 db.refresh(existing)

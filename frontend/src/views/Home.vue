@@ -30,26 +30,33 @@
     <div v-loading="loading" class="scenes-grid">
       <div v-for="scene in scenes" :key="scene.id" class="scene-card glass-card">
         <div class="card-header">
-          <span class="category-tag">{{ formatCategory(scene.category) }}</span>
+          <div class="header-tags">
+            <span class="category-tag">{{ formatCategory(scene.category) }}</span>
+            <span v-if="scene.default_params?.difficulty" :class="['difficulty-tag', scene.default_params.difficulty]">
+              {{ formatDifficulty(scene.default_params.difficulty) }}
+            </span>
+          </div>
           <div class="header-actions">
-            <el-button 
-              type="primary" 
-              link 
-              class="export-btn hover-scale" 
-              @click.stop="exportScene(scene)"
-            >
-              <el-icon><Download /></el-icon>
-              <span>导出包</span>
-            </el-button>
-            <el-button 
-              type="primary" 
-              link 
-              class="config-btn hover-scale" 
-              @click.stop="openConfigDialog(scene)"
-            >
-              <el-icon><Setting /></el-icon>
-              <span>配置</span>
-            </el-button>
+            <el-tooltip content="导出场景包" placement="top" :enterable="false">
+              <el-button 
+                type="primary" 
+                link 
+                class="export-btn hover-scale" 
+                @click.stop="exportScene(scene)"
+              >
+                <el-icon><Download /></el-icon>
+              </el-button>
+            </el-tooltip>
+            <el-tooltip content="配置参数与知识库" placement="top" :enterable="false">
+              <el-button 
+                type="primary" 
+                link 
+                class="config-btn hover-scale" 
+                @click.stop="openConfigDialog(scene)"
+              >
+                <el-icon><Setting /></el-icon>
+              </el-button>
+            </el-tooltip>
           </div>
         </div>
         
@@ -57,15 +64,16 @@
         <p class="scene-desc">{{ scene.description }}</p>
         
         <!-- Parameter Badges -->
-        <div class="param-badges" v-if="scene.default_params && Object.keys(scene.default_params).length > 0">
-          <div 
-            v-for="(val, key) in scene.default_params" 
-            :key="key" 
-            class="param-badge"
-          >
-            <span class="badge-key">{{ translateKey(key) }}:</span>
-            <span class="badge-val">{{ val }}</span>
-          </div>
+        <div class="param-badges" v-if="scene.default_params && Object.keys(scene.default_params).filter(k => k !== 'difficulty').length > 0">
+          <template v-for="(val, key) in scene.default_params" :key="key">
+            <div 
+              v-if="key !== 'difficulty'"
+              class="param-badge"
+            >
+              <span class="badge-key">{{ translateKey(key) }}:</span>
+              <span class="badge-val">{{ val }}</span>
+            </div>
+          </template>
         </div>
 
         <div class="rag-info" v-if="scene.rag_metadata && scene.rag_metadata.length > 0">
@@ -118,6 +126,13 @@
                 placeholder="简述场景，展示在主页卡片上..." 
               />
             </el-form-item>
+            <el-form-item label="难度级别">
+              <el-select v-model="configForm.difficulty" placeholder="请选择难度级别" style="width: 100%;">
+                <el-option label="简单 (Easy)" value="easy" />
+                <el-option label="中等 (Medium)" value="medium" />
+                <el-option label="困难 (Hard)" value="hard" />
+              </el-select>
+            </el-form-item>
             <el-form-item label="系统提示词 (System Prompt)">
               <el-input 
                 v-model="configForm.system_prompt" 
@@ -157,7 +172,6 @@
 
         <!-- Tab 2: RAG Documents Config -->
         <el-tab-pane label="RAG 场景知识库文档" name="rag">
-          <!-- ⭐ 关键修改点 1：在这里绑定 v-loading 局部动画与自定义提示文本 -->
           <div
             class="rag-tab-content"
             v-loading="ragLoading"
@@ -327,6 +341,13 @@
             <el-option label="自定义演练" value="custom" />
           </el-select>
         </el-form-item>
+        <el-form-item label="难度级别" prop="difficulty">
+          <el-select v-model="createForm.difficulty" placeholder="请选择难度级别" style="width: 100%;">
+            <el-option label="简单 (Easy)" value="easy" />
+            <el-option label="中等 (Medium)" value="medium" />
+            <el-option label="困难 (Hard)" value="hard" />
+          </el-select>
+        </el-form-item>
         <el-form-item label="场景描述" prop="description">
           <el-input v-model="createForm.description" type="textarea" :rows="2" placeholder="展示在首页卡片上的一句话场景描述..." />
         </el-form-item>
@@ -487,7 +508,8 @@ const configForm = reactive({
   name: '',
   description: '',
   system_prompt: '',
-  greeting_text: ''
+  greeting_text: '',
+  difficulty: 'medium'
 })
 const configParams = ref([])
 
@@ -499,7 +521,8 @@ const createForm = reactive({
   description: '',
   category: 'custom',
   system_prompt: '',
-  greeting_text: ''
+  greeting_text: '',
+  difficulty: 'medium'
 })
 const createParams = ref([
   { key: 'character_name', value: 'AI Assistant' }
@@ -512,6 +535,7 @@ const createRules = {
   ],
   name: [{ required: true, message: '请输入场景名称', trigger: 'blur' }],
   category: [{ required: true, message: '请选择分类', trigger: 'change' }],
+  difficulty: [{ required: true, message: '请选择难度级别', trigger: 'change' }],
   system_prompt: [{ required: true, message: '请输入系统提示词', trigger: 'blur' }]
 }
 
@@ -553,6 +577,15 @@ const formatCategory = (category) => {
   return mapping[category] || '练习场景'
 }
 
+const formatDifficulty = (difficulty) => {
+  const mapping = {
+    easy: '简单',
+    medium: '中等',
+    hard: '困难'
+  }
+  return mapping[difficulty] || difficulty
+}
+
 const translateKey = (key) => {
   const mapping = {
     personality: '性格/特质',
@@ -586,12 +619,15 @@ const openConfigDialog = (scene, defaultTab = 'params') => {
   configForm.description = scene.description
   configForm.system_prompt = scene.system_prompt
   configForm.greeting_text = scene.greeting_text || ''
+  configForm.difficulty = scene.default_params?.difficulty || 'medium'
 
-  // Transform dict parameter to list for rendering
-  configParams.value = Object.entries(scene.default_params || {}).map(([key, val]) => ({
-    key,
-    value: String(val)
-  }))
+  // Transform dict parameter to list for rendering, excluding difficulty
+  configParams.value = Object.entries(scene.default_params || {})
+    .filter(([key]) => key !== 'difficulty')
+    .map(([key, val]) => ({
+      key,
+      value: String(val)
+    }))
 
   activeTab.value = defaultTab
   configVisible.value = true
@@ -617,9 +653,11 @@ const saveConfig = async () => {
   savingConfig.value = true
 
   // Assemble parameters dict
-  const default_params = {}
+  const default_params = {
+    difficulty: configForm.difficulty
+  }
   configParams.value.forEach(item => {
-    if (item.key.trim()) {
+    if (item.key.trim() && item.key.trim() !== 'difficulty') {
       default_params[item.key.trim()] = item.value
     }
   })
@@ -734,6 +772,7 @@ const openCreateDialog = () => {
   createForm.category = 'custom'
   createForm.system_prompt = ''
   createForm.greeting_text = ''
+  createForm.difficulty = 'medium'
   createParams.value = [{ key: 'character_name', value: 'AI Assistant' }]
   createVisible.value = true
 }
@@ -754,9 +793,11 @@ const handleCreateScene = async () => {
     creatingScene.value = true
 
     // Assemble parameters
-    const default_params = {}
+    const default_params = {
+      difficulty: createForm.difficulty
+    }
     createParams.value.forEach(item => {
-      if (item.key.trim()) {
+      if (item.key.trim() && item.key.trim() !== 'difficulty') {
         default_params[item.key.trim()] = item.value
       }
     })
@@ -942,6 +983,12 @@ const handleImportScene = async (options) => {
   margin-bottom: 16px;
 }
 
+.header-tags {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
 .category-tag {
   font-size: 0.75rem;
   background: rgba(99, 102, 241, 0.12);
@@ -952,23 +999,46 @@ const handleImportScene = async (options) => {
   font-weight: 600;
 }
 
+.difficulty-tag {
+  font-size: 0.72rem;
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-weight: 600;
+}
+
+.difficulty-tag.easy {
+  background: rgba(16, 185, 129, 0.12);
+  border: 1px solid rgba(16, 185, 129, 0.25);
+  color: #34d399;
+}
+
+.difficulty-tag.medium {
+  background: rgba(245, 158, 11, 0.12);
+  border: 1px solid rgba(245, 158, 11, 0.25);
+  color: #fbbf24;
+}
+
+.difficulty-tag.hard {
+  background: rgba(239, 68, 68, 0.12);
+  border: 1px solid rgba(239, 68, 68, 0.25);
+  color: #f87171;
+}
+
 .header-actions {
   display: flex;
-  gap: 12px;
 }
 
 .config-btn {
   background: rgba(255, 255, 255, 0.03) !important;
   border: 1px solid rgba(255, 255, 255, 0.08) !important;
   color: var(--text-secondary) !important;
-  font-size: 0.78rem;
-  font-weight: 600;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 6px 12px !important;
-  height: auto !important;
-  border-radius: 20px !important;
+  width: 32px !important;
+  height: 32px !important;
+  padding: 0 !important;
+  border-radius: 50% !important;
+  display: flex !important;
+  justify-content: center !important;
+  align-items: center !important;
   transition: var(--transition-smooth);
 }
 
@@ -983,14 +1053,13 @@ const handleImportScene = async (options) => {
   background: rgba(255, 255, 255, 0.03) !important;
   border: 1px solid rgba(255, 255, 255, 0.08) !important;
   color: var(--text-secondary) !important;
-  font-size: 0.78rem;
-  font-weight: 600;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 6px 12px !important;
-  height: auto !important;
-  border-radius: 20px !important;
+  width: 32px !important;
+  height: 32px !important;
+  padding: 0 !important;
+  border-radius: 50% !important;
+  display: flex !important;
+  justify-content: center !important;
+  align-items: center !important;
   transition: var(--transition-smooth);
 }
 
@@ -1560,7 +1629,7 @@ const handleImportScene = async (options) => {
 .custom-select :deep(.el-select__selected-item),
 .custom-select :deep(.el-select__placeholder),
 .custom-select :deep(.el-input__inner) {
-  color: #a5b4fc !important;
+  color: #ffffff !important;
   font-weight: 600 !important;
 }
 

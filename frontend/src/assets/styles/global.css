@@ -293,8 +293,9 @@ h1, h2, h3, h4, h5, h6 {
   padding-top: 16px !important;
 }
 
-/* For inputs inside dialog */
+/* For inputs and selects inside dialog */
 .el-dialog .el-input__wrapper, 
+.el-dialog .el-select__wrapper,
 .el-dialog .el-textarea__inner {
   background-color: rgba(17, 24, 39, 0.6) !important;
   border: 1px solid rgba(255, 255, 255, 0.08) !important;
@@ -303,8 +304,19 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 .el-dialog .el-input__wrapper.is-focus, 
+.el-dialog .el-select__wrapper.is-focus,
+.el-dialog .el-select__wrapper.is-focused,
 .el-dialog .el-textarea__inner:focus {
   border-color: var(--primary-color) !important;
+}
+
+.el-dialog .el-select__selected-item,
+.el-dialog .el-select__placeholder {
+  color: var(--text-primary) !important;
+}
+
+.el-dialog .el-select__caret {
+  color: var(--text-secondary) !important;
 }
 
 /* Markdown Content Styling for RAG Drawer and config previews */
