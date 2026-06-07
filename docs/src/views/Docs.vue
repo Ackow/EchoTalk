@@ -139,7 +139,7 @@ npm run pack</code></pre>
       <p>上传场景 .zip 包进行导入（支持覆盖更新已有场景）</p>
 
       <h2 id="api">API 参考</h2>
-      <p>EchoTalk 后端提供完整的 RESTful API，基础路径为 <code>http://127.0.0.1:8000/api</code>。</p>
+      <p>EchoTalk 后端提供完整的 RESTful API，基础路径为 <code>http://127.0.0.1:8000/api</code>。启动后端后可访问 <code>http://127.0.0.1:8000/docs</code> 查看 FastAPI 自动生成的交互式 Swagger 文档。</p>
 
       <h3>初始化状态</h3>
       <div class="endpoint"><span class="badge method">GET</span> <code>/api/init-status</code></div>
@@ -174,6 +174,23 @@ npm run pack</code></pre>
       <p>启动一轮新的口语练习会话，自动生成问候语 TTS 音频。</p>
       <div class="endpoint"><span class="badge method">POST</span> <code>/api/dialogues/{history_id}/turn</code></div>
       <p>核心端点：上传用户录音 → 运行完整 Pipeline（STT → RAG → PII → ISE+LLM → TTS → Upload → 入库）。支持 <code>?stream=true</code> 参数启用 SSE 流式进度推送。</p>
+      <p><strong>请求：</strong><code>multipart/form-data</code>，字段 <code>file</code>（.wav 音频）</p>
+      <p><strong>响应（同步模式）：</strong></p>
+      <pre><code>{
+  "turns": [
+    {
+      "id": 42, "role": "user", "text": "I'd like a vanilla latte...",
+      "pronunciation_score": { "total_score": 87.5, "accuracy_score": 85.0, ... },
+      "grammar_correction": { "original": "...", "corrected": "...", ... }
+    },
+    {
+      "id": 43, "role": "assistant", "text": "Sure! What size would you like?",
+      "audio_url": "/static/audio/ai_reply_xxx.mp3"
+    }
+  ],
+  "finished": false
+}</code></pre>
+      <p><strong>SSE 流式模式：</strong>添加 <code>?stream=true</code>，返回 <code>text/event-stream</code>，依次推送 <code>asr → ise → llm → tts → grammar_done → ai_done → done</code> 事件。</p>
       <div class="endpoint"><span class="badge method">POST</span> <code>/api/dialogues/{history_id}/settle</code></div>
       <p>会话终点结算：统计评分汇总，更新 overall_score 和 end_time。</p>
       <div class="endpoint"><span class="badge method">GET</span> <code>/api/dialogues/{history_id}</code></div>

@@ -106,6 +106,7 @@ const filterTags = [
   { key: 'food', label: '美食餐饮' },
   { key: 'tech', label: '科技行业' },
   { key: 'culture', label: '文化社交' },
+  { key: 'academic', label: '学术教育' },
 ]
 
 const tagLabels = {
@@ -116,6 +117,7 @@ const tagLabels = {
   food: '餐饮',
   tech: '技术',
   culture: '社交',
+  academic: '学术',
 }
 
 onMounted(async () => {
@@ -182,6 +184,7 @@ function setFilter(key) {
 .card-tag.food     { background: rgba(236,72,153,0.1); color: var(--pink); }
 .card-tag.tech     { background: rgba(6,182,212,0.1); color: var(--cyan); }
 .card-tag.culture  { background: rgba(168,85,247,0.1); color: #a855f7; }
+.card-tag.academic { background: rgba(99,102,241,0.1); color: #818cf8; }
 .pack-card .card-stats { display: flex; align-items: center; gap: 14px; font-size: 0.88rem; color: var(--text-dim); }
 .pack-card .card-stats span { display: flex; align-items: center; gap: 4px; }
 .dl-btn { margin-left: 8px; padding: 5px 16px; border-radius: 6px; font-size: 0.85rem; font-weight: 600; background: rgba(99,102,241,0.15); color: var(--primary); transition: background 0.15s; }
