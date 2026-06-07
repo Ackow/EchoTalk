@@ -20,16 +20,12 @@
 ## 🎬 演示视频
 
 <p align="center">
-  <a href="https://www.bilibili.com/video/BVxxxxxx" target="_blank">
+  <a href="https://www.bilibili.com/video/BV1KYEs6YE2D" target="_blank">
     <img src="https://img.shields.io/badge/Bilibili-点击观看完整演示视频-00A1D6?style=for-the-badge&logo=bilibili&logoColor=white" alt="Bilibili Demo" />
   </a>
 </p>
 
-> 📌 Bilibili 演示视频即将上线，敬请期待。视频将完整展示：场景选择 → 实时语音对话 → 发音评测 → 语法纠错 → 课后总结的全流程体验。
-
-<p align="center">
-  <i>（视频链接占位，上传后替换上方 badge 中的 BV 号）</i>
-</p>
+> 📌 视频将完整展示：场景选择 → 实时语音对话 → 发音评测 → 语法纠错 → 课后总结的全流程体验。
 
 ---
 
@@ -66,7 +62,7 @@ EchoTalk（云音口语）是一款 **AI 驱动的英语口语陪练桌面应用
 ### 🗣️ 实时语音对话
 
 - **ASR 语音识别**：腾讯云 Flash ASR（16k_en 英文模型），精准转录用户语音
-- **TTS 语音合成**：腾讯云语音合成 / 微软 Edge-TTS 神经网络语音（美音 Emma / 英音 Sonia），自然人声回复
+- **TTS 语音合成**：腾讯云 TTS / 微软 Edge-TTS 神经网络语音（美音 Emma / 英音 Sonia），自然人声回复
 - **流式管道**：SSE 协议分步推送进度（ASR → 评测 → LLM → TTS），消除等待焦虑
 - **对话闭环**：AI 自动判结束（is_finished），识别告别/结账/结束语
 
@@ -121,85 +117,12 @@ EchoTalk（云音口语）是一款 **AI 驱动的英语口语陪练桌面应用
 
 ## 🏗️ 系统架构
 
-```
-┌─────────────────────────────────────────────────┐
-│              Electron Shell                      │
-│  frontend/electron/main.js  ── 自动拉起后端进程   │
-│  preload.js  ── IPC 桥接暴露 backendBaseUrl      │
-├─────────────────────────────────────────────────┤
-│           Vue 3 SPA (frontend/src/)              │
-│  Home.vue (场景选择)  │  Practice.vue (对话核心)  │
-│  History.vue (历史回放)│  Analytics.vue (数据图表) │
-│  Pinia Store (useAppStore) ── 全局状态管理       │
-├─────────────────────────────────────────────────┤
-│        FastAPI Backend (backend/app/)            │
-│  ┌─────────────────────────────────────────┐    │
-│  │    API Layer: scenes / dialogues /       │    │
-│  │              users / settings            │    │
-│  └─────────────────────────────────────────┘    │
-│  ┌─────────────────────────────────────────┐    │
-│  │        核心对话管道 (Pipeline)           │    │
-│  │  STT → RAG → PII → (ISE ∥ LLM) → TTS   │    │
-│  └─────────────────────────────────────────┘    │
-│  ┌─────────────────────────────────────────┐    │
-│  │            服务层 (Services)             │    │
-│  │  stt.py     ── 腾讯云 Flash ASR         │    │
-│  │  assessment ── 科大讯飞 ISE WebSocket   │    │
-│  │  tts.py     ── Edge-TTS / 腾讯云 TTS    │    │
-│  │  rag.py     ── FAISS + BGE 向量检索     │    │
-│  │  document   ── PDF/TXT/MD 解析分块      │    │
-│  │  filter.py  ── PII 脱敏 (LLM+正则)      │    │
-│  │  storage    ── 七牛云 Kodo / 本地回退   │    │
-│  └─────────────────────────────────────────┘    │
-│  数据层: SQLite (SQLAlchemy) + FAISS 本地索引   │
-└─────────────────────────────────────────────────┘
-```
+![](/img/technology stack.png)
+
 
 ### 对话管道详解
 
-```
-用户录音 (.wav)
-    │
-    ▼
-┌──────────┐   腾讯云 Flash ASR (16k_en)
-│ ① STT   │   语音 → 英文文本
-└────┬─────┘
-    │  user_text_raw
-    ▼
-┌──────────┐   FAISS 向量相似度检索 Top-K
-│ ② RAG   │   召回场景知识库相关内容
-└────┬─────┘
-    │  rag_context
-    ▼
-┌──────────┐   LLM 语义脱敏 + 正则规则
-│ ③ PII   │   过滤手机/邮箱/身份证/姓名等
-└────┬─────┘
-    │  ┌──────────────────────────────────┐
-    ├──│ ④a ISE 发音评测 (科大讯飞)       │  并行
-    │  │   WebSocket 流式传输 PCM 音频帧    │
-    │  │   返回六维评分 + 单词/音素详情     │
-    │  └──────────────────────────────────┘
-    │  ┌──────────────────────────────────┐
-    └──│ ④b LLM 对话生成 (DeepSeek/OpenAI)│  并行
-       │   System Prompt + RAG + 历史对话   │
-       │   返回 AI 回复 + 语法纠错 JSON     │
-       └──────────────────────────────────┘
-    │
-    ▼
-┌──────────┐   Edge-TTS 美音/英音合成
-│ ⑤ TTS   │   AI 回复文本 → 自然语音 MP3
-└────┬─────┘
-    │
-    ▼
-┌──────────┐   七牛云 Kodo 上传 / 本地静态
-│ ⑥ Upload │   音频 URL 持久化托管
-└────┬─────┘
-    │
-    ▼
-┌──────────┐   DialogueTurn × 2 写入 SQLite
-│ ⑦ Persist │   用户轮次 + AI 轮次（含评分/纠错）
-└──────────┘
-```
+![](img/pipeline.png)
 
 ---
 
@@ -262,7 +185,7 @@ npm run pack
 | **LLM** | DeepSeek / Xiaomi MiMo / OpenAI | 自适应热插拔，统一 OpenAI SDK 调用 |
 | **ASR** | 腾讯云 Flash ASR (16k_en) | 英文极速语音识别，< 500ms 延迟 |
 | **ISE** | 科大讯飞流式评测 (en_vip) | WebSocket 流式传输，六维打分 |
-| **TTS** | Microsoft Edge-TTS | 免 Key 神经网络语音合成 |
+| **TTS** | Microsoft Edge-TTS / 腾讯云 TTS | 免 Key 神经网络语音合成 |
 | **存储** | 七牛云 Kodo | 音频文件云端托管，带本地回退 |
 
 ---
@@ -324,7 +247,7 @@ EchoTalk/
 | **语法/表达纠错** | LLM 逐轮语法修正 + 地道表达升级 + 语音发音指导 |
 | **课后总结** | 自动汇总评分，历史回放，雷达图可视化 |
 | **对话交互自然度** | AI 角色扮演 + System Prompt 人格化 + RAG 上下文增强 |
-| **语音端到端流畅性** | 并发管道（ISE 与 LLM 并行）+ Edge-TTS 神经网络语音 + 美音/英音切换 |
+| **语音端到端流畅性** | 并发管道（ISE 与 LLM 并行）+ Edge-TTS / 腾讯云 TTS 神经网络语音 + 美音/英音切换 |
 | **纠错精准度与时机** | 逐轮实时纠错 + 口语化/书面化双风格 + 保留用户原意的基础上润色 |
 | **口语能力量化反馈** | 六维评分雷达图 + 历史趋势 + 单词级定位薄弱点 |
 
