@@ -59,7 +59,7 @@
     <el-drawer
       v-model="drawerVisible"
       title="口语演练历史详情"
-      size="720px"
+      size="800px"
       destroy-on-close
       class="history-drawer"
       @close="handleDrawerClose"
@@ -78,51 +78,69 @@
         <div class="chat-history-drawer">
           <div v-for="(turn, idx) in detailTurns" :key="turn.id || idx" class="turn-block">
             <div :class="['message-row-drawer', turn.role === 'user' ? 'user-row' : 'ai-row']">
+
               <!-- AI Message -->
               <template v-if="turn.role === 'assistant'">
                 <div class="avatar ai-avatar">AI</div>
                 <div class="bubble-wrapper-drawer">
-                  <div class="bubble ai-bubble glass-card">
-                    <p class="message-text">{{ turn.text }}</p>
-                    <div class="bubble-actions">
-                      <el-button type="primary" link class="audio-play-btn" @click="playAudio(turn.audio_url, turn.id || idx)">
-                        <el-icon v-if="playingTurnId === (turn.id || idx)"><VideoPlay /></el-icon>
-                        <el-icon v-else><Headset /></el-icon>
-                        <span>{{ playingTurnId === (turn.id || idx) ? '播放中...' : '回放AI语音' }}</span>
-                      </el-button>
+                  <div class="bubble-row-drawer">
+                    <div class="voice-capsule ai-voice-capsule"
+                      :style="{ width: getCapsuleWidth(turn) }"
+                      @click="playAudio(turn.audio_url, turn.id || idx)">
+                      <el-icon class="voice-icon" v-if="playingTurnId === (turn.id || idx)"><VideoPause /></el-icon>
+                      <el-icon class="voice-icon" v-else><Headset /></el-icon>
+                      <span class="voice-duration">{{ getWavDuration(turn) }}</span>
                     </div>
+                    <el-button type="primary" link class="translate-toggle-btn" @click="toggleTurnText(idx)">
+                      <el-icon><Document /></el-icon>
+                      <span>{{ isTextExpanded(idx) ? '收起' : '文本' }}</span>
+                    </el-button>
                   </div>
+                  <el-collapse-transition>
+                    <div v-show="isTextExpanded(idx)" class="bubble-translation-panel-drawer ai-bubble glass-card">
+                      <p class="message-text">{{ turn.text }}</p>
+                    </div>
+                  </el-collapse-transition>
                 </div>
               </template>
 
               <!-- User Message -->
               <template v-else>
                 <div class="bubble-wrapper-drawer" @click="toggleEvaluatePanel(idx)">
-                  <div :class="['bubble user-bubble glass-card', { 'active-user-bubble': expandedTurnIndex === idx }]">
-                    <p class="message-text">{{ turn.text }}</p>
-                    
-                    <!-- 语法纠错常驻简易对比气泡 (解决漏看修改评语的UX痛点) -->
-                    <div 
-                      class="bubble-correction-snippet" 
-                      v-if="turn.grammar_correction && turn.grammar_correction.original !== turn.grammar_correction.corrected"
-                    >
-                      <el-icon class="warning-icon"><Warning /></el-icon>
-                      <span class="polished-hint">优化建议: "{{ turn.grammar_correction.corrected }}"</span>
-                    </div>
-
-                    <div class="bubble-score" v-if="turn.pronunciation_score">
-                      <el-tag size="small" type="success" effect="dark" class="score-tag">
-                        {{ turn.pronunciation_score.total_score }}分
-                      </el-tag>
+                  <div class="bubble-row-drawer">
+                    <el-button type="success" link class="translate-toggle-btn-user" @click="toggleTurnText(idx)">
+                      <el-icon><Document /></el-icon>
+                      <span>{{ isTextExpanded(idx) ? '收起' : '文本' }}</span>
+                    </el-button>
+                    <div class="voice-capsule"
+                      :style="{ width: getCapsuleWidth(turn) }"
+                      @click.stop="playAudio(turn.audio_url, turn.id || idx)">
+                      <el-icon class="voice-icon" v-if="playingTurnId === (turn.id || idx)"><VideoPause /></el-icon>
+                      <el-icon class="voice-icon" v-else><Mic /></el-icon>
+                      <span class="voice-duration">{{ getWavDuration(turn) }}</span>
+                      <span class="voice-capsule-score" v-if="turn.pronunciation_score">
+                        {{ Math.round(turn.pronunciation_score.total_score) }}分
+                      </span>
                     </div>
                   </div>
-                  <div class="bubble-actions-left">
-                    <el-button type="primary" link class="audio-play-btn user-play-btn" @click.stop="playAudio(turn.audio_url, turn.id || idx)">
-                      <el-icon v-if="playingTurnId === (turn.id || idx)"><VideoPlay /></el-icon>
-                      <el-icon v-else><Mic /></el-icon>
-                      <span>{{ playingTurnId === (turn.id || idx) ? '播放中...' : '回放原声' }}</span>
-                    </el-button>
-                    <span class="details-toggle-btn">
+                  <el-collapse-transition>
+                    <div v-show="isTextExpanded(idx)" class="bubble-translation-panel-drawer user-bubble glass-card">
+                      <p class="message-text" v-if="turn.pronunciation_score && turn.pronunciation_score.words &&
+                      turn.pronunciation_score.words.length > 0">
+                        <span v-for="(w, wIdx) in getHighlightedWords(turn)" :key="wIdx"
+                          :class="['bubble-word', w.score !== null ? getWordScoreClass(w) : '']"
+                        >{{ w.word }} </span>
+                      </p>
+                      <p class="message-text" v-else>{{ turn.text }}</p>
+                      <div class="bubble-correction-snippet"
+                        v-if="turn.grammar_correction && turn.grammar_correction.original !== turn.grammar_correction.corrected">
+                        <el-icon class="warning-icon"><Warning /></el-icon>
+                        <span class="polished-hint">优化建议: "{{ turn.grammar_correction.corrected }}"</span>
+                      </div>
+                    </div>
+                  </el-collapse-transition>
+                  <div class="bubble-actions-left-drawer">
+                    <span class="details-toggle-btn" @click.stop="toggleEvaluatePanel(idx)">
                       {{ expandedTurnIndex === idx ? '收起详情 ▲' : '发音五维/纠错原因 ▼' }}
                     </span>
                   </div>
@@ -130,40 +148,16 @@
                 <div class="avatar user-avatar">ME</div>
               </template>
             </div>
-
             <!-- Expandable Evaluation Panel (Inline) -->
             <el-collapse-transition>
-              <div v-if="turn.role === 'user' && expandedTurnIndex === idx" class="inline-eval-panel glass-card">
-                <!-- Radar -->
-                <div class="inline-section-title">口语发音分析</div>
-                <div class="radar-container" v-if="turn.pronunciation_score">
-                  <EChartsRadar :score-data="turn.pronunciation_score" height="200px" />
-                </div>
-                
-                <!-- Grammar -->
-                <div class="inline-section-title" style="margin-top: 16px;">语法建议详情</div>
-                <div class="grammar-container" v-if="turn.grammar_correction">
-                  <!-- No corrections needed -->
-                  <div v-if="turn.grammar_correction.original === turn.grammar_correction.corrected" class="grammar-ok">
-                    <el-icon class="ok-icon"><SuccessFilled /></el-icon>
-                    <span>{{ turn.grammar_correction.explanation }}</span>
-                  </div>
-                  <!-- Has suggestions -->
-                  <div v-else class="grammar-needs-fix">
-                    <div class="fix-row">
-                      <div class="badge-tag tag-red">原文 (Original)</div>
-                      <p class="text-block red-text">{{ turn.grammar_correction.original }}</p>
-                    </div>
-                    <div class="fix-row">
-                      <div class="badge-tag tag-green">优化 (Polished)</div>
-                      <p class="text-block green-text">{{ turn.grammar_correction.corrected }}</p>
-                    </div>
-                    <div class="explanation-box">
-                      <span class="exp-title">修改说明 (Chinese Explanation):</span>
-                      <p class="exp-content">{{ turn.grammar_correction.explanation }}</p>
-                    </div>
-                  </div>
-                </div>
+              <div v-if="turn.role === 'user' && expandedTurnIndex === idx" class="inline-eval-panel">
+                <EvaluationPanel
+                  :turn="turn"
+                  :is-evaluating="false"
+                  :compact="true"
+                  :show-rhythm="false"
+                  empty-text="该轮暂无评估数据"
+                />
               </div>
             </el-collapse-transition>
           </div>
@@ -176,8 +170,8 @@
 <script setup>
 import { ref, onMounted, onUnmounted } from 'vue'
 import { useAppStore } from '../store/useAppStore'
-import EChartsRadar from '../components/EChartsRadar.vue'
 import axios from 'axios'
+import EvaluationPanel from '../components/EvaluationPanel.vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 
 const store = useAppStore()
@@ -191,6 +185,52 @@ const detailLoading = ref(false)
 const selectedHistory = ref(null)
 const detailTurns = ref([])
 const expandedTurnIndex = ref(null)
+const expandedTurns = ref({})
+const toggleTurnText = (idx) => { expandedTurns.value[idx] = !expandedTurns.value[idx] }
+const isTextExpanded = (idx) => !!expandedTurns.value[idx]
+
+// 语音胶囊宽度计算
+const getCapsuleWidth = (turn) => {
+  let seconds = 3
+  if (turn.recordingDuration) { seconds = turn.recordingDuration }
+  else if (turn.text) { seconds = Math.max(2, Math.round(turn.text.split(' ').length / 2)) }
+  const width = Math.min(320, Math.max(120, 110 + seconds * 9))
+  return width + 'px'
+}
+const getWavDuration = (turn) => {
+  if (turn.recordingDuration) return turn.recordingDuration + '"'
+  if (turn.text) return Math.max(2, Math.round(turn.text.split(' ').length / 2)) + '"'
+  return '3"'
+}
+const getWordScoreClass = (w) => {
+    if (w.dp_message === 16) return 'word-missing'
+    if (w.score >= 80) return 'word-good'
+    if (w.score >= 60) return 'word-average'
+    return 'word-bad'
+  }
+
+  const getHighlightedWords = (turn) => {
+    if (!turn.text) return []
+    const words = turn.pronunciation_score?.words
+    if (!words || words.length === 0) return turn.text.split(/\s+/).map(w => ({ word: w, score: null, dp_message: null
+  }))
+    const textTokens = turn.text.split(/\s+/)
+    let evalIdx = 0
+    const result = []
+    for (const token of textTokens) {
+      const cleaned = token.replace(/^[.,?!\\\"();:\[\]{}*#_`~']+|[.,?!\\\"();:\[\]{}*#_`~']+$/g,
+  '').toLowerCase().trim()
+      if (!cleaned) { result.push({ word: token, score: null, dp_message: null }); continue }
+      let matched = null
+      for (let i = evalIdx; i < Math.min(evalIdx + 5, words.length); i++) {
+        if (words[i].word.toLowerCase().trim() === cleaned) { matched = words[i]; evalIdx = i + 1; break }
+      }
+      if (!matched && evalIdx < words.length && words[evalIdx].word.toLowerCase().trim() === cleaned) { matched =
+  words[evalIdx]; evalIdx++ }
+      result.push({ word: token, score: matched?.score ?? null, dp_message: matched?.dp_message ?? null })
+    }
+    return result
+  }
 
 const playingTurnId = ref(null)
 const activeAudio = ref(null)
@@ -637,6 +677,56 @@ const registerCustomSceneNames = async (histories) => {
   cursor: pointer;
 }
 
+.bubble-row-drawer {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.user-row .bubble-row-drawer { justify-content: flex-end; }
+.ai-row .bubble-row-drawer { justify-content: flex-start; }
+
+/* 语音胶囊 */
+.voice-capsule {
+  display: flex; align-items: center; gap: 12px;
+  min-width: 100px; height: 40px; padding: 0 16px;
+  background: linear-gradient(135deg, #059669 0%, #10b981 100%) !important;
+  border: 1px solid rgba(255,255,255,0.1); border-radius: 20px;
+  box-shadow: 0 4px 10px rgba(16,185,129,0.25); color: #fff;
+  transition: var(--transition-smooth); border-top-right-radius: 2px;
+  position: relative; overflow: hidden; cursor: pointer;
+}
+.voice-capsule:hover { transform: scale(1.03); box-shadow: 0 4px 15px rgba(16,185,129,0.4); }
+.ai-voice-capsule {
+  background: linear-gradient(135deg, #374151 0%, #4b5563 100%) !important;
+  border: 1px solid rgba(255,255,255,0.08); box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+  border-top-right-radius: 20px !important; border-top-left-radius: 2px !important;
+}
+.ai-voice-capsule:hover { background: linear-gradient(135deg,#4b5563 0%,#6b7280 100%) !important; box-shadow: 0 4px 15px rgba(0,0,0,0.35); }
+.voice-icon { font-size: 1.1rem; }
+.voice-duration { font-size: 0.85rem; font-weight: 700; font-family: var(--font-display); }
+.voice-capsule-score {
+  font-size: 0.72rem; background: rgba(255,255,255,0.25);
+  padding: 1px 6px; border-radius: 10px; margin-left: auto; font-weight: bold;
+}
+
+/* 文本展开按钮 */
+.translate-toggle-btn, .translate-toggle-btn-user {
+  font-size: 0.8rem; font-weight: 600; display: flex; align-items: center; gap: 4px;
+  padding: 5px 10px !important; height: auto !important; border-radius: 6px !important;
+  background: rgba(255,255,255,0.03) !important; border: 1px solid rgba(255,255,255,0.08) !important;
+  transition: var(--transition-smooth);
+}
+.translate-toggle-btn { color: #818cf8 !important; }
+.translate-toggle-btn:hover { background: rgba(129,140,248,0.1) !important; border-color: rgba(129,140,248,0.3) !important; }
+.translate-toggle-btn-user { color: #34d399 !important; }
+.translate-toggle-btn-user:hover { background: rgba(52,211,153,0.1) !important; border-color: rgba(52,211,153,0.3) !important; }
+
+/* 文本气泡 */
+.bubble-translation-panel-drawer { padding: 12px 18px; border-radius: 14px; margin-top: 6px; margin-bottom: 4px; }
+.bubble-actions-left-drawer { margin-top: 6px; padding: 0 4px; display: flex; justify-content: flex-start; }
+.details-toggle-btn { font-size: 0.75rem; color: var(--text-muted); font-weight: 500; cursor: pointer; transition: color 0.2s; }
+.details-toggle-btn:hover { color: var(--primary-color); }
+
 .bubble {
   padding: 10px 14px;
   border-radius: 12px;
@@ -836,4 +926,32 @@ const registerCustomSceneNames = async (histories) => {
   line-height: 1.4;
   margin-top: 2px;
 }
+ /* 单词发音高亮 */
+  .word-good {
+    color: #34d399;
+    background: rgba(16, 185, 129, 0.1);
+    border: 1px solid rgba(16, 185, 129, 0.2);
+  }
+  .word-average {
+    color: #fbbf24;
+    background: rgba(245, 158, 11, 0.1);
+    border: 1px solid rgba(245, 158, 11, 0.2);
+  }
+  .word-bad {
+    color: #f87171;
+    background: rgba(239, 68, 68, 0.15);
+    border: 1px solid rgba(239, 68, 68, 0.2);
+  }
+  .word-missing {
+    color: #9ca3af;
+    text-decoration: line-through;
+    background: rgba(156, 163, 175, 0.1);
+    border: 1px solid rgba(156, 163, 175, 0.2);
+  }
+  .bubble-word {
+    border-radius: 4px;
+    padding: 0px 4px;
+    margin: 0 1px;
+    display: inline-block;
+  }
 </style>

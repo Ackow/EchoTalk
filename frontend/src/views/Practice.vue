@@ -357,142 +357,15 @@
 
       <!-- Right side: Evaluation & Feedback Panel -->
       <section class="feedback-panel glass-panel">
-        <h3 class="panel-title">发音与语法实时评估</h3>
-        
-        <div v-if="selectedUserTurn" class="feedback-content">
-          <!-- Pronunciation & Rhythm Section -->
-          <div v-if="selectedUserTurn.pronunciation_score">
-            <!-- Radar Chart container -->
-            <div class="radar-section">
-              <div class="section-subtitle">发音能力五维雷达图</div>
-              <div class="radar-wrapper">
-                <EChartsRadar :score-data="selectedUserTurn.pronunciation_score" />
-              </div>
-            </div>
-
-            <!-- Word-level Pronunciation Details (Only show low scores / missing) -->
-            <div class="words-analysis-section" v-if="selectedUserTurn.pronunciation_score.words && selectedUserTurn.pronunciation_score.words.length > 0">
-              <div class="section-subtitle">发音待改进单词 (点击听标准音 & 查词典)</div>
-              <div class="words-container glass-card" v-if="lowScoreWords.length > 0">
-                <span 
-                  v-for="(w, wIdx) in lowScoreWords" 
-                  :key="wIdx"
-                  :class="['word-badge clickable-word-badge', getWordScoreClass(w)]"
-                  @click="clickWordDetail(w.word)"
-                >
-                  {{ w.word }}
-                  <span class="word-score-tip">{{ Math.round(w.score) }}分</span>
-                </span>
-              </div>
-              <div class="all-perfect-box" v-else>
-                <el-icon class="all-perfect-icon"><SuccessFilled /></el-icon>
-                <span class="all-perfect-text">太棒了！该句中所有单词发音均达到优秀标准 (≥80分)！🎉</span>
-              </div>
-            </div>
-
-            <!-- Rhythm & Pause Diagnosis -->
-            <div class="rhythm-analysis-section" v-if="rhythmAnalysis">
-              <div class="section-subtitle">语速与停顿节奏诊断</div>
-              <div class="rhythm-card glass-card">
-                <div class="rhythm-speed-row">
-                  <span class="speed-label">当前语速：</span>
-                  <span :class="['speed-value font-display', rhythmAnalysis.speedClass]">
-                    {{ rhythmAnalysis.wpm }} WPM ({{ rhythmAnalysis.speedEval }})
-                  </span>
-                </div>
-                <p class="rhythm-advice">{{ rhythmAnalysis.speedAdvice }}</p>
-                
-                <!-- 停顿细节 -->
-                <div class="rhythm-pauses" v-if="rhythmAnalysis.longPauses.length > 0">
-                  <span class="pause-label-title">检测到的较长停顿：</span>
-                  <ul class="pause-list">
-                    <li 
-                      v-for="(p, pIdx) in rhythmAnalysis.longPauses" 
-                      :key="pIdx"
-                      class="pause-item"
-                    >
-                      在 <strong>"{{ p.word1 }}"</strong> 与 <strong>"{{ p.word2 }}"</strong> 之间停顿了 <span>{{ p.duration }} 秒</span>
-                    </li>
-                  </ul>
-                </div>
-                <div class="rhythm-pauses-empty" v-else>
-                  <el-icon class="all-perfect-icon"><SuccessFilled /></el-icon>
-                  <span>整句发音一气呵成，没有检测到不自然的长停顿！</span>
-                </div>
-              </div>
-            </div>
-          </div>
-          
-          <!-- Pronunciation & Rhythm Loading Placeholder -->
-          <div 
-            v-else-if="selectedUserTurn.isEvaluating" 
-            class="radar-section-loading glass-card" 
-            v-loading="true" 
-            :element-loading-text="selectedUserTurn.evaluationStatusText || '正在评估发音表现...'" 
-            element-loading-background="rgba(17, 24, 39, 0.4)" 
-            style="height: 380px; display: flex; align-items: center; justify-content: center; margin-bottom: 24px; border: 1px solid rgba(255, 255, 255, 0.08); background: rgba(30, 41, 59, 0.2); border-radius: 12px;"
-          >
-          </div>
-
-          <!-- Grammar Section -->
-          <div class="grammar-section" v-if="selectedUserTurn.grammar_correction">
-            <div class="section-subtitle">语法及表达优化建议</div>
-            <div class="grammar-card glass-card">
-              <!-- No error -->
-              <div v-if="selectedUserTurn.grammar_correction.original === selectedUserTurn.grammar_correction.corrected" class="grammar-correct-state">
-                <el-icon class="correct-icon"><SuccessFilled /></el-icon>
-                <p class="correct-desc">{{ selectedUserTurn.grammar_correction.explanation }}</p>
-              </div>
-              <!-- Has corrections -->
-              <div v-else class="grammar-error-state">
-                <div class="correction-row">
-                  <div class="label-badge label-red">原文 (Original)</div>
-                  <p class="correction-text error-text">{{ selectedUserTurn.grammar_correction.original }}</p>
-                </div>
-                <div class="correction-row">
-                  <div class="label-badge label-green">优化 (Polished)</div>
-                  <p class="correction-text success-text">{{ selectedUserTurn.grammar_correction.corrected }}</p>
-                </div>
-                <div class="correction-explanation">
-                  <span class="exp-title">综合修改说明 (Explanation):</span>
-                  <p class="exp-content">{{ selectedUserTurn.grammar_correction.explanation }}</p>
-                </div>
-                
-                <!-- 多元化 AI 建议 (Diversified AI Suggestions) -->
-                <div class="diversified-suggestions" v-if="selectedUserTurn.grammar_correction.suggestions">
-                  <div class="suggestion-subcard grammar-sug" v-if="selectedUserTurn.grammar_correction.suggestions.grammar">
-                    <span class="subcard-title font-display"><el-icon><CircleCheck /></el-icon> 语法纠错剖析 (Grammar)</span>
-                    <p class="subcard-content">{{ selectedUserTurn.grammar_correction.suggestions.grammar }}</p>
-                  </div>
-                  <div class="suggestion-subcard vocabulary-sug" v-if="selectedUserTurn.grammar_correction.suggestions.vocabulary">
-                    <span class="subcard-title font-display"><el-icon><Reading /></el-icon> 地道词汇表达升级 (Vocabulary)</span>
-                    <p class="subcard-content">{{ selectedUserTurn.grammar_correction.suggestions.vocabulary }}</p>
-                  </div>
-                  <div class="suggestion-subcard pronunciation-sug" v-if="selectedUserTurn.grammar_correction.suggestions.pronunciation">
-                    <span class="subcard-title font-display"><el-icon><Headset /></el-icon> 连读与语音技巧 (Pronunciation)</span>
-                    <p class="subcard-content">{{ selectedUserTurn.grammar_correction.suggestions.pronunciation }}</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-          
-          <!-- Grammar Loading Placeholder -->
-          <div 
-            v-else-if="selectedUserTurn.isEvaluating" 
-            class="grammar-section-loading glass-card" 
-            v-loading="true" 
-            element-loading-text="AI 正在分析语法与表达建议..." 
-            element-loading-background="rgba(17, 24, 39, 0.4)" 
-            style="height: 180px; display: flex; align-items: center; justify-content: center; border: 1px solid rgba(255, 255, 255, 0.08); background: rgba(30, 41, 59, 0.2); border-radius: 12px;"
-          >
-          </div>
-        </div>
-        
-        <div v-else class="feedback-empty">
-          <el-icon class="feedback-empty-icon"><InfoFilled /></el-icon>
-          <p>开启对话并点击你的绿色胶囊语音条，即可在此处展开转文字与发音评估雷达图！</p>
-        </div>
+        <EvaluationPanel
+          title="发音与语法实时评估"
+          :turn="selectedUserTurn"
+          :is-evaluating="selectedUserTurn?.isEvaluating || false"
+          :show-rhythm="true"
+          empty-text="开启对话并点击你的绿色胶囊语音条，即可在此处展开转文字与发音评估雷达图！"
+          loading-text="正在评估发音表现..."
+          @word-click="clickWordDetail"
+        />
       </section>
     </div>
 
@@ -648,6 +521,7 @@ import { ref, onMounted, onUnmounted, computed, nextTick, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAppStore } from '../store/useAppStore'
 import EChartsRadar from '../components/EChartsRadar.vue'
+import EvaluationPanel from '../components/EvaluationPanel.vue'
 import axios from 'axios'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { marked } from 'marked'
