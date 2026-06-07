@@ -32,8 +32,8 @@
 ## 🌐产品官网
 
 <p align="center">
-	<a src="https://echotalk.ackow.cn"><strong>官网链接</strong></a>
-	<a src="https://echotalk-2pi.pages.dev/"><strong>备用链接</strong></a>
+	<a href="https://echotalk.ackow.cn" target="_blank"><strong>官网链接</strong></a>
+	<a href="https://echotalk-2pi.pages.dev" target="_blank"><strong>备用链接</strong></a>
 </p>
 
 ---
@@ -124,14 +124,78 @@ EchoTalk（云音口语）是一款 **AI 驱动的英语口语陪练桌面应用
 
 ---
 
+### 🗣️ 场景对话范围控制——如何防止AI跑题
+
+**问题：** ASR 识别错误或用户无意跑题时，AI 可能偏离场景。
+
+**解决方案：三层一致性验证过滤器**
+
+```
+用户输入
+    │
+    ▼
+① 词项域硬过滤（本地执行，不需API）
+    │  用户输入与场景关键词集对比
+    │  完全无交集 → 直接拦截
+    │  命中部分词 → 放行
+    ▼
+② Embedding 语义相似度
+    │  ≥ 0.30 → 放行
+    │  0.20~0.30 → 走③ LLM确认
+    │  < 0.20 → 明确跑题拦截
+    ▼
+③ LLM 二次确认（轻量Y/N判断）
+    │  "是" → 放行
+    │  "否" → 拦截并引导回场景
+```
+
+关键词从 System Prompt 和 RAG 知识库自动提取并存入数据库，无需手动维护。所有环节在服务不可用时自动跳过（优雅降级）。
+
+### 🎯 发音评测与语法纠错精准度
+
+**发音评测：** 科大讯飞 ISE 引擎，基于深度学习声学模型，对 16kHz 16bit 单声道 PCM 音频进行音素级分析，返回六维 0-100 评分：
+
+- 准确度 — 音素级别对比标准发音
+- 流利度 — 语速、停顿、连读检测
+- 完整度 — 音素/单词读出比例
+- 语调重音 — 句调升降、单词重音位置
+- 连读爆破 — 连读、失去爆破等技巧
+- 综合总分 — 加权计算（准确+流利各40%+完整20%）
+
+支持单词级评分（含 dp_message 标记：0=正确/16=漏读/64=替换错误）和音素级评分。Mock 降级时基于文本 Hash 生成确定性评分，相同文本输出相同分数。
+
+**语法纠错：** LLM 对每轮输入执行实时语法分析，输出 原文→优化版→中文解释→多元化建议（语法剖析+词汇升级+发音指导）。支持口语化/书面化双风格自动切换。未配 LLM Key 时降级为 Rule-based 动态纠错引擎，保留用户核心名词基础上做语法修正。
+
+## 🎯 要求对照
+
+| 题目要求 | EchoTalk 实现 |
+|----------|---------------|
+| **场景选择** | 三大内置场景 + 自定义场景包导入/导出 + 社区分享 |
+| **实时语音对话** | 端到端流式管道：ASR → RAG → PII → ISE∥LLM → TTS，SSE 分步推送 |
+| **发音评测** | 科大讯飞 ISE 六维评分 + 单词级 + 音素级详情 |
+| **语法/表达纠错** | LLM 逐轮语法修正 + 地道表达升级 + 语音发音指导 |
+| **课后总结** | 自动汇总评分，历史回放，雷达图可视化 |
+| **对话交互自然度** | AI 角色扮演 + System Prompt 人格化 + RAG 上下文增强 |
+| **语音端到端流畅性** | 并发管道（ISE 与 LLM 并行）+ Edge-TTS / 腾讯云 TTS 神经网络语音 + 美音/英音切换 |
+| **纠错精准度与时机** | 逐轮实时纠错 + 口语化/书面化双风格 + 保留用户原意的基础上润色 |
+| **口语能力量化反馈** | 六维评分雷达图 + 历史趋势 + 单词级定位薄弱点 |
+
+---
+
+
 ## 🏗️ 系统架构
 
-![](/img/technology_stack.png)
-
+![](img/struct.png)
 
 ### 对话管道详解
 
-![](img/pipeline.png)
+![](/img/pipeline.png)
+
+---
+
+## 🛠️ 技术栈
+
+![](/img/technology_stack.png)
 
 ---
 
@@ -182,23 +246,6 @@ npm run pack
 
 ---
 
-## 🛠️ 技术栈
-
-| 层级 | 技术 | 说明 |
-|------|------|------|
-| **桌面框架** | Electron 30 | Windows 原生窗口，自动管理后端进程 |
-| **前端** | Vue 3 + Vite + Pinia + Element Plus + ECharts | SPA 架构，Hash 路由，SSE 流式数据 |
-| **后端** | FastAPI + Uvicorn | 异步 Python Web 框架，SSE 流式推送 |
-| **数据库** | SQLite + SQLAlchemy ORM | 本地零配置，自适应热升级 Schema |
-| **向量检索** | FAISS | L2 扁平索引，本地持久化 |
-| **LLM** | DeepSeek / Xiaomi MiMo / OpenAI | 自适应热插拔，统一 OpenAI SDK 调用 |
-| **ASR** | 腾讯云 Flash ASR (16k_en) | 英文极速语音识别，< 500ms 延迟 |
-| **ISE** | 科大讯飞流式评测 (en_vip) | WebSocket 流式传输，六维打分 |
-| **TTS** | Microsoft Edge-TTS / 腾讯云 TTS | 免 Key 神经网络语音合成 |
-| **存储** | 七牛云 Kodo | 音频文件云端托管，带本地回退 |
-
----
-
 ## 📁 项目结构
 
 ```
@@ -246,22 +293,6 @@ EchoTalk/
 
 ---
 
-## 🎯 题目要求对照
-
-| 题目要求 | EchoTalk 实现 |
-|----------|---------------|
-| **场景选择** | 三大内置场景 + 自定义场景包导入/导出 + 社区分享 |
-| **实时语音对话** | 端到端流式管道：ASR → RAG → PII → ISE∥LLM → TTS，SSE 分步推送 |
-| **发音评测** | 科大讯飞 ISE 六维评分 + 单词级 + 音素级详情 |
-| **语法/表达纠错** | LLM 逐轮语法修正 + 地道表达升级 + 语音发音指导 |
-| **课后总结** | 自动汇总评分，历史回放，雷达图可视化 |
-| **对话交互自然度** | AI 角色扮演 + System Prompt 人格化 + RAG 上下文增强 |
-| **语音端到端流畅性** | 并发管道（ISE 与 LLM 并行）+ Edge-TTS / 腾讯云 TTS 神经网络语音 + 美音/英音切换 |
-| **纠错精准度与时机** | 逐轮实时纠错 + 口语化/书面化双风格 + 保留用户原意的基础上润色 |
-| **口语能力量化反馈** | 六维评分雷达图 + 历史趋势 + 单词级定位薄弱点 |
-
----
-
 ## 🤝 贡献指南
 
 欢迎贡献！你可以：
@@ -280,13 +311,6 @@ MIT © EchoTalk
 ---
 
 <p align="center">
-  <strong>⭐ 如果这个项目对你有帮助，请点亮 Star 支持我们！</strong>
+  <strong>⭐ 如果这个项目对你有帮助，请点亮 Star 支持我！</strong>
 </p>
 
-<p align="center">
-  <a href="https://www.bilibili.com/video/BVxxxxxx" target="_blank">📺 Bilibili 演示视频</a>
-  &nbsp;&nbsp;|&nbsp;&nbsp;
-  <a href="https://github.com/Ackow/EchoTalk/releases">⬇️ 下载客户端</a>
-  &nbsp;&nbsp;|&nbsp;&nbsp;
-  <a href="https://echotalk.pages.dev">🌐 产品官网</a>
-</p>
