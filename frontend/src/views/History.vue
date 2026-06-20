@@ -141,7 +141,7 @@
                   </el-collapse-transition>
                   <div class="bubble-actions-left-drawer">
                     <span class="details-toggle-btn" @click.stop="toggleEvaluatePanel(idx)">
-                      {{ expandedTurnIndex === idx ? '收起详情 ▲' : '发音五维/纠错原因 ▼' }}
+                      {{ expandedTurnIndex === idx ? '收起详情 ▲' : '发音七维/纠错原因 ▼' }}
                     </span>
                   </div>
                 </div>

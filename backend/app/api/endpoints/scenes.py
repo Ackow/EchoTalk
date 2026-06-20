@@ -26,10 +26,10 @@ from app.services.rag import (
     get_user_visible_chunks, get_scene_section_overview as get_rag_section_overview,
     load_index, save_index
 )
+import time
+
 
 router = APIRouter()
-
-import time
 
 def generate_and_upload_greeting_audio(scene_id: str, greeting_text: str) -> str:
     """

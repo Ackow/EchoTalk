@@ -1478,16 +1478,15 @@ const finishRecordingAndUpload = async () => {
               const [userTurn, aiTurn] = data.result
               userTurn.recordingDuration = durationSec
               
-              const tempUserIdx = store.dialogueTurns.findIndex(t => t.id === tempTurnId || t.text === userTurn.text)
               const tempAiIdx = store.dialogueTurns.findIndex(t => typeof t.id === 'string' && t.id.startsWith('temp_ai_'))
               const oldAiTempId = tempAiIdx !== -1 ? store.dialogueTurns[tempAiIdx].id : null
               
-              if (tempUserIdx !== -1) {
-                store.dialogueTurns.splice(tempUserIdx, 1)
-              }
-              if (tempAiIdx !== -1) {
-                store.dialogueTurns.splice(tempAiIdx, 1)
-              }
+              // Filter out temporary turns safely to avoid index-shifting duplicate bubble bugs
+              store.dialogueTurns = store.dialogueTurns.filter(t => {
+                const isTempUser = (t.id === tempTurnId || t.text === userTurn.text)
+                const isTempAi = (typeof t.id === 'string' && t.id.startsWith('temp_ai_'))
+                return !isTempUser && !isTempAi
+              })
               
               store.addDialogueTurn(userTurn)
               store.addDialogueTurn(aiTurn)
@@ -1988,9 +1987,9 @@ const getWavDuration = (turn) => {
   position: absolute;
   width: 380px;
   height: 520px;
-  min-width: 320px;
+  min-width: 720px;
   min-height: 250px;
-  max-width: 700px;
+  max-width: 900px;
   max-height: 80vh;
   z-index: 100;
   display: flex;

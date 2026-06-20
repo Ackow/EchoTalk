@@ -44,11 +44,11 @@ if not logger.handlers:
         from logging.handlers import TimedRotatingFileHandler
         file_handler = TimedRotatingFileHandler(
             log_file_path,
-            when='D',
-            interval=1,
-            backupCount=10,
-            encoding='utf-8',
-            delay=True
+            when='D',           # D=按天切割日志
+            interval=1,         # 间隔1天生成新日志
+            backupCount=10,     # 最多保留10天历史日志，自动删除老旧文件
+            encoding='utf-8',   # 文件强制utf8存储，无中文乱码
+            delay=True          # 延迟创建文件：第一条日志产生时才新建log文件，空跑不生成空白日志
         )
         file_handler.setFormatter(formatter)
         logger.addHandler(file_handler)

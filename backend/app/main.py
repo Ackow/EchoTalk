@@ -137,6 +137,7 @@ def check_and_upgrade_database_schema(db: Session):
     except Exception as e:
         print(f"[数据库热升级异常警告] 自动升级 schema 失败: {e}")
 
+
 def seed_rag_for_scene(db: Session, scene_id: str, scene_obj: Scene):
     """
     检查指定场景是否需要种子填充其 RAG 知识库。如果需要，则读取 tests/data 下对应的预置文件，

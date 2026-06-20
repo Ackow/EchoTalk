@@ -241,11 +241,43 @@ def test_validate_scene_relevance():
 
     print("\n[SUCCESS] 场景一致性验证过滤器测试通过！")
 
+def test_off_topic_grammar_correction_isolation():
+    print("\n--- [跑题语法纠错隔离测试开始] ---")
+    from app.services.pipeline import mock_llm_response, _SCENE_REDIRECT_TEXT
+
+    # 1. 模拟跑题输入
+    off_topic_input = "I want to buy a ticket to London"
+    
+    # 模拟在 cafe 场景触发跑题
+    res = mock_llm_response(
+        scene_id="cafe",
+        user_text=_SCENE_REDIRECT_TEXT,
+        rag_context="latte espresso",
+        speaking_style="colloquial",
+        original_user_text=off_topic_input
+    )
+    
+    # 2. 校验回复是否为跑题引导句
+    assert "stick to" in res["reply"] or "focus on" in res["reply"] or "order" in res["reply"]
+    assert "cheesecake" not in res["reply"].lower()  # 不应该返回正常的咖啡馆点餐回复
+    
+    # 3. 校验语法纠错是否纠正的是用户的实际输入
+    gc = res["grammar_correction"]
+    assert gc["original"] == off_topic_input
+    assert "ticket" in gc["corrected"]  # 纠正结果应当包含用户的原意 core noun "ticket"
+    assert "recognized correctly" not in gc["original"]  # 纠错原文不应包含 ASR 跑题错误系统提示
+    
+    print("  * [跑题隔离] 纠错原文为:", gc["original"])
+    print("  * [跑题隔离] 纠错结果为:", gc["corrected"])
+    print("  * [跑题隔离] 引导回复为:", res["reply"])
+    print("\n[SUCCESS] 跑题语法纠错隔离测试通过！")
+
 if __name__ == "__main__":
     try:
         test_dialogue_pipeline_and_endpoints()
         test_dynamic_grammar_correction_mock()
         test_validate_scene_relevance()
+        test_off_topic_grammar_correction_isolation()
     except AssertionError as e:
         print(f"\n[FAIL] 断言校验失败: {e}")
         sys.exit(1)

@@ -386,16 +386,6 @@ def assess_pronunciation_sync(audio_path: str, reference_text: str, on_progress 
                 extra_info=f"读取音频数据失败: {str(ex)}。已自动回退到 Mock 评分。"
             )
             return mock_assess_pronunciation(reference_text, f"读取音频异常: {str(ex)}", on_progress)
-        log_api_call(
-            api_type="语音评测 (ISE)",
-            provider="科大讯飞 Xfyun",
-            url=ws_url.split('?')[0],
-            model="en_vip",
-            action="口语发音评测 (assess_pronunciation)",
-            status="failed",
-            extra_info=f"读取音频文件失败: {str(e)}。已回退到 Mock 评估。"
-        )
-        return mock_assess_pronunciation(reference_text, f"读取音频异常: {str(e)}", on_progress)
 
     # 5. 发起接口调用
     log_api_call(

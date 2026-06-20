@@ -131,35 +131,35 @@ def _check_scene_domain_mismatch(user_text: str, scene_prompt: str, domain_keywo
     text_lower = user_text.lower()
     import re as _re
 
+    domain = set()
     if domain_keywords:
-        # 使用数据库中预提取的关键词（自定义场景 + 内置场景均支持）
-        domain = set(domain_keywords)
-    else:
-        # 从 Prompt 推断场景 ID
-        prompt_lower = scene_prompt[:200].lower()
-        scene_id = "custom"
-        for sid, keywords in {
-            "interview": ["interview", "hiring", "candidate"],
-            "ordering": ["cafe", "barista", "coffee", "menu", "order"],
-            "meeting": ["meeting", "sync", "standup", "retro"],
-        }.items():
-            if any(kw in prompt_lower for kw in keywords):
-                scene_id = sid
-                break
+        domain.update(domain_keywords)
 
-        if scene_id == "custom":
-            # 无预存关键词的自定义场景：实时从 Prompt 提取
-            prompt_tokens = _re.findall(r"[a-zA-Z']+", prompt_lower)
-            domain = {
-                t for t in prompt_tokens
-                if len(t) > 4 and t not in _STOP_WORDS
-            }
-            if len(domain) < 5:
-                return False
-        else:
-            domain = _SCENE_DOMAIN_WORDS.get(scene_id, set())
+    # 尝试从 Prompt 匹配内置场景类型，以融合硬编码的内置核心词汇表（避免数据库词库中缺少 menu/americano 等核心词引发误判）
+    prompt_lower = scene_prompt[:200].lower()
+    matched_scene_id = None
+    for sid, keywords in {
+        "interview": ["interview", "hiring", "candidate"],
+        "ordering": ["cafe", "barista", "coffee", "menu", "order"],
+        "meeting": ["meeting", "sync", "standup", "retro"],
+    }.items():
+        if any(kw in prompt_lower for kw in keywords):
+            matched_scene_id = sid
+            break
 
-    # 如果自动提取为空，保守放行
+    if matched_scene_id:
+        domain.update(_SCENE_DOMAIN_WORDS.get(matched_scene_id, set()))
+    elif not domain_keywords:
+        # 如果既不是内置场景，数据库中又无预存词库，则从 Prompt 实时从 Prompt 提取
+        prompt_tokens = _re.findall(r"[a-zA-Z']+", prompt_lower)
+        domain = {
+            t for t in prompt_tokens
+            if len(t) > 4 and t not in _STOP_WORDS
+        }
+        if len(domain) < 5:
+            return False
+
+    # 如果自动提取或融合为空，保守放行
     if not domain:
         return False
 
@@ -174,6 +174,10 @@ def _check_scene_domain_mismatch(user_text: str, scene_prompt: str, domain_keywo
     }}
 
     if not content_words:
+        return False
+
+    # 如果用户输入的所有实义词长度都小于等于 4，则硬过滤容易误判，保守放行，交由后续的 Embedding 相似度进行判定
+    if all(len(w) <= 4 for w in content_words):
         return False
 
     # 检查是否命中场景域
@@ -282,6 +286,9 @@ def extract_item_from_text(user_text: str) -> Optional[str]:
     """
     从用户文本中提取可能的产品/项目名词（去除点餐常用语和停用词），以便在 Mock 对话中复用，增强拟真度。
     """
+    if not user_text or user_text == _SCENE_REDIRECT_TEXT or "recognized correctly or is off-topic" in user_text:
+        return None
+        
     text_lower = user_text.lower().strip()
     # 移除常见前缀
     for prefix in ["give me your", "give me", "i want to order", "i want", "i'd like to order", "i'd like", "could i have", "how about"]:
@@ -458,27 +465,41 @@ def dynamic_mock_correction(user_text: str, scene_type: str, speaking_style: str
     }
 
 
-def mock_llm_response(scene_id: str, user_text: str, rag_context: str = "", speaking_style: str = "colloquial") -> Dict[str, Any]:
+def mock_llm_response(
+    scene_id: str,
+    user_text: str,
+    rag_context: str = "",
+    speaking_style: str = "colloquial",
+    original_user_text: str = None
+) -> Dict[str, Any]:
     """
     未配置大模型 API Key 时的本地 Mock AI 角色对话及语法纠错生成器。
     根据不同的场景以及所选择的 speaking_style (colloquial vs formal) 返回回复与纠错结果。
     """
     scene_id_lower = scene_id.lower()
-    user_text_lower = user_text.lower()
     finished = False
     
+    corr_target = original_user_text if original_user_text else user_text
+    corr_target_lower = corr_target.lower()
+    is_redirect = (user_text == _SCENE_REDIRECT_TEXT)
+    
     # 模拟语法纠错逻辑：如果包含 "icecola" 但拼写不对，或者故意设置些微纠错
-    has_error = "icecola" in user_text.lower() or "hello" not in user_text.lower()
+    has_error = "icecola" in corr_target_lower or "hello" not in corr_target_lower
     
     # 判定是否满足收尾条件
-    if "card" in user_text_lower or "cash" in user_text_lower or "pay" in user_text_lower or "check out" in user_text_lower:
+    if "card" in corr_target_lower or "cash" in corr_target_lower or "pay" in corr_target_lower or "check out" in corr_target_lower:
         if "order" in scene_id_lower or "cafe" in scene_id_lower:
             finished = True
-    if "bye" in user_text_lower or "goodbye" in user_text_lower or "thank you for your time" in user_text_lower:
+    if "bye" in corr_target_lower or "goodbye" in corr_target_lower or "thank you for your time" in corr_target_lower:
         finished = True
         
     if "interview" in scene_id_lower:
-        if finished:
+        if is_redirect:
+            if speaking_style == "formal":
+                reply = "I apologize, but we should remain focused on the interview. Could you please describe your professional experience with React Native?"
+            else:
+                reply = "Let's stay focused on the interview. Can you tell me about your experience with React Native?"
+        elif finished:
             if speaking_style == "formal":
                 reply = "Thank you very much for your time today. We have recorded your answers, and our HR team will get back to you shortly. Goodbye."
             else:
@@ -487,7 +508,7 @@ def mock_llm_response(scene_id: str, user_text: str, rag_context: str = "", spea
             keywords = ["performance", "optimization", "flatlist", "list", "memory", "image", "render", "state", "redux", "zustand"]
             found_keyword = None
             for kw in keywords:
-                if kw in rag_context.lower() or kw in user_text.lower():
+                if kw in rag_context.lower() or kw in corr_target_lower:
                     found_keyword = kw
                     break
             if found_keyword:
@@ -503,9 +524,9 @@ def mock_llm_response(scene_id: str, user_text: str, rag_context: str = "", spea
             else:
                 reply = "That sounds like a great start. Tell me about your experience with React Native and how you manage state in large-scale mobile apps."
         
-        grammar_correction = dynamic_mock_correction(user_text, "interview", speaking_style) if has_error else {
-            "original": user_text,
-            "corrected": user_text,
+        grammar_correction = dynamic_mock_correction(corr_target, "interview", speaking_style) if has_error else {
+            "original": corr_target,
+            "corrected": corr_target,
             "explanation": "没有发现明显的语法错误，表达很流利！",
             "suggestions": {
                 "grammar": "没有语法错误，主谓一致，时态正确！",
@@ -514,23 +535,36 @@ def mock_llm_response(scene_id: str, user_text: str, rag_context: str = "", spea
             }
         }
     elif "order" in scene_id_lower or "cafe" in scene_id_lower:
-        if finished:
+        if is_redirect:
+            if speaking_style == "formal":
+                reply = "I apologize, but let us focus on your order. What would you like to have today?"
+            else:
+                reply = "Let's stick to your coffee order. What can I get started for you today?"
+        elif finished:
             if speaking_style == "formal":
                 reply = "Payment processed successfully. Here is your receipt and your fresh coffee. Thank you for visiting, have a pleasant day!"
             else:
                 reply = "All set! Your payment went through. Here is your receipt and your drink. Thanks for coming, have a great day!"
         else:
-            item = extract_item_from_text(user_text)
+            item = extract_item_from_text(corr_target)
             if item:
+                # 检查用户是否已经指明了尺寸，或者输入本身就是尺寸（避免在回复中重复询问尺寸）
+                has_size = any(sz in corr_target_lower for sz in ["small", "medium", "large"])
                 if speaking_style == "formal":
-                    reply = f"Certainly. I shall prepare the {item} for you. May I inquire what size you would prefer, and would you like to consume it here or take it away?"
+                    if has_size:
+                        reply = f"Certainly. I shall prepare the {item} for you. Would you like to consume it here or take it away?"
+                    else:
+                        reply = f"Certainly. I shall prepare the {item} for you. May I inquire what size you would prefer, and would you like to consume it here or take it away?"
                 else:
-                    reply = f"Sure! I can get the {item} started for you. What size would you like for that, and will that be for here or to go?"
+                    if has_size:
+                        reply = f"Sure! I can get the {item} started for you. Will that be for here or to go?"
+                    else:
+                        reply = f"Sure! I can get the {item} started for you. What size would you like for that, and will that be for here or to go?"
             elif rag_context:
                 keywords = ["latte", "espresso", "americano", "cappuccino", "bagel", "muffin", "croissant", "sandwich", "tea"]
                 found_keyword = None
                 for kw in keywords:
-                    if kw in rag_context.lower() or kw in user_text.lower():
+                    if kw in rag_context.lower() or kw in corr_target_lower:
                         found_keyword = kw
                         break
                 if found_keyword:
@@ -546,9 +580,9 @@ def mock_llm_response(scene_id: str, user_text: str, rag_context: str = "", spea
                 else:
                     reply = "Sure! A large vanilla latte and a slice of cheesecake. Would you like that hot or iced? And will that be for here or to go?"
             
-        grammar_correction = dynamic_mock_correction(user_text, "order", speaking_style) if has_error else {
-            "original": user_text,
-            "corrected": user_text,
+        grammar_correction = dynamic_mock_correction(corr_target, "order", speaking_style) if has_error else {
+            "original": corr_target,
+            "corrected": corr_target,
             "explanation": "点餐用语符合规范，没有发现语法错误！",
             "suggestions": {
                 "grammar": "点餐句式表达标准，单复数使用正确！",
@@ -557,7 +591,12 @@ def mock_llm_response(scene_id: str, user_text: str, rag_context: str = "", spea
             }
         }
     elif "meeting" in scene_id_lower:
-        if finished:
+        if is_redirect:
+            if speaking_style == "formal":
+                reply = "I apologize, but let us keep our focus on the meeting agenda. Could you provide your status update?"
+            else:
+                reply = "Let's stay focused on the meeting agenda. Can you give us your status update?"
+        elif finished:
             if speaking_style == "formal":
                 reply = "Understood. That concludes our sync-up on this topic. Thank you everyone for your status updates. Let us wrap up this meeting now. Goodbye."
             else:
@@ -566,7 +605,7 @@ def mock_llm_response(scene_id: str, user_text: str, rag_context: str = "", spea
             keywords = ["delay", "blocker", "estimation", "frontend", "api", "qa", "bug", "testing", "timeline"]
             found_keyword = None
             for kw in keywords:
-                if kw in rag_context.lower() or kw in user_text.lower():
+                if kw in rag_context.lower() or kw in corr_target_lower:
                     found_keyword = kw
                     break
             if found_keyword:
@@ -582,9 +621,9 @@ def mock_llm_response(scene_id: str, user_text: str, rag_context: str = "", spea
             else:
                 reply = "I understand the status. How long do you think it will take to unblock the API integration, and can we get a revised estimation by today?"
             
-        grammar_correction = dynamic_mock_correction(user_text, "meeting", speaking_style) if has_error else {
-            "original": user_text,
-            "corrected": user_text,
+        grammar_correction = dynamic_mock_correction(corr_target, "meeting", speaking_style) if has_error else {
+            "original": corr_target,
+            "corrected": corr_target,
             "explanation": "表达简明扼要，语法正确，非常符合会议沟通习惯！",
             "suggestions": {
                 "grammar": "时态和主谓关系正确，句子结构清晰明了！",
@@ -593,17 +632,19 @@ def mock_llm_response(scene_id: str, user_text: str, rag_context: str = "", spea
             }
         }
     else:
-        if finished:
+        if is_redirect:
+            reply = "Let's stay focused on our practice scenario. What would you like to say next?"
+        elif finished:
             reply = "Thank you. I think we have practiced enough for this scenario. Let's finish here. Goodbye!"
         else:
-            words = [w.strip(".,?!\"()") for w in user_text.split() if len(w) > 4 and w.lower() not in ["would", "about", "could", "there", "their", "where", "which"]]
+            words = [w.strip(".,?!\"()") for w in corr_target.split() if len(w) > 4 and w.lower() not in ["would", "about", "could", "there", "their", "where", "which"]]
             if words:
                 key_term = words[-1]
                 reply = f"I see. Since you mentioned '{key_term}', could you tell me more about how that fits into your practice scenario?"
             else:
-                reply = f"I understand. Let's continue practicing. You said: '{user_text}'. What would you like to add next?"
+                reply = f"I understand. Let's continue practicing. You said: '{corr_target}'. What would you like to add next?"
             
-        grammar_correction = dynamic_mock_correction(user_text, "general", speaking_style)
+        grammar_correction = dynamic_mock_correction(corr_target, "general", speaking_style)
 
     return {
         "reply": reply,
@@ -616,13 +657,17 @@ async def generate_llm_response(
     user_text: str,
     rag_context: str,
     conversation_history: list,
-    speaking_style: str = "colloquial"
+    speaking_style: str = "colloquial",
+    original_user_text: str = None
 ) -> Dict[str, Any]:
     """
     根据场景设置、前序历史、RAG 召回块以及脱敏后的用户文本，调用大语言模型。
     要求模型严格输出包含 AI 回复 (reply) 和语法纠错 (grammar_correction) 的 JSON。
     自适应调用 DeepSeek、Xiaomi MiMo 或 OpenAI，未配置时自动降级到本地 Mock 引擎。
     """
+    if original_user_text is None:
+        original_user_text = user_text
+
     # 1. 确定调用凭证
     api_key = None
     base_url = None
@@ -657,7 +702,7 @@ async def generate_llm_response(
             status="success",
             extra_info="未配置大模型 Key，自动降级至 Mock 角色对话生成器。"
         )
-        return mock_llm_response(scene_id, user_text, rag_context, speaking_style)
+        return mock_llm_response(scene_id, user_text, rag_context, speaking_style, original_user_text=original_user_text)
 
     # 2. 从加载器获取场景 System Prompt
     # 临时建一个内存 db 查询，如果不可用直接用静态缓存
@@ -692,7 +737,7 @@ async def generate_llm_response(
 
     instruction_prompt = (
         f"\n\n--- BUSINESS RULES ---\n"
-        f"You must evaluate the user's latest input for grammatical correctness and naturalness. "
+        f"You must evaluate the user's latest input (or the [Grammar Evaluation Target] if provided) for grammatical correctness and naturalness. "
         f"Specific scene evaluation guidelines:\n{evaluation_rules}\n\n"
         f"CRITICAL: You must reply to the user as your assigned character AND output your analysis in a STRICT JSON format.\n"
         f"CRITICAL GRAMMAR CORRECTION RULES:\n"
@@ -704,7 +749,7 @@ async def generate_llm_response(
         f'  "reply": "Your character\'s conversational response in English. Keep it natural, conversational, and relatively concise (1-3 sentences).",\n'
         f'  "finished": true/false (Set to true if and only if this response represents the final closing statement that logically concludes the practice scenario task - e.g. checking out/final goodbye in cafe ordering, or concluding a job interview. Must be a boolean value. Otherwise set to false.),\n'
         f'  "grammar_correction": {{\n'
-        f'    "original": "The user\'s original input text.",\n'
+        f'    "original": "The user\'s original input text (or the [Grammar Evaluation Target] if provided).",\n'
         f'    "corrected": "A corrected, polished version of the user\'s input. Keep it the same as original if no correction is needed.",\n'
         f'    "explanation": "A short, encouraging explanation of the corrections/improvements in Chinese. If there are no errors, output \'没有发现明显的语法错误，表达很棒！\'.",\n'
         f'    "suggestions": {{\n'
@@ -714,7 +759,9 @@ async def generate_llm_response(
         f'    }}\n'
         f'  }}\n'
         f"}}\n"
-        f"Do not include any other text, prefix, suffix, or markdown tags outside the JSON block. Do not output ```json or ``` code block wrappers."
+        f"CRITICAL JSON FORMAT RULES:\n"
+        f"1. Do not include any other text, prefix, suffix, or markdown tags outside the JSON block. Do not output ```json or ``` code block wrappers.\n"
+        f"2. NEVER use unescaped double quotes (\") inside the JSON string values. If you must use quotes inside a sentence, use single quotes (') instead, to prevent JSON format corruption."
     )
 
     # 4. 构造完整消息队列
@@ -779,7 +826,16 @@ async def generate_llm_response(
         messages.append({"role": turn["role"], "content": turn["text"]})
 
     # 追加当前输入
-    messages.append({"role": "user", "content": user_text})
+    if original_user_text != user_text:
+        content_str = (
+            f"{user_text}\n\n"
+            f"[Grammar Evaluation Target]: Note that the user actually spoke: \"{original_user_text}\". "
+            f"Please evaluate \"{original_user_text}\" for grammar_correction and use it as the 'original' field "
+            f"in the JSON, rather than the instruction text above."
+        )
+        messages.append({"role": "user", "content": content_str})
+    else:
+        messages.append({"role": "user", "content": user_text})
 
     try:
         client = OpenAI(api_key=api_key, base_url=base_url)
@@ -796,7 +852,7 @@ async def generate_llm_response(
             model=model_name,
             messages=messages,
             temperature=0.7,
-            max_tokens=800,
+            max_tokens=1500,
             response_format={"type": "json_object"} if provider_name != "Xiaomi MiMo" else None # 小米可能不完全支持 json_object 参数，做安全过滤
         )
         
@@ -826,6 +882,9 @@ async def generate_llm_response(
         return parsed_json
 
     except Exception as e:
+        raw_info = ""
+        if 'raw_content' in locals() and raw_content:
+            raw_info = f" | 原始返回内容: {raw_content[:200]}"
         log_api_call(
             api_type="大语言模型 (LLM)",
             provider=provider_name,
@@ -833,10 +892,10 @@ async def generate_llm_response(
             model=model_name,
             action="生成角色回复与语法纠错 (generate_llm_response)",
             status="failed",
-            extra_info=f"调用大模型或 JSON 解析失败: {str(e)}。已安全降级至 Mock 角色生成器。"
+            extra_info=f"调用大模型或 JSON 解析失败: {str(e)}{raw_info}。已安全降级至 Mock 角色生成器。"
         )
         # 出错降级
-        return mock_llm_response(scene_id, user_text, rag_context)
+        return mock_llm_response(scene_id, user_text, rag_context, speaking_style, original_user_text=original_user_text)
 
 
 async def run_dialogue_turn_pipeline(
@@ -898,6 +957,9 @@ async def run_dialogue_turn_pipeline(
     user_text_safe = await loop.run_in_executor(None, anonymize_text_via_llm, user_text_raw)
     rag_text_safe = rag_raw_text
 
+    # We keep a copy of user_text_safe for grammar correction before potentially overwriting it with redirect instructions
+    grammar_target_text = user_text_safe
+
     # 🔥 场景一致性验证：检测 ASR 误识别或用户跑题
     scene_db = db.query(_Scene).filter(_Scene.id == history.scene_id).first()
     if scene_db and scene_db.system_prompt:
@@ -909,7 +971,8 @@ async def run_dialogue_turn_pipeline(
         user_text=user_text_safe,
         rag_context=rag_text_safe,
         conversation_history=history_turns_list,
-        speaking_style=getattr(history, "speaking_style", "colloquial")
+        speaking_style=getattr(history, "speaking_style", "colloquial"),
+        original_user_text=grammar_target_text
     ))
 
     # 等待大模型生成完成，以便开始 TTS
@@ -1074,6 +1137,8 @@ async def run_dialogue_turn_pipeline_stream(
                 user_text_safe = await loop.run_in_executor(None, anonymize_text_via_llm, user_text_raw)
                 rag_text_safe = rag_raw_text
 
+                grammar_target_text = user_text_safe
+
                 # 🔥 场景一致性验证 (流式版)
                 scene_db2 = db.query(_Scene).filter(_Scene.id == history.scene_id).first()
                 if scene_db2 and scene_db2.system_prompt:
@@ -1087,7 +1152,8 @@ async def run_dialogue_turn_pipeline_stream(
                     user_text=user_text_safe,
                     rag_context=rag_text_safe,
                     conversation_history=history_turns_list,
-                    speaking_style=getattr(history, "speaking_style", "colloquial")
+                    speaking_style=getattr(history, "speaking_style", "colloquial"),
+                    original_user_text=grammar_target_text
                 )
 
                 # LLM 结果出来后，立即向前端推送语法建议结果
@@ -1182,7 +1248,7 @@ async def run_dialogue_turn_pipeline_stream(
                 extra_info=f"Pipeline 流式模式顺利通关。会话ID: {history_id}，finished: {llm_result.get('finished', False)}"
             )
 
-            post_status("done", "thank", "thanks", extra_data={
+            post_status("done", extra_data={
                 "result": [user_data, ai_data],
                 "finished": bool(llm_result.get("finished", False))
             })

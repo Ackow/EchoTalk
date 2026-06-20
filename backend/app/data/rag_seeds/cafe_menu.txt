@@ -9,7 +9,7 @@ Welcome to the official RAG Knowledge Base and Service Manual for **Metro Cafe**
 ### ☕ Espresso & Coffee
 
 | Beverage Name (Item) | Sizes & Prices | Description & Barista Notes |
-| :--- | :--- | :--- |
+| :----- | :-------- | :--- |
 | **Espresso** | Single: **$2.50** <br> Double: **$3.50** | The base of all milk-based drinks. Served in a small demitasse cup with rich crema. |
 | **Caffe Americano** | Tall: **$3.25** <br> Grande: **$3.75** <br> Venti: **$4.25** | Rich espresso diluted with hot water (or poured over ice for iced versions). |
 | **Caffe Latte** | Tall: **$4.00** <br> Grande: **$4.50** <br> Venti: **$5.00** | Rich espresso combined with steamed milk and a thin layer of microfoam. |
@@ -20,7 +20,7 @@ Welcome to the official RAG Knowledge Base and Service Manual for **Metro Cafe**
 ### 🍵 Non-Coffee Beverages
 
 | Beverage Name (Item) | Sizes & Prices | Description & Barista Notes |
-| :--- | :--- | :--- |
+| :----- | :-------- | :--- |
 | **Matcha Latte** | Tall: **$4.50** <br> Grande: **$5.00** <br> Venti: **$5.50** | Stone-ground Japanese green tea sweetened and whisked with steamed milk. |
 | **Chai Latte** | Tall: **$4.25** <br> Grande: **$4.75** <br> Venti: **$5.25** | Black tea infused with spices (cardamom, cinnamon, ginger) and steamed milk. |
 | **Hot Chocolate** | Tall: **$3.50** <br> Grande: **$4.00** <br> Venti: **$4.50** | Steamed milk with premium chocolate syrup, topped with optional whipped cream. |
@@ -61,7 +61,7 @@ During rush hour, baristas must ask and customize every order according to custo
 ### 🥪 Food & Pastry
 
 | Pastry / Item | Price | Customization & Options |
-| :--- | :--- | :--- |
+| :----- | :-------- | :--- |
 | **Avocado Toast** | **$7.50** | Toasted sourdough bread topped with mashed fresh avocado, chili flakes, and cherry tomatoes. |
 | **Artisanal Muffins** | **$3.75** | Options: **Blueberry** or **Double Chocolate**. Served warm by default. |
 | **New York Bagels** | **$4.00** | Options: **Plain**, **Sesame**, or **Everything** (topped with garlic, onion, poppy seeds). <br>*Customization*: Sliced and toasted, served with **Cream Cheese** or **Butter** on the side. |

@@ -19,7 +19,7 @@
       <template v-else>
         <!-- 发音雷达图 -->
         <div v-if="turn.pronunciation_score" class="eval-sec">
-          <div class="eval-sec-title">发音能力五维雷达图</div>
+          <div class="eval-sec-title">发音能力七维雷达图</div>
           <div class="radar-area">
             <EChartsRadar :score-data="turn.pronunciation_score" :height="compact ? '200px' : '260px'" />
           </div>

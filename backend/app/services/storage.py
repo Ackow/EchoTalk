@@ -1,8 +1,8 @@
 import os
 import shutil
 from typing import Optional
-from qiniu import Auth, put_file
-import qiniu.config
+from qiniu import Auth, Region
+from qiniu.services.storage.uploaders import FormUploader
 from app.core.config import settings
 
 # 设置本地静态存储文件夹路径
@@ -25,24 +25,29 @@ def upload_audio_to_kodo(local_file_path: str, filename: str) -> str:
         return f"/static/audio/{filename}"
 
     try:
-        # 显式配置七牛云为 华东-浙江 区域 (zone_z0)
-        qiniu.config.set_default_zone(qiniu.config.zone_z0())
-        
         # 构建七牛认证对象
         q = Auth(settings.QINIU_ACCESS_KEY, settings.QINIU_SECRET_KEY)
         
         # 生成上传凭证（Token），有效期为1小时
         token = q.upload_token(settings.QINIU_BUCKET_NAME, filename, 3600)
         
+        # 显式指定华东机房上传域名，避开 Windows 下 Qiniu SDK 自动查询区域缓存的 WinError 183 冲突 Bug
+        region = Region(up_host='https://up.qiniup.com')
+        uploader = FormUploader(settings.QINIU_BUCKET_NAME, regions=[region])
+        
         # 执行上传
-        ret, info = put_file(token, filename, local_file_path)
+        ret, info = uploader.upload(filename, local_file_path, up_token=token)
         
         if info.status_code == 200:
             print(f"[七牛云 Kodo] 音频文件上传成功: {filename}")
-            domain = settings.QINIU_DOMAIN.rstrip("/")
-            if not domain.startswith("http"):
-                domain = f"http://{domain}"
-            return f"{domain}/{filename}"
+            domain = settings.QINIU_DOMAIN or ""
+            # 如果配置了安全的 HTTPS 自定义域名，可以直接返回外链
+            if domain.startswith("https://"):
+                domain_clean = domain.rstrip("/")
+                return f"{domain_clean}/{filename}"
+            else:
+                # 否则返回后端的代理接口路由，避开浏览器的混合内容 (Mixed Content) 拦截和 CORS 限制
+                return f"/api/dialogues/audio/qiniu/{filename}"
         else:
             raise Exception(f"七牛云返回错误代码 {info.status_code}: {info.error}")
             
