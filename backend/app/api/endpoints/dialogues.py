@@ -374,6 +374,7 @@ async def proxy_qiniu_audio(filename: str):
     解决七牛云临时测试域名仅支持 HTTP 导致的混合内容 (Mixed Content) 拦截和 CORS 跨域问题。
     """
     import httpx
+    from fastapi import Response, HTTPException
     domain = settings.QINIU_DOMAIN or ""
     if not domain.startswith("http"):
         domain = f"http://{domain}"
@@ -384,22 +385,21 @@ async def proxy_qiniu_audio(filename: str):
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
     }
 
-    async def stream_file():
-        # 使用 httpx 异步客户端流式请求七牛云，分块返回给前端播放器
-        async with httpx.AsyncClient() as client:
-            try:
-                async with client.stream("GET", qiniu_url, headers=headers, timeout=10.0) as r:
-                    if r.status_code == 200:
-                        async for chunk in r.aiter_bytes(chunk_size=4096):
-                            yield chunk
-                    else:
-                        print(f"[七牛代理失败] 访问七牛返回状态码: {r.status_code}")
-            except Exception as e:
-                print(f"[七牛代理异常] {e}")
-
     # 根据文件名确定返回的 Content-Type
     media_type = "audio/mpeg"
     if filename.endswith(".wav"):
         media_type = "audio/wav"
-        
-    return StreamingResponse(stream_file(), media_type=media_type)
+
+    async with httpx.AsyncClient() as client:
+        try:
+            r = await client.get(qiniu_url, headers=headers, timeout=10.0)
+            if r.status_code == 200:
+                # 使用直接 Response 返回字节流以提供确定的 Content-Length 头部，
+                # 从而防止前端 Audio 播放器显示 Infinity 无法计算总时长。
+                return Response(content=r.content, media_type=media_type)
+            else:
+                print(f"[七牛代理失败] 访问七牛返回状态码: {r.status_code}")
+                raise HTTPException(status_code=r.status_code, detail="无法获取七牛云音频文件")
+        except Exception as e:
+            print(f"[七牛代理异常] {e}")
+            raise HTTPException(status_code=500, detail=f"代理七牛云音频错误: {str(e)}")

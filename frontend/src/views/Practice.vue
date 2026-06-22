@@ -134,7 +134,7 @@
                       <el-icon class="voice-icon" v-else-if="playingTurnId === (turn.id || idx)"><VideoPause /></el-icon>
                       <el-icon class="voice-icon" v-else><Headset /></el-icon>
                       <span class="voice-duration" v-if="playingTurnId === (turn.id || idx)">
-                        {{ Math.round(currentPlaybackTime) }}" / {{ Math.round(currentPlaybackDuration || getWavDurationSeconds(turn)) }}"
+                        {{ Math.round(currentPlaybackTime) }}" / {{ (currentPlaybackDuration && isFinite(currentPlaybackDuration)) ? Math.round(currentPlaybackDuration) : Math.round(getWavDurationSeconds(turn)) }}"
                       </span>
                       <span class="voice-duration" v-else>{{ getWavDuration(turn) }}</span>
                       <!-- 口音标识徽章 -->
@@ -181,7 +181,7 @@
                     <el-icon class="voice-icon" v-if="playingTurnId === turn.id"><VideoPause /></el-icon>
                     <el-icon class="voice-icon-spinning" v-else><Loading /></el-icon>
                     <span class="voice-duration" v-if="playingTurnId === turn.id">
-                      {{ Math.round(currentPlaybackTime) }}" / {{ Math.round(currentPlaybackDuration || getWavDurationSeconds(turn)) }}"
+                      {{ Math.round(currentPlaybackTime) }}" / {{ (currentPlaybackDuration && isFinite(currentPlaybackDuration)) ? Math.round(currentPlaybackDuration) : Math.round(getWavDurationSeconds(turn)) }}"
                     </span>
                     <span class="voice-duration" v-else>{{ turn.recordingDuration || 2 }}"</span>
                   </div>
@@ -206,7 +206,7 @@
                       <el-icon class="voice-icon" v-if="playingTurnId === (turn.id || idx)"><VideoPause /></el-icon>
                       <el-icon class="voice-icon" v-else><Mic /></el-icon>
                       <span class="voice-duration" v-if="playingTurnId === (turn.id || idx)">
-                        {{ Math.round(currentPlaybackTime) }}" / {{ Math.round(currentPlaybackDuration || getWavDurationSeconds(turn)) }}"
+                        {{ Math.round(currentPlaybackTime) }}" / {{ (currentPlaybackDuration && isFinite(currentPlaybackDuration)) ? Math.round(currentPlaybackDuration) : Math.round(getWavDurationSeconds(turn)) }}"
                       </span>
                       <span class="voice-duration" v-else>{{ getWavDuration(turn) }}</span>
                       

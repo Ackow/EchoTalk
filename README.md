@@ -189,13 +189,13 @@ EchoTalk（云音口语）是一款 **AI 驱动的英语口语陪练桌面应用
 
 ### 对话管道详解
 
-![](/img/pipeline.png)
+![](img/pipeline.png)
 
 ---
 
 ## 🛠️ 技术栈
 
-![](/img/technology_stack.png)
+![](img/technology_stack.png)
 
 ---
 
@@ -313,4 +313,3 @@ MIT © EchoTalk
 <p align="center">
   <strong>⭐ 如果这个项目对你有帮助，请点亮 Star 支持我！</strong>
 </p>
-
