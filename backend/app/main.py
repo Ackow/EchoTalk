@@ -13,14 +13,29 @@ from sqlalchemy import text
 
 from app import models  # noqa: F401 导入即注册 SQLAlchemy 表定义
 from app.api.endpoints.auth import router as auth_router
+from app.api.endpoints.scenes import router as scenes_router
 from app.core.config import CORS_ORIGINS
-from app.core.database import engine
+from app.core.database import engine, SessionLocal
 from app.core.errors import register_exception_handlers
 
 logger = logging.getLogger("echotalk")
 
 app = FastAPI(title="EchoTalk 2.0 API", version="2.0.0")
 register_exception_handlers(app)  # 全局异常处理器：规范化错误响应
+
+
+@app.on_event("startup")
+def sync_builtin_scenes() -> None:
+    """启动时同步内置场景包种子（表未初始化时仅告警，不影响服务启动）。"""
+    from app.scenes.registry import sync_seeds
+
+    try:
+        with SessionLocal() as db:
+            count = sync_seeds(db)
+        if count:
+            logger.info("内置场景包种子同步完成：%d 个", count)
+    except Exception:
+        logger.warning("内置场景包种子同步跳过（请先运行 python init_db.py 初始化表）", exc_info=True)
 
 
 @app.middleware("http")
@@ -42,11 +57,12 @@ async def request_context(request, call_next):
 app.add_middleware(
     CORSMiddleware,
     allow_origins=CORS_ORIGINS,
-    allow_methods=["GET", "POST"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],  # 场景包接口需要 PUT/PATCH/DELETE
     allow_headers=["Authorization", "Content-Type", "X-Request-ID"],
-    expose_headers=["X-Request-ID"],
+    expose_headers=["X-Request-ID", "Content-Disposition"],  # 导出下载需要读取附件头
 )
 app.include_router(auth_router, prefix="/api")  # 账户路由统一挂 /api 前缀
+app.include_router(scenes_router, prefix="/api")  # 场景包路由（/api/scenes）
 
 
 @app.get("/api/health", tags=["服务"])

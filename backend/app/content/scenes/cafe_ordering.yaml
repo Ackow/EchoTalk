@@ -1,0 +1,128 @@
+# 内置场景包：繁忙咖啡厅点餐（设计稿场景包方案 §4.3 全文）
+meta:
+  id: cafe_ordering
+  name: 繁忙咖啡厅点餐 (Cafe Ordering)
+  description: 在纽约街头咖啡馆点一份早餐与咖啡，练习日常口语、定制化订单与结账表达。
+  category: daily
+  difficulty: easy
+  mode: conversation
+  version: 3
+  compat:
+    min_app: 2.0.0
+  author: builtin
+  tags: [礼貌表达, 订单工具, 日常沟通]
+
+roles:
+  - id: barista
+    display_name: Leo
+    title: Barista
+    personality: friendly but busy
+    voice: en-US-YoungMale
+    avatar: leo_2d
+
+prompt:
+  system: |
+    You are {roles.barista.display_name}, a {roles.barista.personality} barista at {store_name} in New York.
+    The customer (user) is ordering drinks or food. Ask for preferences like cup size
+    (small, medium, large), milk choices (oat, almond, skim, whole), or to-go/for-here.
+    IMPORTANT: Today we are completely out of {out_of_stock_item}. If the customer asks for it,
+    apologize politely and recommend blueberry muffins or chocolate bagels instead.
+    When prices or order changes are involved, ALWAYS call the calculate_order / modify_order
+    tools instead of computing by yourself. Never invent prices.
+    To simulate a busy morning queue, keep your responses extremely short (1 sentence, max 15 words).
+  greeting: |
+    Hi there! Welcome to {store_name}. It's a pretty busy morning!
+    What can I get started for you today?
+  params:
+    - key: store_name
+      type: string
+      default: Metro Cafe
+      editable: true
+    - key: out_of_stock_item
+      type: string
+      default: croissants
+      editable: true
+      tip: 缺货商品，用于练习应变表达
+
+objectives:
+  - id: polite_request
+    label: 礼貌提出请求
+    skill: speaking.politeness
+  - id: quantity_preference
+    label: 表达数量与规格
+    skill: speaking.task_completion
+    check: tool_called('modify_order')
+  - id: confirmation
+    label: 复述并确认订单
+    skill: speaking.task_completion
+    check: state.confirmed == true
+
+state:
+  order: []
+  confirmed: false
+  paid: false
+
+tools:
+  allowed: [calculate_order, modify_order, search_knowledge, lookup_word, get_hint]
+  config:
+    calculate_order:
+      price_source: knowledge:menu.md
+
+stages:
+  - id: greeting
+    name: 进店问候
+  - id: ordering
+    name: 点单与定制
+    guidance: 依次确认饮品、规格、奶类与堂食/带走
+  - id: checkout
+    name: 确认与支付
+    guidance: 复述完整订单、计算总额并询问支付方式
+    exit_when: state.confirmed == true
+
+finish:
+  when: state.confirmed == true and state.paid == true
+  max_turns: 30
+  on_finish: request_feedback
+
+knowledge:
+  files:
+    - path: menu.md
+      visibility: user
+      sections: [drinks, pastries, prices]
+    - path: staff_notes.md
+      visibility: ai_only
+  retrieval:
+    default_top_k: 4
+
+evaluation:
+  dimensions:
+    - id: task_completion
+      label: 任务完成度
+      weight: 0.4
+      source: state
+    - id: politeness
+      label: 礼貌与得体
+      weight: 0.2
+      source: llm
+      hints: [would you, could I, may I, please]
+    - id: accuracy
+      label: 语法与用词
+      weight: 0.4
+      source: llm
+  notes: |
+    重点关注：定制细节表达（加冰、脱脂奶、加热）；缺货时的应变；结账与打包用语。
+
+guardrails:
+  language: en
+  min_words: 3
+  keyword_tips:
+    - match: croissant
+      tip: 小贴士：今天店里的可颂已经售罄，可以练习更换点单或取消的表达。
+  off_topic:
+    domain_keywords: [coffee, latte, muffin, bagel, order, size, milk, pay]
+    action: warn
+  max_warnings_per_turn: 1
+
+avatar:
+  preferred: leo_2d
+  rate: 1.0

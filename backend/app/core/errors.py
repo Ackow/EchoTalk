@@ -14,9 +14,17 @@ class AppError(Exception):
     status_code = 400  # 默认 HTTP 状态码
     code = "bad_request"  # 机器可读的错误码，供前端程序化判断
 
-    def __init__(self, message: str, *, code: str | None = None, status_code: int | None = None):
+    def __init__(
+        self,
+        message: str,
+        *,
+        code: str | None = None,
+        status_code: int | None = None,
+        details: list | None = None,
+    ):
         super().__init__(message)
         self.message = message
+        self.details = details  # 可选字段级详情（如场景包校验错误列表）
         if code is not None:
             self.code = code
         if status_code is not None:
@@ -24,10 +32,10 @@ class AppError(Exception):
 
     def to_response(self) -> JSONResponse:
         """转换为规范化错误响应体。"""
-        return JSONResponse(
-            status_code=self.status_code,
-            content={"error": {"code": self.code, "message": self.message}},
-        )
+        error: dict = {"code": self.code, "message": self.message}
+        if self.details:
+            error["details"] = self.details  # 字段级详情：供表单逐项标注
+        return JSONResponse(status_code=self.status_code, content={"error": error})
 
 
 class ConflictError(AppError):

@@ -1,0 +1,87 @@
+# 内置场景包：航班改签（附录 A：从模板创建演示）
+meta:
+  id: airport_rebooking
+  name: 航班改签 (Airport Rebooking)
+  description: 航班临时取消，在机场柜台向地勤说明情况、比较改签方案并确认新行程。
+  category: daily
+  difficulty: normal
+  mode: conversation
+  version: 3
+  compat:
+    min_app: 2.0.0
+  author: builtin
+  tags: [应变沟通, 差旅, 说明问题]
+
+roles:
+  - id: agent
+    display_name: Emily
+    title: Ground Staff
+    personality: calm and helpful
+    voice: en-US-Female
+    avatar: emily_2d
+
+prompt:
+  system: |
+    You are {roles.agent.display_name}, a {roles.agent.personality} ground staff agent at the
+    airport service counter. The user's flight has been cancelled and they need rebooking.
+    Guide them through: explaining their situation clearly, comparing rebooking options
+    (earliest flight / refund / next morning), and confirming the final choice.
+    When the user states a confirmed choice, call update_scene_state to record it.
+    Keep responses concise (1-2 sentences) and use standard airline service phrases.
+  greeting: |
+    Good evening, welcome to the service counter. I understand there might be an issue
+    with your flight — could you tell me your flight number and what happened?
+  params: []
+
+objectives:
+  - id: explain_issue
+    label: 清楚说明问题
+    skill: speaking.description
+    check: state.issue_explained == true
+  - id: compare_options
+    label: 比较改签方案
+    skill: speaking.negotiation
+    check: tool_called('update_scene_state')
+  - id: confirm_booking
+    label: 确认新行程
+    skill: speaking.task_completion
+    check: state.rebooked == true
+
+state:
+  issue_explained: false
+  rebooked: false
+
+tools:
+  allowed: [update_scene_state, search_knowledge, lookup_word, get_hint]
+
+stages:
+  - id: explain
+    name: 说明情况
+  - id: compare
+    name: 比较方案
+    guidance: 依次给出最早航班 / 退款 / 次日航班并比较利弊
+  - id: confirm
+    name: 确认行程
+    exit_when: state.rebooked == true
+
+finish:
+  when: state.issue_explained == true and state.rebooked == true
+  max_turns: 25
+  on_finish: request_feedback
+
+evaluation:
+  dimensions:
+    - id: task_completion
+      label: 改签流程完成度
+      weight: 0.5
+      source: state
+    - id: politeness
+      label: 表达与礼貌
+      weight: 0.5
+      source: llm
+  notes: |
+    重点关注：清楚陈述事实（航班号、问题、诉求）；比较方案的取舍表达；确认信息的复述。
+
+guardrails:
+  language: en
+  min_words: 4

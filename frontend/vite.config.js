@@ -26,10 +26,10 @@ export default defineConfig(({ mode }) => {
           const devInline = mode === 'development' ? "'unsafe-inline'" : ''
           const devEval = mode === 'development' ? "'unsafe-eval'" : ''
           return html
-            .replace('__ECHOTALK_API_ORIGIN__', apiOrigin)
-            .replace('__ECHOTALK_DEV_ORIGINS__', devOrigins)
+            .replaceAll('__ECHOTALK_API_ORIGIN__', apiOrigin) // img-src 与 connect-src 各出现一次
+            .replaceAll('__ECHOTALK_DEV_ORIGINS__', devOrigins)
             .replaceAll('__ECHOTALK_DEV_INLINE__', devInline)
-            .replace('__ECHOTALK_DEV_EVAL__', devEval)
+            .replaceAll('__ECHOTALK_DEV_EVAL__', devEval)
         }
       }
     ],

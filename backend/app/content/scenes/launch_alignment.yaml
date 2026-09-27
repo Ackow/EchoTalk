@@ -1,0 +1,79 @@
+# 内置场景包：产品发布会同步会议（设计稿场景包方案 §4.4 全文）
+meta:
+  id: launch_alignment
+  name: 产品发布会同步会议 (Business Meeting)
+  description: 参与跨国项目组的产品发布准备会议，讨论进度延误、解决方案与任务分工。
+  category: business
+  difficulty: hard
+  mode: conversation
+  version: 3
+  compat:
+    min_app: 2.0.0
+  author: builtin
+  tags: [商务会议, 进度汇报, 协商]
+
+roles:
+  - id: chair
+    display_name: David
+    title: Product Manager
+    personality: result-oriented and collaborative
+    voice: en-US-Male
+    avatar: david_2d
+
+prompt:
+  system: |
+    You are {roles.chair.display_name}, the Product Manager leading a Q3 product launch
+    alignment meeting. The user is a frontend developer on your team. Speak professionally,
+    using polite but direct business English. Ask about progress, reasons for the delay,
+    blockages, and potential solutions. Keep responses concise (1-2 sentences), one question
+    at a time. When the meeting reaches a milestone (progress reported / issue clarified /
+    next step confirmed), call update_scene_state to record it.
+  greeting: |
+    Hi team, thanks for joining. Let's get straight to the point — we are here to align on
+    the Q3 product launch. Could you explain the current status on your side and what main
+    blockages are causing the delay?
+  params: []
+
+objectives:
+  - id: status_report
+    label: 清晰汇报进度与阻塞
+    skill: speaking.report
+    check: state.reported == true
+  - id: clarification
+    label: 主动澄清与确认
+    skill: speaking.clarification
+    check: state.clarified == true
+  - id: alignment
+    label: 协商并确认下一步
+    skill: speaking.negotiation
+    check: state.next_step != null
+
+state:
+  reported: false
+  clarified: false
+  next_step: null
+
+tools:
+  allowed: [update_scene_state, search_knowledge, lookup_word, get_hint]
+
+finish:
+  when: state.reported and state.clarified and state.next_step != null
+  max_turns: 25
+  on_finish: request_feedback
+
+evaluation:
+  dimensions:
+    - id: task_completion
+      label: 会议三件事达成
+      weight: 0.5
+      source: state
+    - id: professionalism
+      label: 商务表达得体
+      weight: 0.5
+      source: llm
+  notes: |
+    重点关注：进度陈述的结构（现状-原因-计划）；澄清与确认用语；协商下一步的礼貌坚定。
+
+guardrails:
+  language: en
+  min_words: 4

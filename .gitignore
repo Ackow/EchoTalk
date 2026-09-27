@@ -96,3 +96,6 @@ VoiceModelTest/LFM2.5-Audio-1.5B-4bit/
 
 # WorkBuddy 工作区数据（会话日志等）
 .workbuddy/
+
+# --- 运行时用户数据（场景封面/知识资料上传） ---
+backend/storage/

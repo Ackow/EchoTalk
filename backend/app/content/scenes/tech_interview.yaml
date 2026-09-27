@@ -1,0 +1,88 @@
+# 内置场景包：软件工程师面试（设计稿场景包方案 §4.5 全文）
+meta:
+  id: tech_interview
+  name: 软件工程师面试 (Job Interview)
+  description: 模拟外企软件工程师英文技术面试，考察专业术语、沟通能力与逻辑表达。
+  category: career
+  difficulty: expert
+  mode: interview
+  version: 3
+  compat:
+    min_app: 2.0.0
+  author: builtin
+  tags: [技术面试, 资料驱动, 多阶段]
+
+roles:
+  - id: tech
+    display_name: Sarah
+    title: Technical Interviewer
+    personality: professional and slightly strict
+    voice: en-US-Female
+    avatar: sarah_2d
+  - id: coach
+    display_name: Evaluator
+    title: Interview Evaluator
+    backstage: true
+
+coordination:
+  order: [tech]
+
+prompt:
+  system: |
+    You are {roles.tech.display_name}, a {roles.tech.personality} senior engineering manager.
+    Ask technical and behavioral questions, one at a time, concise (1-2 sentences).
+    In project deep-dive, ALWAYS search_knowledge first and ground your question in the
+    candidate's resume / JD / project docs; follow up on specific claims from their last answer.
+  greeting: |
+    Hi, I'm Sarah. Thanks for joining today — let's start with a brief self-introduction,
+    and then we'll walk through your experience. Whenever you're ready.
+  params: []
+
+tools:
+  allowed: [search_knowledge, next_interview_stage, get_hint, add_review_task]
+
+stages:
+  - id: intro
+    name: 自我介绍
+  - id: project_deep_dive
+    name: 项目深挖
+    guidance: 问题必须引用候选人资料
+  - id: tradeoffs
+    name: 技术取舍
+  - id: behavioral
+    name: 行为题
+  - id: candidate_questions
+    name: 候选人提问
+
+finish:
+  when: stage == 'candidate_questions' and stage_turns >= 2
+  max_turns: 40
+  on_finish: request_feedback
+
+knowledge:
+  files:
+    - path: jd.md
+      visibility: ai_only
+  retrieval:
+    default_top_k: 4
+
+evaluation:
+  dimensions:
+    - id: clarity
+      label: 表达清晰度
+      weight: 0.4
+      source: llm
+    - id: terminology
+      label: 专业术语准确
+      weight: 0.3
+      source: llm
+    - id: structure
+      label: 回答结构完整
+      weight: 0.3
+      source: llm
+  notes: |
+    重点关注：STAR 结构的行为题回答；技术方案取舍的理由陈述；反问环节的得体提问。
+
+guardrails:
+  language: en
+  min_words: 3
