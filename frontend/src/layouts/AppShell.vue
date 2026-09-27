@@ -90,7 +90,8 @@
         </button>
         <h1>{{ route.meta.title }}</h1>
       </header>
-      <router-view />
+      <!-- fullPath 作 key：创建/编辑共用 SceneEditor，路由切换时强制重新挂载以重新加载数据 -->
+      <router-view :key="route.fullPath" />
     </section>
   </main>
 </template>

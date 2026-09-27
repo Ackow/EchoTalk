@@ -52,7 +52,7 @@
           <div class="form-card">
             <div class="field-grid">
               <label class="field">场景名称<input v-model="form.meta.name" placeholder="如：酒店入住沟通" maxlength="100" /></label>
-              <label class="field">场景 ID<small v-if="!isEdit">（URL 与导出标识，创建后不可改）</small><input v-model="form.meta.id" placeholder="如：hotel_checkin" pattern="[a-z][a-z0-9_]*" /></label>
+              <label class="field">场景 ID<small v-if="!isEdit">（URL 与导出标识，创建后不可改）</small><small v-else>（创建后不可修改）</small><input v-model="form.meta.id" :disabled="isEdit" placeholder="如：hotel_checkin" spellcheck="false" /></label>
             </div>
             <label class="field">一句话描述<textarea v-model="form.meta.description" rows="2" placeholder="学习者将在卡片上看到这句介绍" maxlength="200"></textarea></label>
             <div class="field-grid three">
@@ -1008,8 +1008,15 @@ async function save() {
   if (saving.value) return
   errors.value = []
   saveError.value = ''
-  saving.value = true
   const pkg = buildPackage()
+  // ID 前置校验：后端正则报错不可读，这里先用人话拦截
+  if (!/^[a-z][a-z0-9_]{1,49}$/.test(pkg.meta.id)) {
+    errors.value = [{ field: 'meta.id', message: '场景 ID 只能包含小写字母、数字和下划线，需以小写字母开头，长度 2–50 个字符' }]
+    saveError.value = '请修正以下问题后再保存'
+    goStep(0)
+    return
+  }
+  saving.value = true
   try {
     const { data } = isEdit.value
       ? await updateScene(route.params.id, pkg)
@@ -1124,7 +1131,10 @@ async function removeDocument(doc) {
 /* 表单分组卡片：相关字段归组，节奏感优于长表单 */
 .form-card { display: flex; flex-direction: column; gap: 15px; padding: 20px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
 
-.field { display: block; }
+.field { display: block; color: var(--ink-soft); font-size: 13px; font-weight: 500; }
+/* label.field 的文字节点与 .field-label 统一，保证并排字段标题同高同字体 */
+.field small { color: var(--muted); font-size: 12px; font-weight: 400; }
+.field input:disabled { background: #f3f4f8; color: var(--muted); cursor: not-allowed; }
 .field-label { display: block; margin-bottom: 7px; color: var(--ink-soft); font-size: 13px; font-weight: 500; }
 .optional { margin-left: 7px; color: var(--muted); font-size: 12px; font-weight: 400; }
 .field input, .field textarea, .field-select, .field select {

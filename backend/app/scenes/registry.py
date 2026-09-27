@@ -58,8 +58,9 @@ def validate(data: dict[str, Any]) -> ScenePackage:
                     str(inner),
                     details=[{"field": path, "message": reason} for path, reason in inner.errors],
                 ) from exc
-        details = [  # 普通字段错误：类型 / 枚举 / 长度等
-            {"field": ".".join(str(part) for part in error["loc"]), "message": error["msg"]}
+        details = [  # 普通字段错误：类型 / 枚举 / 长度等（剥掉 Pydantic 的 "Value error, " 前缀）
+            {"field": ".".join(str(part) for part in error["loc"]),
+             "message": error["msg"].removeprefix("Value error, ")}
             for error in exc.errors()
         ]
         raise SceneInvalidPackageError(f"场景包校验失败（{len(details)} 处）", details=details) from exc
@@ -141,19 +142,18 @@ def sync_seeds(db: Session) -> int:
 # ---- 行 ↔ 包互转 -----------------------------------------------------------
 
 def apply_package(row: Scene, package: ScenePackage, data: dict[str, Any]) -> None:
-    """把校验通过的包写入行冗余列（package_json 存原始字典）。
+    """把校验通过的包写入行冗余列。
 
-    难度例外：校验器可能做了大小写归一（如 HARD → hard），package_json
-    内的 meta.difficulty 需与冗余列保持一致，避免两处读取结果不同。
+    package_json 存**校验后模型的完整 dump**（而非原始请求 dict）：
+    默认值（category/mode/version 等）显式落库，读写两端结构一致，
+    编辑回显与导出 ZIP 不会因缺字段出现空下拉/不完整包。
     """
     row.name = package.meta.name
     row.description = package.meta.description
     row.category = package.meta.category
     row.mode = package.meta.mode
     row.difficulty = package.meta.difficulty
-    if package.meta.difficulty and isinstance(data.get("meta"), dict) and data["meta"].get("difficulty") != package.meta.difficulty:
-        data = {**data, "meta": {**data["meta"], "difficulty": package.meta.difficulty}}
-    row.package_json = data
+    row.package_json = package.model_dump(mode="json", exclude_none=True)
     row.pkg_version = package.meta.version
     row.greeting_text = package.prompt.greeting
     row.domain_keywords = (package.guardrails.off_topic or {}).get("domain_keywords")

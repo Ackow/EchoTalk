@@ -67,15 +67,9 @@
         v-for="(scene, index) in pagedItems"
         :key="scene.id"
         class="scene-card"
-        :class="{ 'has-cover': scene.cover_path }"
         :style="{ animationDelay: `${Math.min(index, 8) * 45}ms` }"
         @click="openDetail(scene)"
       >
-        <!-- 封面图：未设置时不占位 -->
-        <div v-if="scene.cover_path" class="card-cover">
-          <img :src="coverUrl(scene.id)" alt="" loading="lazy" @error="scene.cover_path = null" />
-        </div>
-
         <div class="card-body">
           <header class="card-head">
             <span class="mode-chip" :data-mode="scene.mode">
@@ -272,29 +266,30 @@
                 </li>
               </ul>
             </div>
-
-            <footer class="detail-foot">
-              <div class="detail-stats">
-                <span class="stat-plain"><AppIcon name="heart" :size="13" />{{ detail.stats?.likes || 0 }}</span>
-                <span class="stat-plain"><AppIcon name="star" :size="13" />{{ detail.stats?.favorites || 0 }}</span>
-                <span class="stat-plain"><AppIcon name="download" :size="13" />{{ detail.stats?.downloads || 0 }}</span>
-              </div>
-              <div class="detail-actions">
-                <button v-if="canEdit(detail)" class="ghost-button" type="button" @click="goEdit(detail); detail = null">
-                  <AppIcon name="pencil" :size="13" />编辑
-                </button>
-                <button v-if="session.token" class="ghost-button" type="button" @click="doDuplicate(detail); detail = null">
-                  <AppIcon name="copy" :size="13" />复制
-                </button>
-                <button class="ghost-button" type="button" @click="doExport(detail)">
-                  <AppIcon name="download" :size="13" />导出
-                </button>
-                <button class="primary-button slim" type="button" @click="startTraining(detail)">
-                  <AppIcon name="messages" :size="13" />开始训练
-                </button>
-              </div>
-            </footer>
           </div>
+
+          <!-- 底部操作栏：滚动容器外层，固定贴底不随内容滚动 -->
+          <footer class="detail-foot">
+            <div class="detail-stats">
+              <span class="stat-plain"><AppIcon name="heart" :size="13" />{{ detail.stats?.likes || 0 }}</span>
+              <span class="stat-plain"><AppIcon name="star" :size="13" />{{ detail.stats?.favorites || 0 }}</span>
+              <span class="stat-plain"><AppIcon name="download" :size="13" />{{ detail.stats?.downloads || 0 }}</span>
+            </div>
+            <div class="detail-actions">
+              <button v-if="canEdit(detail)" class="ghost-button" type="button" @click="goEdit(detail); detail = null">
+                <AppIcon name="pencil" :size="13" />编辑
+              </button>
+              <button v-if="session.token" class="ghost-button" type="button" @click="doDuplicate(detail); detail = null">
+                <AppIcon name="copy" :size="13" />复制
+              </button>
+              <button class="ghost-button" type="button" @click="doExport(detail)">
+                <AppIcon name="download" :size="13" />导出
+              </button>
+              <button class="primary-button slim" type="button" @click="startTraining(detail)">
+                <AppIcon name="messages" :size="13" />开始训练
+              </button>
+            </div>
+          </footer>
         </div>
       </div>
     </transition>
@@ -707,14 +702,11 @@ async function toggleFavorite(scene) {
 .danger-button:hover { opacity: .9; }
 
 .scene-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px; align-content: start; flex: 1 0 auto; }
-.scene-card { display: flex; flex-direction: column; overflow: hidden; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); cursor: pointer; transition: border-color .18s, transform .18s, box-shadow .18s; animation: card-in .38s cubic-bezier(.22, .8, .32, 1) both; }
+/* 卡片不裁切（overflow 可见），卡片菜单才能溢出卡片边界显示 */
+.scene-card { display: flex; flex-direction: column; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); cursor: pointer; transition: border-color .18s, transform .18s, box-shadow .18s; animation: card-in .38s cubic-bezier(.22, .8, .32, 1) both; }
 .scene-card:hover { border-color: #d8daea; transform: translateY(-2px); box-shadow: 0 6px 18px rgba(34, 37, 59, .06); }
 @keyframes card-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 
-/* 封面图：16:9 顶部图，未设置不占位 */
-.card-cover { aspect-ratio: 16 / 9; overflow: hidden; background: #f2f3f8; }
-.card-cover img { display: block; width: 100%; height: 100%; object-fit: cover; transition: transform .35s cubic-bezier(.22, .8, .32, 1); }
-.scene-card:hover .card-cover img { transform: scale(1.035); }
 .card-body { display: flex; flex-direction: column; flex: 1; padding: 14px 16px 16px; }
 
 .card-head { display: flex; align-items: center; gap: 7px; margin-bottom: 11px; }
@@ -824,7 +816,8 @@ async function toggleFavorite(scene) {
 .doc-brief { margin: 0; padding: 0; list-style: none; }
 .doc-brief li { display: flex; align-items: center; gap: 7px; padding: 5px 0; color: var(--ink-soft); font-size: 13.5px; }
 .doc-chunks { margin-left: auto; color: var(--muted); font-size: 12px; }
-.detail-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 20px; padding-top: 14px; border-top: 1px solid var(--line); }
+/* 底部操作栏：位于滚动容器外，固定贴底；自带左右 padding 与分隔线 */
+.detail-foot { flex: 0 0 auto; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 24px 16px; border-top: 1px solid var(--line); background: var(--surface); border-radius: 0 0 16px 16px; }
 .detail-stats { display: inline-flex; gap: 14px; }
 .detail-actions { display: inline-flex; gap: 7px; }
 

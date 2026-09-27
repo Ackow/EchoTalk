@@ -78,7 +78,7 @@ class SceneMeta(BaseModel):
     @classmethod
     def _check_id(cls, value: str) -> str:
         if not _ID_RE.match(value):
-            raise ValueError("id 需匹配 ^[a-z][a-z0-9_]{1,49}$（小写字母开头，仅小写字母/数字/下划线）")
+            raise ValueError("场景 ID 只能包含小写字母、数字和下划线，需以小写字母开头，长度 2–50 个字符（如 hotel_checkin）")
         return value
 
     @field_validator("difficulty")
