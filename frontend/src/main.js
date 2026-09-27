@@ -1,26 +1,10 @@
+// 应用入口：挂载 Vue 根组件和路由。
 import { createApp } from 'vue'
 import App from './App.vue'
 import router from './router'
-import { createPinia } from 'pinia'
+import './assets/styles.css' // 全局样式
 
-// 导入 Element Plus
-import ElementPlus from 'element-plus'
-import 'element-plus/dist/index.css'
-import * as ElementPlusIconsVue from '@element-plus/icons-vue'
+// 标记运行平台，CSS 据此处理 macOS 红绿灯留白等差异；浏览器环境无此标记。
+document.documentElement.dataset.platform = window.electronAPI?.platform || ''
 
-// 导入全局自定义 CSS 样式（包含高级玻璃质感和暗黑主题变量）
-import './assets/styles/global.css'
-
-const app = createApp(App)
-const pinia = createPinia()
-
-// 注册全局 Element Plus 图标
-for (const [key, component] of Object.entries(ElementPlusIconsVue)) {
-  app.component(key, component)
-}
-
-app.use(pinia)
-app.use(router)
-app.use(ElementPlus)
-
-app.mount('#app')
+createApp(App).use(router).mount('#app') // 只装路由，无其他全局插件

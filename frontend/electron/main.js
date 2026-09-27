@@ -1,146 +1,43 @@
-const { app, BrowserWindow, ipcMain, session } = require('electron')
+// Electron 仅承载前端窗口；开发时 FastAPI 由单独终端启动。
+const { app, BrowserWindow, ipcMain, shell } = require('electron')
 const path = require('path')
-const { spawn } = require('child_process')
-
-let backendProcess = null
-const backendPort = app.isPackaged ? 18765 : 8000
-const backendBaseUrl = `http://127.0.0.1:${backendPort}`
-
-function startBackend() {
-  if (!app.isPackaged) {
-    // 开发环境：拉起本地 .venv 中的 python 服务
-    // 相对路径解析：从 frontend/electron/main.js 定位到根目录的 .venv
-    const pythonBin = path.resolve(__dirname, '..', '..', '.venv', 'Scripts', 'python.exe')
-    const scriptPath = path.resolve(__dirname, '..', '..', 'backend', 'main.py')
-    const backendCwd = path.resolve(__dirname, '..', '..', 'backend')
-    
-    console.log(`[Electron] 正在开发环境拉起 Python 后端: ${pythonBin} ${scriptPath}`)
-    backendProcess = spawn(pythonBin, [scriptPath], {
-      cwd: backendCwd,
-      env: { ...process.env, ECHOTALK_BACKEND_PORT: String(backendPort) },
-      stdio: 'pipe'
-    })
-  } else {
-    // 生产环境：拉起打包在 resources 目录下的 echotalk-backend.exe 进程
-    const backendBin = path.resolve(process.resourcesPath, 'backend', 'echotalk-backend.exe')
-    const backendCwd = path.resolve(process.resourcesPath, 'backend')
-    
-    console.log(`[Electron] 正在生产环境拉起已打包的后端: ${backendBin}`)
-    backendProcess = spawn(backendBin, [], {
-      cwd: backendCwd,
-      env: { ...process.env, ECHOTALK_BACKEND_PORT: String(backendPort) },
-      stdio: 'pipe'
-    })
-  }
-
-  if (backendProcess) {
-    backendProcess.stdout.on('data', (data) => {
-      console.log(`[Backend STDOUT]: ${data.toString().trim()}`)
-    })
-    backendProcess.stderr.on('data', (data) => {
-      console.error(`[Backend STDERR]: ${data.toString().trim()}`)
-    })
-    backendProcess.on('close', (code) => {
-      console.log(`[Backend] 后端服务进程退出，退出码: ${code}`)
-    })
-  }
-}
-
-function killBackend() {
-  if (backendProcess) {
-    console.log('[Electron] 正在关闭 Python 后端服务进程...')
-    backendProcess.kill('SIGINT') // 发送 SIGINT 优雅退出
-    backendProcess = null
-  }
-}
 
 function createWindow() {
-  const mainWindow = new BrowserWindow({
-    width: 1400,
-    height: 800,
-    minWidth: 1000,
-    minHeight: 700,
-    show: false,
-    icon: path.join(__dirname, '..', 'public', 'favicon.ico'),
-    titleBarStyle: 'hidden',
-    titleBarOverlay: {
-      color: '#0b0f19',
-      symbolColor: '#f3f4f6',
-      height: 36
-    },
+  const window = new BrowserWindow({
+    width: 1280, // 留出品牌区与完整账户工作区
+    height: 820,
+    minWidth: 900,
+    minHeight: 640,
+    titleBarStyle: 'hidden', // 隐藏系统标题栏但保留原生窗口能力（边缘缩放、拖拽、双击最大化）
+    trafficLightPosition: { x: 16, y: 18 }, // macOS：红绿灯中线 y=24，与标题栏/侧栏顶行 48px 中线对齐
+    titleBarOverlay: { color: '#ffffff', symbolColor: '#5e6072', height: 40 }, // Windows/Linux：右上角原生最小化/最大化/关闭按钮；macOS 自动使用左侧红绿灯
+    backgroundColor: '#f6f7fb',
+    title: 'EchoTalk 2.0',
+    autoHideMenuBar: true, // 隐藏默认菜单栏
     webPreferences: {
-      preload: path.join(__dirname, 'preload.js'),
-      contextIsolation: true,
-      nodeIntegration: false,
-      webSecurity: true
-    },
-    autoHideMenuBar: true // 隐藏默认菜单栏以获得高端的自定义视觉效果
-  })
-
-  // 开发环境加载 Vite 热更新服务，生产环境加载打包后的静态 HTML
-  if (!app.isPackaged) {
-    mainWindow.loadURL('http://127.0.0.1:5173')
-    mainWindow.webContents.openDevTools()
-  } else {
-    mainWindow.loadFile(path.join(__dirname, '../dist/index.html'))
-  }
-
-  mainWindow.once('ready-to-show', () => {
-    mainWindow.show()
-  })
-
-  // 阻止 window.open 弹出新窗口，外部链接使用系统浏览器打开
-  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    const { shell } = require('electron')
-    if (url.startsWith('http://') || url.startsWith('https://')) {
-      shell.openExternal(url)
+      preload: path.join(__dirname, 'preload.js'), // 预加载脚本：向渲染进程暴露安全 API
+      contextIsolation: true, // 开启上下文隔离，渲染进程无法直接访问 Node
+      nodeIntegration: false // 关闭 Node 集成，保证渲染进程安全
     }
-    return { action: 'deny' }
+  })
+
+  if (app.isPackaged) window.loadFile(path.join(__dirname, '../dist/index.html')) // 打包后加载本地构建产物
+  else window.loadURL('http://127.0.0.1:5173') // 开发时加载 Vite 开发服务器
+
+  window.webContents.setWindowOpenHandler(({ url }) => {
+    if (url.startsWith('https://')) shell.openExternal(url) // 外部 https 链接交给系统浏览器
+    return { action: 'deny' } // 应用内一律禁止新开窗口
   })
 }
 
 app.whenReady().then(() => {
-  // 1. 媒体设备（麦克风）权限自动授权配置
-  session.defaultSession.setPermissionRequestHandler((webContents, permission, callback) => {
-    if (permission === 'media') {
-      return callback(true) // 自动允许录音权限申请
-    }
-    callback(false)
-  })
-
-  session.defaultSession.setPermissionCheckHandler((webContents, permission, origin) => {
-    if (permission === 'media') {
-      return true
-    }
-    return false
-  })
-
-  // 2. 自动拉起后端服务进程
-  startBackend()
-
-  // 3. 创建应用窗口
-  createWindow()
-
-  app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) {
-      createWindow()
-    }
+  ipcMain.handle('get-app-version', () => app.getVersion()) // 渲染进程查询应用版本
+  createWindow() // 窗口控制按钮由 titleBarOverlay 原生提供，无需应用内 IPC 转发
+  app.on('activate', () => { // macOS 点 Dock 图标时若无窗口则重建
+    if (BrowserWindow.getAllWindows().length === 0) createWindow()
   })
 })
 
 app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') {
-    app.quit()
-  }
-})
-
-app.on('will-quit', () => {
-  // 退出时确保杀死子进程，不留脏进程
-  killBackend()
-})
-
-// IPC 通信：供前端拉取当前桌面应用版本
-ipcMain.handle('get-app-version', () => app.getVersion())
-ipcMain.on('get-backend-base-url', (event) => {
-  event.returnValue = backendBaseUrl
+  if (process.platform !== 'darwin') app.quit() // 非 macOS 关闭全部窗口即退出应用
 })

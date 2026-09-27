@@ -1,0 +1,10 @@
+{
+  "//": "编辑器提示配置：@ 别名指向 src，与 vite.config.js 的 resolve.alias 保持一致",
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["src/*"]
+    }
+  },
+  "exclude": ["node_modules", "dist"]
+}

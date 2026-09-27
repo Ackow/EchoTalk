@@ -18,6 +18,13 @@ venv/
 ENV/
 env/
 backend/venv/
+backend/.venv/
+backend/.uv-cache/
+backend/.env
+frontend/.env
+frontend/.env.*
+!backend/.env.example
+!frontend/.env.example
 
 # --- Python 编译字节码与缓存 ---
 __pycache__/
@@ -59,6 +66,8 @@ var/
 .env
 .env.*
 !.env.template
+!backend/.env.example
+!frontend/.env.example
 config.json
 secrets.json
 
@@ -76,9 +85,14 @@ frontend/node_modules/
 frontend/dist/
 frontend/dist_electron/
 frontend/yarn-error.log
-frontend/package-lock.json
 frontend/.eslintcache
 frontend/.temp/
 
 tests/data/output/*
 CLAUDE.md
+
+# Local MLX voice model (downloaded separately; approximately 1.8 GB)
+VoiceModelTest/LFM2.5-Audio-1.5B-4bit/
+
+# WorkBuddy 工作区数据（会话日志等）
+.workbuddy/

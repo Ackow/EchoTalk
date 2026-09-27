@@ -519,7 +519,7 @@
 <script setup>
 import { ref, onMounted, onUnmounted, computed, nextTick, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { useAppStore } from '../store/useAppStore'
+import { useAppStore } from '../store/useAppStore.js'
 import EChartsRadar from '../components/EChartsRadar.vue'
 import EvaluationPanel from '../components/EvaluationPanel.vue'
 import axios from 'axios'

@@ -1,101 +1,29 @@
-from sqlalchemy import Column, Boolean, Integer, String, Text, Float, DateTime, ForeignKey, JSON
-from sqlalchemy.orm import relationship
-from datetime import datetime
+"""登录功能使用的最小用户与会话数据模型（users / auth_sessions）。"""
+from sqlalchemy import Column, DateTime, ForeignKey, Integer, String
+
 from app.core.database import Base
+from app.core.timeutil import utcnow
+
 
 class User(Base):
-    """
-    用户表：记录口语练习用户的基本信息。
-    """
+    """用户表：用户名 + 密码摘要（盐$摘要 格式，不存明文）。"""
+
     __tablename__ = "users"
 
-    id = Column(Integer, primary_key=True, index=True)
-    username = Column(String(50), unique=True, index=True, nullable=False) # 用户名
-    created_at = Column(DateTime, default=datetime.utcnow) # 创建时间
-
-    # 关联关系
-    dialogues = relationship("DialogueHistory", back_populates="user")
+    id = Column(Integer, primary_key=True)  # 主键：用户唯一 ID，自增
+    username = Column(String(50), unique=True, nullable=False, index=True)  # 用户名：3~50 字符，唯一、必填、有索引
+    password_hash = Column(String(256), nullable=False)  # 密码摘要：PBKDF2-SHA256 的 salt$digest，必填
+    created_at = Column(DateTime, default=utcnow, nullable=False)  # 注册时间：UTC，插入时自动填充
 
 
-class Scene(Base):
-    """
-    场景表：记录口语演练场景配置（如面试、点餐等），支持热插拔插件与RAG知识库配置。
-    """
-    __tablename__ = "scenes"
+class AuthSession(Base):
+    """登录会话表：记录每次签发的令牌摘要及有效期，原始令牌仅返回客户端一次。"""
 
-    id = Column(String(50), primary_key=True, index=True) # 场景ID (例如 'interview', 'ordering')
-    name = Column(String(100), nullable=False) # 场景名称
-    description = Column(Text, nullable=True) # 场景描述
-    category = Column(String(50), default="custom") # 场景分类
-    
-    # 动态参数：天气、对方性格、对话限制等
-    default_params = Column(JSON, default=dict)
-    
-    # AI 角色的初始 System Prompt
-    system_prompt = Column(Text, nullable=False)
-    
-    # RAG 文档库元数据：记录用户上传的文件列表信息
-    rag_metadata = Column(JSON, default=list)
-    
-    # 场景的第一句打招呼首发文本，用于持久化问候语
-    greeting_text = Column(Text, nullable=True, default="Hello! Let's start practicing.")
-    
-    # 场景的第一句打招呼首发音频托管地址，预先生成好以加速会话启动
-    greeting_audio_url = Column(String(255), nullable=True)
+    __tablename__ = "auth_sessions"
 
-    # 场景域关键词：运行 pipeline 时用于场景一致性验证的本地化预提取关键词
-    # 在场景创建/导入时由 extract_domain_keywords() 自动填充，无需手动维护
-    domain_keywords = Column(JSON, default=list)
-
-    # 关联关系
-    dialogues = relationship("DialogueHistory", back_populates="scene")
-
-
-class DialogueHistory(Base):
-    """
-    会话历史表：记录每一次练习会话的整体评估和时间段。
-    """
-    __tablename__ = "dialogue_histories"
-
-    id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False) # 外键关联用户
-    scene_id = Column(String(50), ForeignKey("scenes.id"), nullable=False) # 外键关联场景
-    start_time = Column(DateTime, default=datetime.utcnow) # 开始时间
-    end_time = Column(DateTime, nullable=True) # 结束时间
-    overall_score = Column(Float, nullable=True) # 综合评分
-    speaking_style = Column(String(20), nullable=True, default="colloquial") # 说话风格: 'colloquial' (口语化) 或 'formal' (书面化)
-    accent = Column(String(10), nullable=True, default="us") # 发音口音: 'us' (美音) 或 'uk' (英音)
-    is_finished = Column(Boolean, default=False, nullable=False) # 会话是否由 AI 判定为结束
-
-    # 关联关系
-    user = relationship("User", back_populates="dialogues")
-    scene = relationship("Scene", back_populates="dialogues")
-    turns = relationship("DialogueTurn", back_populates="dialogue_history", cascade="all, delete-orphan")
-
-
-class DialogueTurn(Base):
-    """
-    对话明细表：记录单次会话中的每一轮交互（用户语音/AI回应），包括七牛云音频地址、发音评分及语法纠错。
-    """
-    __tablename__ = "dialogue_turns"
-
-    id = Column(Integer, primary_key=True, index=True)
-    dialogue_history_id = Column(Integer, ForeignKey("dialogue_histories.id"), nullable=False) # 关联会话ID
-    
-    role = Column(String(20), nullable=False) # 角色: 'user' (用户) 或 'assistant' (AI助手)
-    timestamp = Column(DateTime, default=datetime.utcnow) # 对话发生时间
-    
-    text = Column(Text, nullable=False) # 转录出的文本
-    
-    audio_url = Column(String(255), nullable=True) # 七牛云 Kodo 音频存储地址 (云端回放)
-    audio_url_us = Column(String(255), nullable=True) # 美式发音音频存储地址
-    audio_url_uk = Column(String(255), nullable=True) # 英式发音音频存储地址
-    
-    # 发音测评结果 JSON：包含综合分、准确度、流利度、完整度、音素等
-    pronunciation_score = Column(JSON, nullable=True)
-    
-    # 语法纠错与表达改进建议 JSON：包含原文错误、修改意见及理由
-    grammar_correction = Column(JSON, nullable=True)
-
-    # 关联关系
-    dialogue_history = relationship("DialogueHistory", back_populates="turns")
+    id = Column(Integer, primary_key=True)  # 主键：会话记录 ID，自增
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)  # 所属用户 ID：外键 users.id，有索引
+    token_hash = Column(String(64), unique=True, nullable=False, index=True)  # 令牌摘要：令牌的 SHA-256（64 字符），唯一、有索引
+    expires_at = Column(DateTime, nullable=False)  # 过期时间：UTC，签发后 30 天
+    revoked_at = Column(DateTime)  # 撤销时间：退出登录时写入，NULL 表示仍有效
+    created_at = Column(DateTime, default=utcnow, nullable=False)  # 签发时间：UTC，插入时自动填充

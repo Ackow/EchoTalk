@@ -169,7 +169,7 @@
 
 <script setup>
 import { ref, onMounted, onUnmounted } from 'vue'
-import { useAppStore } from '../store/useAppStore'
+import { useAppStore } from '../store/useAppStore.js'
 import axios from 'axios'
 import EvaluationPanel from '../components/EvaluationPanel.vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
