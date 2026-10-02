@@ -1,0 +1,703 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>知识工作区 · 交互原型 — EchoTalk 2.0</title>
+<style>
+/* ============================================================
+   EchoTalk 2.0 知识工作区 — 高保真交互原型
+   Token 与 frontend/src/assets/styles.css 完全一致，零新增色相
+   ============================================================ */
+:root {
+  --brand: #6265e8;
+  --brand-deep: #4b4dc7;
+  --brand-soft: #eff0ff;
+  --ink: #22253b;
+  --ink-soft: #4e5269;
+  --muted: #7b8095;
+  --line: #e9eaf2;
+  --bg: #f7f8fc;
+  --surface: #ffffff;
+  --danger: #d64550;
+  --danger-soft: #fdeeee;
+  --ok: #1f9d6c;
+  --ok-soft: #e8f6f0;
+  --warn-soft: #fdf3e7;
+  --warn: #c07a2a;
+  --radius: 12px;
+  --radius-sm: 8px;
+  --shadow: 0 1px 2px rgba(34,37,59,.04), 0 8px 24px rgba(34,37,59,.05);
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  color: var(--ink); background: var(--bg); font-size: 14px; line-height: 1.55;
+  text-wrap: pretty;
+}
+button { font: inherit; cursor: pointer; border: 0; background: none; color: inherit; }
+input { font: inherit; }
+::placeholder { color: #a6a9bd; }
+
+/* ---------- 应用壳：侧边栏 + 顶栏（与 AppShell 同构） ---------- */
+.shell { display: grid; grid-template-columns: 248px minmax(0,1fr); height: 100vh; }
+.sidebar { background: var(--surface); border-right: 1px solid var(--line); display: flex; flex-direction: column; padding: 0 14px 14px; }
+.brand { display: flex; align-items: center; gap: 10px; padding: 14px 8px 18px; }
+.brand-mark { display: grid; width: 34px; height: 34px; place-items: center; border-radius: 9px; background: var(--brand); color: #fff; flex: 0 0 34px; }
+.brand b { display: block; font-size: 15px; }
+.brand small { display: block; color: var(--muted); font-size: 11px; margin-top: 1px; }
+.nav-group { color: var(--muted); font-size: 11px; letter-spacing: .08em; padding: 12px 8px 5px; }
+.nav-item { display: flex; align-items: center; gap: 9px; padding: 7px 9px; border-radius: 8px; color: var(--ink-soft); font-size: 13px; }
+.nav-item svg { flex: 0 0 auto; }
+.nav-item.active { background: var(--brand-soft); color: var(--brand); font-weight: 600; }
+.side-note { margin-top: auto; background: var(--bg); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 14px; }
+.side-note b { font-size: 12.5px; display: block; margin-bottom: 3px; }
+.side-note p { color: var(--muted); font-size: 12px; }
+.account { display: flex; align-items: center; gap: 9px; margin-top: 12px; padding: 9px; border: 1px solid var(--line); border-radius: var(--radius); }
+.avatar { width: 30px; height: 30px; border-radius: 50%; background: var(--brand); color: #fff; display: grid; place-items: center; font-size: 13px; font-weight: 600; flex: 0 0 30px; }
+.account b { font-size: 13px; display: block; }
+.account small { color: var(--muted); font-size: 11px; }
+
+/* ---------- 内容区 ---------- */
+.content { display: flex; flex-direction: column; min-width: 0; }
+.content-header { display: flex; align-items: center; gap: 10px; height: 48px; flex: 0 0 48px; padding: 0 28px; border-bottom: 1px solid var(--line); background: var(--surface); }
+.content-header h1 { font-size: 15px; font-weight: 600; }
+.proto-tag { margin-left: auto; font-size: 11px; color: var(--warn); background: var(--warn-soft); border-radius: 99px; padding: 3px 10px; }
+
+.page { overflow-y: auto; padding: 26px 32px 40px; }
+.page-head { max-width: 1060px; margin: 0 auto 20px; }
+.eyebrow { color: var(--brand); font-size: 11px; font-weight: 700; letter-spacing: .18em; }
+.page-head h2 { font-size: 26px; letter-spacing: -.01em; margin: 6px 0 4px; }
+.page-head .sub { color: var(--muted); }
+
+.layout { display: grid; grid-template-columns: minmax(0,1fr) 324px; gap: 18px; max-width: 1060px; margin: 0 auto; }
+@media (max-width: 1080px) { .layout { grid-template-columns: 1fr; } }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow); }
+.card-pad { padding: 20px 22px; }
+.card-title { font-size: 15px; font-weight: 650; display: flex; align-items: center; gap: 8px; }
+
+/* ---------- Scope 切换 ---------- */
+.scope-tabs { display: inline-flex; gap: 4px; background: var(--bg); border: 1px solid var(--line); border-radius: 10px; padding: 3px; margin-bottom: 14px; }
+.scope-tab { padding: 6px 14px; border-radius: 8px; color: var(--muted); font-size: 13px; font-weight: 550; }
+.scope-tab.active { background: var(--surface); color: var(--ink); box-shadow: 0 1px 3px rgba(34,37,59,.08); }
+.scope-tab .dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--brand); margin-left: 5px; vertical-align: 2px; }
+
+/* ---------- 场景 chips ---------- */
+.scene-chips { display: flex; flex-wrap: wrap; gap: 7px; margin-bottom: 14px; }
+.chip { padding: 5px 12px; border: 1px solid var(--line); border-radius: 99px; font-size: 12.5px; color: var(--ink-soft); background: var(--surface); transition: all .15s; }
+.chip:hover { border-color: #c9cbe4; }
+.chip.active { background: var(--brand-soft); border-color: var(--brand-soft); color: var(--brand); font-weight: 600; }
+.chip .cnt { color: var(--muted); font-size: 11px; margin-left: 4px; }
+.chip.active .cnt { color: var(--brand); opacity: .75; }
+
+/* ---------- 拖放上传区 ---------- */
+.dropzone { border: 1.5px dashed #cdd0e6; border-radius: var(--radius); padding: 22px; text-align: center; color: var(--muted); transition: all .18s; background: var(--bg); cursor: pointer; }
+.dropzone:hover, .dropzone.drag { border-color: var(--brand); background: var(--brand-soft); color: var(--brand-deep); }
+.dropzone b { color: var(--ink); display: block; font-size: 14px; margin-bottom: 2px; }
+.dropzone.drag b, .dropzone:hover b { color: var(--brand-deep); }
+.dropzone .hint { font-size: 12px; }
+.btn-primary { display: inline-flex; align-items: center; gap: 6px; background: var(--brand); color: #fff; border-radius: 9px; padding: 8px 16px; font-weight: 600; font-size: 13px; transition: background .15s; margin-top: 12px; }
+.btn-primary:hover { background: var(--brand-deep); }
+.btn-primary:disabled { background: #c3c5da; cursor: not-allowed; }
+
+/* ---------- 资料列表 ---------- */
+.doc-list { margin-top: 6px; }
+.doc-row { border-bottom: 1px solid var(--line); padding: 13px 2px; }
+.doc-row:last-child { border-bottom: 0; }
+.doc-main { display: flex; align-items: center; gap: 12px; }
+.file-badge { flex: 0 0 40px; width: 40px; height: 46px; border-radius: 8px; display: grid; place-items: center; font-size: 10px; font-weight: 700; letter-spacing: .04em; }
+.file-badge.pdf { background: #eceefb; color: #4b4dc7; }
+.file-badge.md  { background: #e6f4ec; color: #1f7a52; }
+.file-badge.txt { background: #fdf0e4; color: #b06a1d; }
+.doc-info { min-width: 0; flex: 1; }
+.doc-name { font-weight: 600; font-size: 13.5px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.doc-desc { color: var(--muted); font-size: 12px; margin-top: 1px; }
+.doc-actions { display: flex; align-items: center; gap: 6px; flex: 0 0 auto; }
+.icon-btn { width: 28px; height: 28px; display: grid; place-items: center; border-radius: 7px; color: var(--muted); transition: all .15s; }
+.icon-btn:hover { background: var(--bg); color: var(--ink); }
+.icon-btn.danger:hover { background: var(--danger-soft); color: var(--danger); }
+
+/* 状态徽标 */
+.tag { font-size: 11px; border-radius: 99px; padding: 3px 9px; font-weight: 600; white-space: nowrap; }
+.tag.user { background: var(--brand-soft); color: var(--brand-deep); }
+.tag.ai   { background: #f0f1f6; color: var(--ink-soft); }
+.tag.ok   { background: var(--ok-soft); color: var(--ok); }
+.tag.err  { background: var(--danger-soft); color: var(--danger); }
+.tag.load { background: var(--bg); color: var(--muted); }
+
+/* 上传进度条 */
+.progress { height: 4px; border-radius: 99px; background: var(--line); overflow: hidden; margin-top: 8px; max-width: 320px; }
+.progress i { display: block; height: 100%; background: var(--brand); border-radius: 99px; transition: width .2s; }
+
+/* 分节可见性 */
+.sections { margin-top: 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); padding: 4px 12px; }
+.section-row { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px dashed var(--line); font-size: 12.5px; }
+.section-row:last-child { border-bottom: 0; }
+.section-row .name { font-weight: 600; }
+.section-row .snippet { color: var(--muted); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* iOS 式开关 */
+.switch { position: relative; width: 34px; height: 20px; flex: 0 0 34px; }
+.switch input { opacity: 0; width: 100%; height: 100%; position: absolute; cursor: pointer; margin: 0; }
+.switch i { position: absolute; inset: 0; border-radius: 99px; background: #d4d6e6; transition: background .18s; }
+.switch i::after { content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: #fff; transition: transform .18s; box-shadow: 0 1px 3px rgba(0,0,0,.2); }
+.switch input:checked + i { background: var(--brand); }
+.switch input:checked + i::after { transform: translateX(14px); }
+.switch input:focus-visible + i { outline: 2px solid var(--brand); outline-offset: 2px; }
+
+/* 删除确认条 */
+.confirm-bar { display: flex; align-items: center; gap: 10px; margin-top: 10px; background: var(--danger-soft); border: 1px solid #f3c8cc; border-radius: 10px; padding: 9px 12px; font-size: 12.5px; color: var(--danger); }
+.confirm-bar .spacer { flex: 1; }
+.btn-ghost-danger { border: 1px solid #eeb9be; border-radius: 8px; padding: 4px 12px; font-size: 12px; color: var(--danger); font-weight: 600; background: #fff; }
+.btn-ghost { border: 1px solid var(--line); border-radius: 8px; padding: 4px 12px; font-size: 12px; color: var(--ink-soft); background: #fff; }
+
+/* 空状态 */
+.empty { text-align: center; padding: 42px 20px; color: var(--muted); }
+.empty .glyph { width: 52px; height: 52px; margin: 0 auto 12px; border-radius: 14px; background: var(--bg); border: 1px solid var(--line); display: grid; place-items: center; color: #a6a9bd; }
+.empty b { color: var(--ink); display: block; margin-bottom: 4px; font-size: 14px; }
+.empty p { font-size: 12.5px; max-width: 380px; margin: 0 auto; }
+
+/* ---------- 检索试验台 ---------- */
+.retrieval { margin-top: 20px; border-top: 1px solid var(--line); padding-top: 18px; }
+.retrieval-head { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+.retrieval-head .card-title { font-size: 13.5px; }
+.search-bar { display: flex; gap: 8px; }
+.search-bar input { flex: 1; border: 1px solid var(--line); border-radius: 10px; padding: 9px 13px; background: var(--bg); color: var(--ink); transition: all .15s; }
+.search-bar input:focus { outline: none; border-color: var(--brand); background: var(--surface); box-shadow: 0 0 0 3px var(--brand-soft); }
+.search-bar .btn-primary { margin-top: 0; padding: 8px 15px; }
+.retrieval-note { color: var(--muted); font-size: 12px; margin-top: 9px; display: flex; align-items: center; gap: 6px; }
+
+.hit { border: 1px solid var(--line); border-radius: 11px; padding: 12px 14px; margin-top: 9px; cursor: pointer; transition: border-color .15s, box-shadow .15s; }
+.hit:hover { border-color: #c9cbe4; box-shadow: 0 2px 8px rgba(34,37,59,.06); }
+.hit-src { display: flex; align-items: center; gap: 7px; font-size: 11.5px; color: var(--brand-deep); font-weight: 600; margin-bottom: 5px; flex-wrap: wrap; }
+.hit-src .score { color: var(--muted); font-weight: 500; font-size: 11px; background: var(--bg); border-radius: 6px; padding: 1px 7px; }
+.hit p { font-size: 12.5px; color: var(--ink-soft); }
+.hit mark { background: var(--brand-soft); color: var(--brand-deep); border-radius: 3px; padding: 0 2px; }
+.hit .full { display: none; margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--line); color: var(--muted); font-size: 12px; }
+.hit.open .full { display: block; }
+
+/* ---------- 右辅卡 ---------- */
+.side-card > div { padding: 18px 20px; border-bottom: 1px solid var(--line); }
+.side-card > div:last-child { border-bottom: 0; }
+.relation { margin: 12px 0 4px; display: flex; flex-direction: column; gap: 0; align-items: flex-start; }
+.rel-node { background: var(--brand-soft); color: var(--brand-deep); font-size: 12px; font-weight: 600; border-radius: 8px; padding: 5px 12px; }
+.rel-link { width: 1px; height: 14px; background: #c9cbe4; margin-left: 24px; position: relative; }
+.rel-link::after { content: ""; position: absolute; bottom: -1px; left: -2.5px; border: 3px solid transparent; border-top-color: #c9cbe4; }
+.rel-row { display: flex; gap: 8px; align-items: center; padding: 6px 0; font-size: 12.5px; color: var(--ink-soft); }
+.rel-row b { font-size: 12.5px; }
+.legend-row { display: flex; gap: 10px; align-items: flex-start; padding: 7px 0; font-size: 12.5px; color: var(--muted); }
+.legend-row .ic { flex: 0 0 26px; width: 26px; height: 26px; border-radius: 7px; display: grid; place-items: center; }
+.legend-row .ic.eye { background: var(--brand-soft); color: var(--brand-deep); }
+.legend-row .ic.bot { background: #f0f1f6; color: var(--ink-soft); }
+.legend-row b { color: var(--ink); display: block; font-size: 12.5px; }
+.cta { width: 100%; justify-content: center; margin-top: 2px; }
+.cta-note { color: var(--muted); font-size: 11.5px; margin-top: 9px; text-align: center; }
+
+/* ---------- Tweaks 面板 ---------- */
+.tweaks-btn { position: fixed; right: 18px; bottom: 18px; background: var(--ink); color: #fff; border-radius: 99px; padding: 9px 16px; font-size: 12px; font-weight: 600; box-shadow: 0 6px 18px rgba(34,37,59,.25); z-index: 60; }
+.tweaks { position: fixed; right: 18px; bottom: 60px; width: 250px; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 12px 40px rgba(34,37,59,.16); padding: 14px 16px; z-index: 60; display: none; }
+.tweaks.open { display: block; }
+.tweaks h4 { font-size: 12px; letter-spacing: .1em; color: var(--muted); margin-bottom: 8px; }
+.tweaks .row { display: flex; align-items: center; justify-content: space-between; padding: 7px 0; font-size: 12.5px; border-bottom: 1px dashed var(--line); }
+.tweaks .row:last-child { border-bottom: 0; }
+
+/* ---------- Toast ---------- */
+.toast-wrap { position: fixed; top: 60px; left: 50%; transform: translateX(-50%); z-index: 80; display: flex; flex-direction: column; gap: 8px; align-items: center; }
+.toast { background: var(--ink); color: #fff; border-radius: 10px; padding: 9px 16px; font-size: 12.5px; box-shadow: 0 8px 24px rgba(34,37,59,.25); animation: pop .2s ease-out; display: flex; gap: 7px; align-items: center; }
+.toast.warn { background: #8a5a17; }
+@keyframes pop { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
+
+/* 入场序列 */
+.card, .page-head { animation: rise .4s cubic-bezier(.16,1,.3,1) backwards; }
+.layout .card:nth-child(2) { animation-delay: .08s; }
+@keyframes rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+</style>
+</head>
+<body>
+
+<div class="shell">
+  <!-- ===== 侧边栏（同 AppShell 结构，仅作原型语境） ===== -->
+  <aside class="sidebar">
+    <div class="brand">
+      <span class="brand-mark">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 3v18M5 8c2.5 0 4-1.5 7-1.5S16.5 8 19 8M5 16c2.5 0 4-1.5 7-1.5s4 1.5 7 1.5"/></svg>
+      </span>
+      <div><b>EchoTalk</b><small>2.0 · 原型</small></div>
+    </div>
+    <span class="nav-group">训练</span>
+    <div class="nav-item"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>今日训练</div>
+    <div class="nav-item"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M15.5 8.5 10 12l2 3.5"/></svg>场景探索</div>
+    <div class="nav-item"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>语音对话</div>
+    <div class="nav-item"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 13a8 8 0 0 1 16 0M4 13v4a2 2 0 0 0 2 2h1v-6H6M20 13v4a2 2 0 0 1-2 2h-1v-6h2"/></svg>听力工作室</div>
+    <div class="nav-item"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 9 12 4 2 9l10 5 10-5zM6 11.5V16c0 1.5 2.7 3 6 3s6-1.5 6-3v-4.5"/></svg>四六级训练</div>
+    <div class="nav-item"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>模拟面试</div>
+    <div class="nav-item"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 10h8M8 14h5M21 12a9 9 0 1 1-4.4-7.7L21 3l-1 4.5"/></svg>多角色辩论</div>
+    <span class="nav-group">内容与工具</span>
+    <div class="nav-item active"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 6c-2-1.8-4.7-2-8-2v14c3.3 0 6 .2 8 2 2-1.8 4.7-2 8-2V4c-3.3 0-6 .2-8 2zM12 6v14"/></svg>知识工作区</div>
+    <div class="nav-item"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="16" height="16" rx="4"/><path d="M9 12a3 3 0 1 1 3 3"/></svg>数字人角色</div>
+    <span class="nav-group">成长</span>
+    <div class="nav-item"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 3v4M16 3v4M3 10h18M9.5 15.5l2 2 3.5-3.5"/></svg>复习计划</div>
+    <div class="nav-item"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20V10M10 20V4M16 20v-7M21 20H3"/></svg>成长分析</div>
+    <div class="side-note">
+      <b>听懂 · 表达 · 进步</b>
+      <p>每次对话，都有新的收获。</p>
+    </div>
+    <div class="account">
+      <span class="avatar">A</span>
+      <div><b>Alex</b><small>个人学习空间</small></div>
+    </div>
+  </aside>
+
+  <!-- ===== 内容区 ===== -->
+  <section class="content">
+    <header class="content-header">
+      <h1>知识工作区</h1>
+      <span class="proto-tag">交互原型 · 数据为演示示例</span>
+    </header>
+
+    <div class="page">
+      <div class="page-head">
+        <div class="eyebrow">KNOWLEDGE WORKSPACE</div>
+        <h2>让训练，围绕你的真实资料。</h2>
+        <p class="sub">场景知识、简历、JD 和项目文档，为对话与面试提供背景。</p>
+      </div>
+
+      <div class="layout">
+        <!-- ===== 左主卡：资料管理 + 检索试验台 ===== -->
+        <div class="card card-pad">
+          <!-- 决策1：Scope 双层级 -->
+          <div class="scope-tabs" role="tablist">
+            <button class="scope-tab active" data-scope="scene" role="tab">场景资料</button>
+            <button class="scope-tab" data-scope="personal" role="tab">个人资料<span class="dot" title="二期开放"></span></button>
+          </div>
+
+          <!-- 场景资料视图 -->
+          <div id="sceneView">
+            <div class="scene-chips" id="sceneChips"></div>
+
+            <div class="dropzone" id="dropzone" tabindex="0" role="button" aria-label="上传资料文件">
+              <b>添加训练资料</b>
+              <span class="hint" id="dropHint">PDF、TXT、Markdown · 单文件 10 MB 以内</span>
+              <button class="btn-primary" type="button">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+                选择文件
+              </button>
+            </div>
+
+            <div class="doc-list" id="docList"></div>
+
+            <!-- 决策4：检索试验台 -->
+            <div class="retrieval">
+              <div class="retrieval-head">
+                <span class="card-title">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--brand)" stroke-width="2.2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+                  试试资料检索
+                </span>
+              </div>
+              <div class="search-bar">
+                <input id="queryInput" type="text" placeholder='例如："我的 EchoTalk 项目符合哪些岗位要求？"' aria-label="检索资料">
+                <button class="btn-primary" id="searchBtn" type="button">查看检索示例</button>
+              </div>
+              <p class="retrieval-note" id="retrievalNote"></p>
+              <div id="hitList"></div>
+            </div>
+          </div>
+
+          <!-- 个人资料视图：诚实的空状态（二期开放） -->
+          <div id="personalView" style="display:none">
+            <div class="empty" style="padding:64px 20px">
+              <div class="glyph">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>
+              </div>
+              <b>个人工作区资料即将开放</b>
+              <p>简历、目标 JD、项目文档等跨场景资料，将在后端支持工作区级存储后开放（二期）。当前资料按场景隔离管理，请切换到「场景资料」。</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- ===== 右辅卡 ===== -->
+        <div class="card side-card">
+          <div>
+            <span class="card-title">知识与关系</span>
+            <div class="relation">
+              <span class="rel-node">项目经历</span>
+              <span class="rel-link"></span>
+              <span class="rel-node">技能标签</span>
+              <span class="rel-link"></span>
+              <span class="rel-node">岗位要求</span>
+            </div>
+            <p style="color:var(--muted);font-size:12px;margin-top:10px">跨实体关联检索（LightRAG）计划于阶段三后扩展，此图为目标形态示意。</p>
+          </div>
+          <div>
+            <span class="card-title">资料呈现</span>
+            <div class="legend-row">
+              <span class="ic eye"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6z"/><circle cx="12" cy="12" r="2.5"/></svg></span>
+              <div><b>用户可见</b>资料内容会展示给用户，如菜单、公开文档。</div>
+            </div>
+            <div class="legend-row">
+              <span class="ic bot"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="8" width="16" height="12" rx="3"/><path d="M12 8V4M8 4h8M9 14h.01M15 14h.01"/></svg></span>
+              <div><b>仅 AI 可见</b>考官视角的隐藏资料，如 JD、员工备注，用户不可见。</div>
+            </div>
+          </div>
+          <div>
+            <button class="btn-primary cta" id="ctaBtn" type="button">用这些资料开始面试</button>
+            <p class="cta-note" id="ctaNote"></p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+</div>
+
+<!-- Tweaks 状态面板 -->
+<button class="tweaks-btn" id="tweaksBtn" type="button">Tweaks</button>
+<div class="tweaks" id="tweaks">
+  <h4>TWEAKS · 原型状态开关</h4>
+  <div class="row"><span>空状态（当前场景无资料）</span><label class="switch"><input type="checkbox" id="tkEmpty"><i></i></label></div>
+  <div class="row"><span>下次上传模拟解析失败</span><label class="switch"><input type="checkbox" id="tkFail"><i></i></label></div>
+  <div class="row"><span>检索能力开放（演示数据）</span><label class="switch"><input type="checkbox" id="tkRetrieval" checked><i></i></label></div>
+</div>
+
+<div class="toast-wrap" id="toasts"></div>
+
+<script>
+/* ============================================================
+   原型数据：与后端 app/content/scenes/*.yaml 内置种子一致
+   ============================================================ */
+const SCENES = {
+  cafe: {
+    label: "咖啡厅点单",
+    icon: "☕",
+    docs: [
+      { id: 1, type: "md", name: "menu.md", desc: "饮品与糕点菜单、价格", chunks: 8, visibility: "user", status: "ok",
+        sections: [
+          { name: "drinks", snippet: "美式 / 拿铁 / 卡布奇诺…", visible: true },
+          { name: "pastries", snippet: "可颂 / 提拉米苏…", visible: true },
+          { name: "prices", snippet: "中杯 +3 元，大杯 +5 元…", visible: true }
+        ] },
+      { id: 2, type: "md", name: "staff_notes.md", desc: "员工备注：今日特调与缺货", chunks: 3, visibility: "ai", status: "ok", sections: [] }
+    ]
+  },
+  interview: {
+    label: "技术面试",
+    icon: "🧑‍💼",
+    docs: [
+      { id: 3, type: "txt", name: "target-jd.txt", desc: "目标岗位：AI 应用工程师", chunks: 5, visibility: "ai", status: "ok", sections: [] },
+      { id: 4, type: "pdf", name: "Resume.pdf", desc: "个人简历：项目经历与技能", chunks: 12, visibility: "user", status: "ok",
+        sections: [
+          { name: "项目经历", snippet: "EchoTalk：口语训练应用，LangGraph 多角色编排…", visible: true },
+          { name: "教育背景", snippet: "本科 · 计算机科学与技术…", visible: true }
+        ] }
+    ]
+  },
+  airport: { label: "机场改签", icon: "✈️", docs: [] },
+  launch:  { label: "发布会对齐", icon: "🚀", docs: [] }
+};
+
+/* 检索演示结果（阶段三 Hybrid RAG 目标形态；数据为演示示例） */
+const HITS = {
+  cafe: [
+    { file: "menu.md", section: "prices", vec: 0.71, bm25: 0.68,
+      text: "拿铁：中杯 22 元，大杯 25 元；可加燕麦奶（+3 元）。美式：中杯 18 元，大杯 21 元。",
+      full: "整节内容：本节列出全部饮品价格与规格加价规则。阶段三接入后，此处将显示完整分块原文并可跳转定位。" },
+    { file: "menu.md", section: "drinks", vec: 0.64, bm25: 0.72,
+      text: "本店提供：美式、拿铁、卡布奇诺、抹茶拿铁、燕麦拿铁，均可调整温度与糖度。",
+      full: "整节内容：饮品清单及定制选项说明。" }
+  ],
+  interview: [
+    { file: "Resume.pdf", section: "项目经历", vec: 0.82, bm25: 0.74,
+      text: "EchoTalk 2.0：AI 口语训练应用。基于 LangGraph 编排多角色场景对话，实现 Tool Calling 点餐、Hybrid RAG 资料检索与训练报告生成。",
+      full: "整节内容：项目职责（独立完成前后端）、技术栈（FastAPI / Vue3 / LangGraph / MySQL）、成果数据。" },
+    { file: "target-jd.txt", section: null, vec: 0.77, bm25: 0.70,
+      text: "岗位要求：熟悉 LLM 应用开发，具备 RAG / Agent 实践经验；有完整独立项目者优先。",
+      full: "整节内容：岗位职责 5 条 + 任职要求 6 条。AI 专用资料，用户在正式产品中不可见原文。" },
+    { file: "Resume.pdf", section: "项目经历", vec: 0.69, bm25: 0.61,
+      text: "教学督导评价驾驶舱：巡课与期末双模块，Vue3 + ECharts 数据可视化。",
+      full: "整节内容：第二个项目的完整描述。" }
+  ],
+  airport: [], launch: []
+};
+
+/* 上传模拟池 */
+const UPLOAD_POOL = [
+  { type: "pdf", name: "project-echotalk.md".replace(".md", "") + "-deck.pdf", desc: "项目介绍演示文稿", chunks: 9, visibility: "user" },
+  { type: "md",  name: "project-notes.md", desc: "EchoTalk 架构与实现说明", chunks: 14, visibility: "user" },
+  { type: "txt", name: " behavioral-prep.txt".trim(), desc: "行为题准备要点", chunks: 6, visibility: "user" }
+];
+let uploadIdx = 0, docIdSeq = 100;
+
+/* ---------------- 状态 ---------------- */
+const state = { scope: "scene", scene: "interview", expanded: new Set(), confirming: null };
+
+/* ---------------- 工具 ---------------- */
+const $ = (s) => document.querySelector(s);
+const esc = (s) => s.replace(/[&<>"']/g, (c) => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c]));
+function toast(msg, warn) {
+  const el = document.createElement("div");
+  el.className = "toast" + (warn ? " warn" : "");
+  el.textContent = msg;
+  $("#toasts").appendChild(el);
+  setTimeout(() => el.remove(), 2600);
+}
+
+/* ---------------- 场景 chips ---------------- */
+function renderChips() {
+  $("#sceneChips").innerHTML = Object.entries(SCENES).map(([key, sc]) =>
+    `<button class="chip ${key === state.scene ? "active" : ""}" data-scene="${key}">
+       ${sc.icon} ${sc.label}<span class="cnt">${sc.docs.length}</span>
+     </button>`).join("");
+}
+
+/* ---------------- 资料列表 ---------------- */
+function renderDocs() {
+  const sc = SCENES[state.scene];
+  const list = $("#docList");
+  if (state.tkEmpty || sc.docs.length === 0) {
+    list.innerHTML = `<div class="empty">
+      <div class="glyph"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9.5 13h5M9.5 16.5h3"/></svg></div>
+      <b>该场景暂无资料</b>
+      <p>上传 PDF、TXT 或 Markdown，解析分块后将作为场景对话与面试的背景知识。也可直接体验内置场景资料（切换到「咖啡厅点单」或「技术面试」）。</p>
+    </div>`;
+    renderCta();
+    return;
+  }
+  list.innerHTML = sc.docs.map((d) => {
+    const open = state.expanded.has(d.id);
+    const confirming = state.confirming === d.id;
+    const statusTag = d.status === "loading"
+      ? `<span class="tag load">解析中…</span>`
+      : d.status === "error"
+        ? `<span class="tag err">解析失败</span>`
+        : `<span class="tag ok">已索引 · ${d.chunks} 块</span>`;
+    const visTag = d.visibility === "ai"
+      ? `<span class="tag ai" title="仅 AI 可见">仅 AI</span>`
+      : `<span class="tag user" title="用户可见">用户可见</span>`;
+    const sections = open && d.sections.length ? `<div class="sections">${
+      d.sections.map((s, i) => `<div class="section-row">
+        <span class="switch"><input type="checkbox" ${s.visible ? "checked" : ""} data-doc="${d.id}" data-sec="${i}" aria-label="分节可见性"></span>
+        <span class="name">${esc(s.name)}</span>
+        <span class="snippet">${esc(s.snippet)}</span>
+        <span class="tag ${s.visible ? "user" : "ai"}" style="flex:0 0 auto">${s.visible ? "用户可见" : "仅 AI"}</span>
+      </div>`).join("")}</div>` : open ? `<div class="sections" style="color:var(--muted);font-size:12px;padding:9px 12px">该文件无可管理分节。</div>` : "";
+    const confirmBar = confirming ? `<div class="confirm-bar">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v4M12 17h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg>
+        删除后同步移除源文件与已建立索引，不可恢复。
+        <span class="spacer"></span>
+        <button class="btn-ghost-danger" data-del-yes="${d.id}">确认删除</button>
+        <button class="btn-ghost" data-del-no>取消</button>
+      </div>` : "";
+    const errorOps = d.status === "error" ? `<button class="btn-ghost" data-retry="${d.id}" style="font-size:12px">重试</button>` : "";
+    return `<div class="doc-row">
+      <div class="doc-main">
+        <span class="file-badge ${d.type}">${d.type.toUpperCase()}</span>
+        <div class="doc-info">
+          <div class="doc-name">${esc(d.name)} ${statusTag} ${visTag}</div>
+          <div class="doc-desc">${esc(d.desc)}${d.owner ? " · 我上传的" : " · 场景内置"}</div>
+          ${d.status === "loading" ? `<div class="progress"><i style="width:${d.progress || 8}%"></i></div>` : ""}
+        </div>
+        <div class="doc-actions">
+          ${errorOps}
+          ${d.sections.length ? `<button class="icon-btn" data-expand="${d.id}" title="分节可见性" aria-expanded="${open}">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="transform:rotate(${open ? 180 : 0}deg);transition:transform .18s"><path d="m6 9 6 6 6-6"/></svg>
+          </button>` : ""}
+          <button class="icon-btn danger" data-del="${d.id}" title="删除资料">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2M6 6l1 14a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-14M10 11v6M14 11v6"/></svg>
+          </button>
+        </div>
+      </div>
+      ${sections}${confirmBar}
+    </div>`;
+  }).join("");
+  renderCta();
+}
+
+/* ---------------- CTA 状态 ---------------- */
+function renderCta() {
+  const sc = SCENES[state.scene];
+  const hasUserDoc = sc.docs.some((d) => d.status === "ok" && d.visibility === "user");
+  const ready = state.scene === "interview" && hasUserDoc;
+  $("#ctaBtn").disabled = !ready;
+  $("#ctaNote").textContent = ready
+    ? "简历已索引，面试官将围绕它展开追问。"
+    : state.scene === "interview"
+      ? "先上传至少一份用户可见资料（如简历），即可开始。"
+      : "面试准备资料在「技术面试」场景中使用。";
+}
+
+/* ---------------- 检索试验台 ---------------- */
+function renderRetrievalNote() {
+  const on = $("#tkRetrieval").checked;
+  $("#searchBtn").disabled = !on;
+  $("#queryInput").disabled = !on;
+  $("#retrievalNote").innerHTML = on
+    ? `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--warn)" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 8h.01M12 11v5"/></svg> 当前为演示数据。正式版：向量 + BM25 召回 → RRF 融合 → 引用可回溯原文（阶段三）。`
+    : `检索能力将随 Hybrid RAG（阶段三）一起开放。当前可先完成资料上传与解析。`;
+}
+function runSearch() {
+  const q = $("#queryInput").value.trim();
+  if (!q) { toast("先输入一个想验证的问题", true); return; }
+  const hits = HITS[state.scene] || [];
+  const list = $("#hitList");
+  if (!hits.length) {
+    list.innerHTML = `<div class="empty" style="padding:22px"><b>没有命中的资料</b><p>当前场景资料较少。正式版中会明确提示"该问题未覆盖资料"，而非强行作答。</p></div>`;
+    return;
+  }
+  const kw = q.replace(/[，。？?！!]/g, " ").split(/\s+/).filter((w) => w.length > 1);
+  list.innerHTML = hits.map((h) => {
+    let html = esc(h.text);
+    kw.forEach((w) => { html = html.split(esc(w)).join(`<mark>${esc(w)}</mark>`); });
+    const src = h.section ? `${h.file} · ${h.section}` : h.file;
+    return `<div class="hit">
+      <div class="hit-src">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/></svg>
+        来源：${esc(src)}
+        <span class="score">向量 ${h.vec.toFixed(2)}</span>
+        <span class="score">BM25 ${h.bm25.toFixed(2)}</span>
+      </div>
+      <p>${html}</p>
+      <div class="full">${esc(h.full)}</div>
+    </div>`;
+  }).join("");
+  toast(`演示检索完成 · 命中 ${hits.length} 条，点击卡片可展开原文`);
+}
+
+/* ---------------- 上传模拟 ---------------- */
+function simulateUpload(fileName, type) {
+  const sc = SCENES[state.scene];
+  const meta = UPLOAD_POOL[uploadIdx % UPLOAD_POOL.length]; uploadIdx++;
+  const doc = { id: ++docIdSeq, type, name: fileName || meta.name, desc: meta.desc, chunks: meta.chunks, visibility: meta.visibility, status: "loading", progress: 6, owner: true, sections: [] };
+  sc.docs.unshift(doc);
+  renderDocs(); renderChips();
+  const timer = setInterval(() => {
+    doc.progress = Math.min((doc.progress || 0) + 14 + Math.random() * 18, 100);
+    if (doc.progress >= 100) {
+      clearInterval(timer);
+      if ($("#tkFail").checked) {
+        doc.status = "error";
+        toast(`「${doc.name}」解析失败：内容无法提取，可重试`, true);
+      } else {
+        doc.status = "ok";
+        doc.sections = [{ name: "全文", snippet: `${doc.chunks} 个分块已完成解析`, visible: true }];
+        toast(`「${doc.name}」解析完成 · ${doc.chunks} 块已建立索引`);
+      }
+      renderDocs(); renderChips();
+    } else { renderDocs(); }
+  }, 260);
+}
+
+function fakePick() {
+  const pool = [
+    { name: "project-notes.md", type: "md" },
+    { name: "resume-v3.pdf", type: "pdf" },
+    { name: "behavioral-prep.txt", type: "txt" }
+  ];
+  const pick = pool[uploadIdx % pool.length];
+  simulateUpload(pick.name, pick.type);
+}
+
+/* ---------------- 事件绑定 ---------------- */
+document.addEventListener("click", (e) => {
+  const t = e.target.closest("[data-scene], [data-scope], [data-expand], [data-del], [data-del-yes], [data-del-no], [data-retry], #searchBtn, #ctaBtn, #dropzone, .hit");
+  if (!t) return;
+  if (t.dataset.scene) {
+    state.scene = t.dataset.scene;
+    state.confirming = null; state.expanded.clear();
+    renderChips(); renderDocs(); $("#hitList").innerHTML = "";
+    return;
+  }
+  if (t.dataset.scope) {
+    state.scope = t.dataset.scope;
+    document.querySelectorAll(".scope-tab").forEach((b) => b.classList.toggle("active", b.dataset.scope === state.scope));
+    $("#sceneView").style.display = state.scope === "scene" ? "" : "none";
+    $("#personalView").style.display = state.scope === "personal" ? "" : "none";
+    return;
+  }
+  if (t.dataset.expand !== undefined) {
+    const id = +t.dataset.expand;
+    state.expanded.has(id) ? state.expanded.delete(id) : state.expanded.add(id);
+    renderDocs(); return;
+  }
+  if (t.dataset.del !== undefined) { state.confirming = +t.dataset.del; renderDocs(); return; }
+  if (t.dataset.delNo !== undefined) { state.confirming = null; renderDocs(); return; }
+  if (t.dataset.delYes !== undefined) {
+    const sc = SCENES[state.scene];
+    const idx = sc.docs.findIndex((d) => d.id === +t.dataset.delYes);
+    if (idx > -1) { const [gone] = sc.docs.splice(idx, 1); toast(`已删除「${gone.name}」，源文件与索引同步移除`); }
+    state.confirming = null;
+    renderDocs(); renderChips(); return;
+  }
+  if (t.dataset.retry !== undefined) {
+    const sc = SCENES[state.scene];
+    const doc = sc.docs.find((d) => d.id === +t.dataset.retry);
+    if (doc) { doc.status = "loading"; doc.progress = 10; simulateRetry(doc); }
+    return;
+  }
+  if (t.id === "searchBtn") { runSearch(); return; }
+  if (t.id === "ctaBtn" && !t.disabled) { toast("原型演示：正式版将跳转「模拟面试」并预选本场景资料"); return; }
+  if (t.id === "dropzone" || t.closest("#dropzone")) {
+    if (t.id !== "dropzone" && t.tagName === "BUTTON") return; /* 按钮自身也触发 fakePick，避免双触发 */
+    return;
+  }
+  if (t.classList.contains("hit")) { t.classList.toggle("open"); return; }
+});
+
+/* 重试用独立计时器（结构同上传） */
+function simulateRetry(doc) {
+  renderDocs();
+  const timer = setInterval(() => {
+    doc.progress = Math.min((doc.progress || 0) + 20, 100);
+    if (doc.progress >= 100) {
+      clearInterval(timer);
+      doc.status = "ok";
+      doc.sections = [{ name: "全文", snippet: `${doc.chunks} 个分块已完成解析`, visible: true }];
+      toast(`「${doc.name}」重试成功 · 已建立索引`);
+      renderDocs(); renderChips();
+    } else renderDocs();
+  }, 240);
+}
+
+/* 拖放 */
+const dz = $("#dropzone");
+["dragover", "dragenter"].forEach((ev) => dz.addEventListener(ev, (e) => { e.preventDefault(); dz.classList.add("drag"); }));
+["dragleave", "drop"].forEach((ev) => dz.addEventListener(ev, (e) => { e.preventDefault(); dz.classList.remove("drag"); }));
+dz.addEventListener("drop", (e) => {
+  const f = e.dataTransfer.files && e.dataTransfer.files[0];
+  const ext = f ? f.name.split(".").pop().toLowerCase() : "pdf";
+  if (!["pdf", "txt", "md", "markdown"].includes(ext)) { toast(`不支持的文件类型 .${ext}，仅支持 pdf / txt / md`, true); return; }
+  if (f && f.size > 10 * 1024 * 1024) { toast("文件超过 10 MB 上限", true); return; }
+  simulateUpload(f ? f.name : null, ext === "markdown" ? "md" : ext);
+});
+dz.addEventListener("click", (e) => { if (e.target.closest("button")) return; fakePick(); });
+dz.querySelector("button").addEventListener("click", (e) => { e.stopPropagation(); fakePick(); });
+
+/* 分节可见性开关 */
+document.addEventListener("change", (e) => {
+  if (e.target.matches("[data-sec]")) {
+    const doc = SCENES[state.scene].docs.find((d) => d.id === +e.target.dataset.doc);
+    const sec = doc && doc.sections[+e.target.dataset.sec];
+    if (sec) {
+      sec.visible = e.target.checked;
+      toast(`「${doc.name} · ${sec.name}」已${sec.visible ? "对用户可见" : "设为仅 AI 可见"}`);
+      renderDocs();
+    }
+  }
+});
+
+/* Tweaks */
+$("#tweaksBtn").addEventListener("click", () => $("#tweaks").classList.toggle("open"));
+$("#tkRetrieval").addEventListener("change", renderRetrievalNote);
+$("#tkEmpty").addEventListener("change", (e) => { state.tkEmpty = e.target.checked; renderDocs(); });
+state.tkEmpty = false;
+
+/* 回车检索 */
+$("#queryInput").addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.target.disabled) runSearch(); });
+
+/* ---------------- 初始化 ---------------- */
+renderChips();
+renderDocs();
+renderRetrievalNote();
+</script>
+</body>
+</html>

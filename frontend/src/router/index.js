@@ -29,7 +29,7 @@ const router = createRouter({
         { path: 'scenes', name: 'scenes', component: () => import('../views/Scenes.vue'), meta: { title: '场景探索' } },
         { path: 'scenes/create', name: 'scene-create', component: () => import('../views/SceneEditor.vue'), meta: { title: '新建场景' } },
         { path: 'scenes/:id/edit', name: 'scene-edit', component: () => import('../views/SceneEditor.vue'), meta: { title: '编辑场景' } },
-        module('knowledge', 'knowledge', '知识工作区', '资料上传、解析与带来源的检索问答。'),
+        { path: 'knowledge', name: 'knowledge', component: () => import('../views/Knowledge.vue'), meta: { title: '知识工作区' } }, // 一期：场景资料管理；检索随阶段三开放
         module('avatar', 'avatar', '数字人角色', '角色形象、声音与语速偏好。'),
         module('review', 'review', '复习计划', '听力错题、词汇与表达的复习队列。'),
         module('report', 'report', '训练报告', '课后总结、纠错记录与发音结果。'),

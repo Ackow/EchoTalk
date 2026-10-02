@@ -5,6 +5,7 @@
 导入导出携带源文件，索引用当前 embedding 重建，与模型版本解耦。
 """
 import hashlib
+import logging
 import os
 import re
 import shutil
@@ -18,8 +19,13 @@ from sqlalchemy.orm import Session
 from app.models import Chunk, Document, Scene
 from app.scenes.errors import SceneNotFoundError, SceneUnsupportedFileError
 
+logger = logging.getLogger(__name__)
+
 BACKEND_DIR = Path(__file__).resolve().parents[2]  # backend 目录：本文件向上两级
 load_dotenv(BACKEND_DIR / ".env", override=False)  # 与 config.py 一致：不覆盖已有环境变量
+
+# 内置场景包自带资料的源文件目录（随代码分发，seed 时物化到 storage 与数据库）
+CONTENT_KNOWLEDGE_DIR = Path(__file__).resolve().parents[1] / "content" / "scenes" / "knowledge"
 
 # 文件存储根目录：默认 backend/storage/，可用 ECHOTALK_STORAGE_ROOT 指向数据盘等外部路径
 STORAGE_ROOT = Path(os.getenv("ECHOTALK_STORAGE_ROOT", str(BACKEND_DIR / "storage"))).resolve()
@@ -99,23 +105,58 @@ def cover_file(relative_path: str) -> Path:
 
 _HEADING_RE = re.compile(r"^(#{1,6})\s+(.+)$", re.MULTILINE)
 
+# 分节可见性标记（沿用 1.0 约定）：写在标题行内，解析后从标题中清理。
+#   [user] / [用户]        → 该分节对用户可见
+#   [ai] / [仅ai] / [仅 ai] → 该分节仅 AI 检索可见
+_HEADING_VISIBILITY_RE = re.compile(
+    r"\[\s*(user|用户|ai|仅\s*ai)\s*\]", re.IGNORECASE
+)
 
-def parse_sections(filename: str, raw: str) -> list[tuple[str, str]]:
-    """把文本解析为 (分节名, 分节文本) 列表。
+# 文件名可见性前缀（沿用 1.0）：user_xxx.md 整文件用户可见；ai_xxx.md 整文件仅 AI。
+_FILENAME_USER_PREFIXES = ("user_", "user-")
+_FILENAME_AI_PREFIXES = ("ai_", "ai-")
+
+
+def filename_visibility(filename: str) -> str | None:
+    """文件名前缀 → 整文件可见性缺省（user_ / ai_ 前缀）；无前缀返回 None。"""
+    name = Path(filename).name.lower()
+    if name.startswith(_FILENAME_USER_PREFIXES):
+        return "user"
+    if name.startswith(_FILENAME_AI_PREFIXES):
+        return "ai_only"
+    return None
+
+
+def _heading_visibility(heading_text: str) -> tuple[str | None, str]:
+    """从标题文本提取可见性标记；返回 (visibility 或 None, 清理后的标题)。"""
+    visibility = None
+    match = _HEADING_VISIBILITY_RE.search(heading_text)
+    if match:
+        token = match.group(1).lower().replace(" ", "")
+        visibility = "user" if token in ("user", "用户") else "ai_only"
+    cleaned = _HEADING_VISIBILITY_RE.sub("", heading_text).strip()
+    return visibility, cleaned
+
+
+def parse_sections(filename: str, raw: str) -> list[tuple[str, str, str | None]]:
+    """把文本解析为 (分节名, 分节文本, 分节可见性) 列表。
 
     Markdown 按 # 标题分节；无标题的 txt 以文件名（去扩展名）作为唯一分节。
+    标题行内的 [user]/[ai] 标记决定该分节的可见性（None = 继承文件级缺省），
+    标记本身会从分节名中清理掉。
     """
     if not _HEADING_RE.search(raw):  # 无标题：整个文件一个分节
-        return [[Path(filename).stem, raw.strip()]]
-    sections: list[tuple[str, str]] = []
+        return [[Path(filename).stem, raw.strip(), None]]
+    sections: list[tuple[str, str, str | None]] = []
     matches = list(_HEADING_RE.finditer(raw))
     head = raw[: matches[0].start()].strip()  # 首个标题前的引导文本
     if head:
-        sections.append([Path(filename).stem, head])
+        sections.append([Path(filename).stem, head, None])
     for index, match in enumerate(matches):
         end = matches[index + 1].start() if index + 1 < len(matches) else len(raw)
-        sections.append([match.group(2).strip(), raw[match.end():end].strip()])
-    return [(name, text) for name, text in sections if text]
+        visibility, name = _heading_visibility(match.group(2).strip())
+        sections.append([name, raw[match.end():end].strip(), visibility])
+    return [(name, text, vis) for name, text, vis in sections if text]
 
 
 def _split_long_section(text: str) -> list[str]:
@@ -140,13 +181,21 @@ def _split_long_section(text: str) -> list[str]:
     return chunks or [text]
 
 
-def chunk_document(filename: str, raw: str) -> list[dict[str, Any]]:
-    """解析 → 分节 → 分块；返回 [{section, ordinal, text}]。"""
+def chunk_document(filename: str, raw: str, default_visibility: str = "user") -> list[dict[str, Any]]:
+    """解析 → 分节 → 分块；返回 [{section, ordinal, text, visibility}]。
+
+    可见性优先级（沿用 1.0 的分节标记约定）：
+    1. 标题行内标记 [user]/[ai]（最细粒度，作者显式标注）
+    2. 文件名前缀 user_ / ai_（整文件显式约定）
+    3. 文件级缺省 default_visibility（包声明 / 上传时选择的可见性）
+    """
+    prefix_visibility = filename_visibility(filename)
     result: list[dict[str, Any]] = []
     ordinal = 0
-    for section_name, section_text in parse_sections(filename, raw):
+    for section_name, section_text, marker_visibility in parse_sections(filename, raw):
+        visibility = marker_visibility or prefix_visibility or default_visibility
         for piece in _split_long_section(section_text):
-            result.append({"section": section_name, "ordinal": ordinal, "text": piece})
+            result.append({"section": section_name, "ordinal": ordinal, "text": piece, "visibility": visibility})
             ordinal += 1
     return result
 
@@ -189,7 +238,7 @@ def add_document(
 ) -> Document:
     """保存源文件 → 解析分块 → 写 documents/chunks（同名资料先删后建，幂等更新）。"""
     text = load_text(filename, content)
-    chunks = chunk_document(filename, text)
+    chunks = chunk_document(filename, text, visibility)  # 分块可见性可被标题标记/文件名前缀覆盖
     if not chunks:
         raise SceneUnsupportedFileError(f"未能从文档中解析出有效文本：{filename}")
 
@@ -207,7 +256,7 @@ def add_document(
         filename=filename,
         content_type=content_type,
         chunk_count=len(chunks),
-        visibility=visibility,
+        visibility=visibility,  # 文件级缺省；分块实际可见性见 chunks.visibility
         created_at=document_time(),
     )
     db.add(document)
@@ -218,7 +267,7 @@ def add_document(
                 document_id=document.id,
                 scene_id=scene.id,
                 section=chunk["section"],
-                visibility=visibility,  # 文件级缺省；可被 PATCH 分节接口覆盖
+                visibility=chunk["visibility"],  # 优先级：标题标记 > 文件名前缀 > 文件级
                 ordinal=chunk["ordinal"],
                 text=chunk["text"],
             )
@@ -232,6 +281,29 @@ def document_time():
     from app.core.timeutil import utcnow
 
     return utcnow()
+
+
+def seed_builtin_documents(db: Session, scene: Scene, package) -> int:
+    """把内置场景包声明的知识资料物化为 storage 文件 + documents/chunks（幂等）。
+
+    场景包 YAML 只声明 knowledge.files 清单（path/visibility），内容源文件
+    位于 content/scenes/knowledge/{scene_id}/；种子同步时若该文件尚无
+    Document 记录则入库，已有记录则跳过（保留用户的分节可见性调整）。
+    返回本次新物化的文件数。
+    """
+    seeded = 0
+    for meta in package.knowledge.files:
+        filename = Path(meta.path).name  # path 相对 knowledge/ 目录，取文件名落盘
+        existing = db.query(Document).filter(Document.scene_id == scene.id, Document.filename == filename).first()
+        if existing is not None:
+            continue
+        source = CONTENT_KNOWLEDGE_DIR / scene.id / filename
+        if not source.exists():
+            logger.warning("内置场景 %s 声明的资料缺少源文件：%s", scene.id, meta.path)
+            continue
+        add_document(db, scene, filename, source.read_bytes(), "text/markdown", meta.visibility)
+        seeded += 1
+    return seeded
 
 
 def delete_document(db: Session, scene_id: str, document_id: int) -> Document:
@@ -252,6 +324,32 @@ def delete_document(db: Session, scene_id: str, document_id: int) -> Document:
 def list_documents(db: Session, scene_id: str) -> list[Document]:
     """场景资料元数据列表。"""
     return db.query(Document).filter(Document.scene_id == scene_id).order_by(Document.id).all()
+
+
+def document_overview(db: Session, scene_id: str) -> list[dict[str, Any]]:
+    """文件级资料概览：文件元数据 + 按文件分组的分节（知识工作区管理界面数据源）。"""
+    documents = list_documents(db, scene_id)
+    by_doc: dict[int, dict[str, dict[str, Any]]] = {}
+    for row in db.query(Chunk).filter(Chunk.scene_id == scene_id).order_by(Chunk.id):
+        agg = by_doc.setdefault(row.document_id, {}).setdefault(
+            row.section or "_",
+            {"section": row.section or "_", "visibility": row.visibility, "chunk_count": 0, "preview": ""},
+        )
+        agg["chunk_count"] += 1
+        if not agg["preview"] and row.text:
+            agg["preview"] = row.text[:120]
+    return [
+        {
+            "id": doc.id,
+            "filename": doc.filename,
+            "chunk_count": doc.chunk_count,
+            "visibility": doc.visibility,
+            "owner_id": doc.owner_id,
+            "created_at": doc.created_at.isoformat() if doc.created_at else None,
+            "sections": list(by_doc.get(doc.id, {}).values()),
+        }
+        for doc in documents
+    ]
 
 
 def visible_sections(db: Session, scene_id: str, only_user: bool = True) -> list[dict[str, Any]]:

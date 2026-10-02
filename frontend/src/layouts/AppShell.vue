@@ -3,7 +3,7 @@
   <main class="workspace-shell" :class="{ 'sidebar-hidden': sidebarHidden }">
     <aside class="sidebar">
       <div class="sidebar-inner">
-        <div class="sidebar-traffic"> <!-- macOS 红绿灯落位区（可拖拽移动窗口），展开时折叠按钮靠本行最右侧 -->
+        <div class="sidebar-traffic"> <!-- 顶部拖拽区：macOS 红绿灯落位，折叠按钮靠右；Windows/Linux 无红绿灯，按钮靠最左 -->
           <button
             v-if="!sidebarHidden"
             class="collapse-toggle"

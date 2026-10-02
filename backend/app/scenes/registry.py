@@ -135,6 +135,14 @@ def sync_seeds(db: Session) -> int:
             db.add(row)
             _cache[package.meta.id] = package
             synced += 1
+
+        # 内置场景：把包声明的知识资料物化为文件 + documents/chunks（幂等）
+        if row.source == "builtin" and package.knowledge.files:
+            from app.scenes import knowledge as knowledge_svc  # 局部导入避免潜在循环
+
+            materialized = knowledge_svc.seed_builtin_documents(db, row, package)
+            if materialized:
+                logger.info("场景 %s 物化内置资料 %d 个文件", package.meta.id, materialized)
     db.commit()
     return synced
 

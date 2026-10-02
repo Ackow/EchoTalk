@@ -270,6 +270,16 @@ def get_section_overview(
     return scene_service.section_overview(db, scene_id, user)
 
 
+@router.get("/{scene_id}/knowledge/documents")
+def list_scene_documents(
+    scene_id: str,
+    user: User | None = Depends(get_optional_user),
+    db: Session = Depends(get_db),
+):
+    """资料文件级列表（含每文件分节分组）：知识工作区管理界面数据源。"""
+    return scene_service.document_overview(db, scene_id, user)
+
+
 @router.patch("/{scene_id}/knowledge/sections/{section_name}")
 def patch_section_visibility(
     scene_id: str,

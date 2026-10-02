@@ -148,6 +148,7 @@ def duplicate_scene(db: Session, user: User, scene_id: str) -> dict[str, Any]:
             target_dir.joinpath(f"cover{source_cover.suffix}").write_bytes(source_cover.read_bytes())
             new_row.cover_path = f"scenes/{new_id}/cover{source_cover.suffix}"
     db.add(new_row)
+    db.flush()  # 先落 Scene 行：documents/chunks 的 FK 指向新 id，须等场景行存在（两表无 ORM relationship，单元工作不会自动排序）
 
     for document in knowledge_svc.list_documents(db, row.id):
         source = knowledge_svc.knowledge_dir(row.id) / document.filename
@@ -316,6 +317,13 @@ def section_overview(db: Session, scene_id: str, user: User | None) -> dict[str,
         "scene_id": scene_id,
         "sections": knowledge_svc.visible_sections(db, scene_id, only_user=False),
     }
+
+
+def document_overview(db: Session, scene_id: str, user: User | None) -> dict[str, Any]:
+    """资料文件级概览（含每文件分节分组）：知识工作区管理界面数据源。"""
+    row = load_scene(db, scene_id)
+    ensure_visible(row, user)
+    return {"scene_id": scene_id, "documents": knowledge_svc.document_overview(db, scene_id)}
 
 
 def patch_section_visibility(db: Session, user: User, scene_id: str, section: str, visibility: str) -> dict[str, Any]:

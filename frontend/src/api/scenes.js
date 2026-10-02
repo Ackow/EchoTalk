@@ -40,13 +40,23 @@ export const exportScene = async (id, filename) => {
 }
 
 // 知识资料
-export const uploadKnowledge = (id, file, visibility = 'user') => {
+export const uploadKnowledge = (id, file, visibility = 'user', onProgress) => {
   const form = new FormData()
   form.append('file', file)
-  return http.post(`/scenes/${id}/knowledge`, form, { params: { visibility }, timeout: 60000 })
+  return http.post(`/scenes/${id}/knowledge`, form, {
+    params: { visibility },
+    timeout: 60000,
+    onUploadProgress: onProgress, // 上传进度回调（可选）
+  })
 }
 
 export const deleteKnowledge = (id, documentId) => http.delete(`/scenes/${id}/knowledge/${documentId}`)
+
+// 文件级资料概览（含每文件分节分组）：知识工作区列表数据源
+export const listKnowledgeDocuments = (id) => http.get(`/scenes/${id}/knowledge/documents`)
+
+// 分节级概览（旧版后端兼容 / 对话侧数据源）
+export const getSectionOverview = (id) => http.get(`/scenes/${id}/knowledge/sections`)
 
 export const patchSectionVisibility = (id, section, visibility) =>
   http.patch(`/scenes/${id}/knowledge/sections/${encodeURIComponent(section)}`, { visibility })

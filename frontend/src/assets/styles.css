@@ -38,9 +38,10 @@ button:disabled { cursor: default; }
 .sidebar { position: relative; min-width: 0; overflow: hidden; } /* 裁切容器：滑出动画时侧栏被裁切而非挤压 */
 .sidebar-inner { display: flex; flex-direction: column; width: 248px; height: 100%; padding: 0 14px 14px; border-right: 1px solid var(--line); background: var(--surface); transition: transform .22s ease; will-change: transform; }
 .sidebar-hidden .sidebar-inner { transform: translateX(-100%); } /* WorkBuddy 式折叠：面板整体向左滑出，而非原地收窄裁切 */
-.sidebar-traffic { display: flex; flex: 0 0 44px; align-items: center; } /* 非 macOS：仅作顶部留白并容纳折叠按钮 */
-html[data-platform="darwin"] .sidebar-traffic { flex-basis: 48px; -webkit-app-region: drag; user-select: none; } /* macOS：红绿灯落位区，可拖拽窗口 */
-.collapse-toggle { display: grid; width: 27px; height: 27px; flex: 0 0 27px; place-items: center; margin-left: auto; border: 0; border-radius: 7px; background: transparent; color: var(--muted); transition: background .15s, color .15s; } /* 与红绿灯同行，靠行最右侧 */
+.sidebar-traffic { display: flex; flex: 0 0 44px; align-items: center; -webkit-app-region: drag; user-select: none; } /* 顶行兼作窗口拖拽区；非 macOS 无红绿灯，仅容纳折叠按钮 */
+html[data-platform="darwin"] .sidebar-traffic { flex-basis: 48px; } /* macOS：红绿灯落位区（高度对齐红绿灯中线） */
+.collapse-toggle { display: grid; width: 27px; height: 27px; flex: 0 0 27px; place-items: center; margin-left: auto; border: 0; border-radius: 7px; background: transparent; color: var(--muted); -webkit-app-region: no-drag; transition: background .15s, color .15s; } /* 拖拽区内需显式 no-drag，否则按钮点击被窗口拖拽吞掉 */
+html:not([data-platform="darwin"]) .sidebar-traffic .collapse-toggle { margin-left: 8px; margin-right: auto; } /* Windows/Linux：无红绿灯，折叠按钮移到最左，与下方品牌图标左对齐 */
 .collapse-toggle:hover { background: #f0f1f6; color: var(--ink-soft); }
 .brand-lockup { display: flex; align-items: center; gap: 10px; padding: 2px 8px 14px; user-select: none; }
 .brand-lockup b, .brand-lockup small, .account-name b, .account-name small { display: block; }
