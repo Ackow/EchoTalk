@@ -68,6 +68,7 @@ var/
 !.env.template
 !backend/.env.example
 !frontend/.env.example
+!backend/deploy/.env.production.example
 config.json
 secrets.json
 

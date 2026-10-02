@@ -5,17 +5,24 @@
 导入导出携带源文件，索引用当前 embedding 重建，与模型版本解耦。
 """
 import hashlib
+import os
 import re
 import shutil
 from pathlib import Path
 from typing import Any
+
+from dotenv import load_dotenv
 
 from sqlalchemy.orm import Session
 
 from app.models import Chunk, Document, Scene
 from app.scenes.errors import SceneNotFoundError, SceneUnsupportedFileError
 
-STORAGE_ROOT = Path(__file__).resolve().parents[2] / "storage"  # backend/storage/
+BACKEND_DIR = Path(__file__).resolve().parents[2]  # backend 目录：本文件向上两级
+load_dotenv(BACKEND_DIR / ".env", override=False)  # 与 config.py 一致：不覆盖已有环境变量
+
+# 文件存储根目录：默认 backend/storage/，可用 ECHOTALK_STORAGE_ROOT 指向数据盘等外部路径
+STORAGE_ROOT = Path(os.getenv("ECHOTALK_STORAGE_ROOT", str(BACKEND_DIR / "storage"))).resolve()
 ALLOWED_EXTENSIONS = {".md", ".markdown", ".txt", ".pdf"}
 MAX_FILE_SIZE = 10 * 1024 * 1024  # 单文件 10 MB（§9.5）
 SECTION_CHUNK_TARGET = 700  # 分块目标长度（字符）
