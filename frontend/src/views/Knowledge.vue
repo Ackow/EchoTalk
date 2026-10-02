@@ -50,6 +50,9 @@
         </label>
       </div>
 
+      <!-- 双栏：左侧资料管理，右侧知识图谱（LightRAG 预留） -->
+      <div class="kw-columns">
+      <div class="kw-main">
       <p v-if="!session.token" class="guest-note">
         <AppIcon name="info" :size="13" />游客仅可浏览内置场景资料；登录后可上传与管理。
       </p>
@@ -161,6 +164,65 @@
           <h3>暂无可用场景</h3>
           <p>未获取到场景列表，请检查后端连接与登录状态后刷新重试。</p>
         </template>
+      </div>
+      </div>
+
+      <!-- 右栏：实体关系（阶段三 LightRAG 预留，当前为静态示意） -->
+      <aside class="kw-side" aria-label="知识图谱与图例">
+        <div class="side-card">
+          <div class="side-head">
+            <h4>实体关系</h4>
+            <span class="side-tag">阶段三 · LightRAG</span>
+          </div>
+          <svg class="rag-graph" viewBox="0 0 264 168" aria-hidden="true">
+            <g class="edges">
+              <path d="M78 40 C 104 42, 106 50, 118 54" />
+              <path d="M78 40 C 106 48, 108 70, 118 80" />
+              <path d="M78 130 C 104 124, 106 112, 118 106" />
+              <path d="M78 130 C 104 132, 108 140, 118 144" />
+              <path d="M142 58 C 168 66, 172 82, 190 92" />
+              <path d="M142 146 C 168 138, 174 120, 190 110" />
+              <path d="M138 90 C 150 82, 156 68, 162 62" />
+            </g>
+            <g class="node file">
+              <rect x="12" y="29" width="66" height="22" rx="6" />
+              <text x="45" y="43">menu.md</text>
+            </g>
+            <g class="node file">
+              <rect x="12" y="119" width="66" height="22" rx="6" />
+              <text x="45" y="133">jd.md</text>
+            </g>
+            <g class="node entity">
+              <circle cx="130" cy="54" r="14" />
+              <text x="130" y="57.5">拿铁</text>
+            </g>
+            <g class="node entity">
+              <circle cx="130" cy="96" r="14" />
+              <text x="130" y="99.5">燕麦奶</text>
+            </g>
+            <g class="node entity">
+              <circle cx="130" cy="146" r="14" />
+              <text x="130" y="149.5">Python</text>
+            </g>
+            <g class="node entity">
+              <circle cx="204" cy="100" r="14" />
+              <text x="204" y="103.5">MySQL</text>
+            </g>
+            <g class="node entity">
+              <circle cx="204" cy="46" r="14" />
+              <text x="204" y="49.5">Docker</text>
+            </g>
+          </svg>
+          <p class="graph-note">示意图 · 实际图谱将在资料解析时自动生成</p>
+          <p class="side-desc">阶段三将抽取资料中的实体（条目、技能、人物）与关系，构建跨文件知识图谱；检索时可沿关系多跳召回，回答可引用到原始文件。</p>
+        </div>
+        <div class="side-card">
+          <div class="side-head"><h4>可见性图例</h4></div>
+          <div class="legend-row"><span class="tag user"><AppIcon name="eye" :size="11" />用户可见</span><span>展示在对话参考面板，学习者可直接查看</span></div>
+          <div class="legend-row"><span class="tag ai"><AppIcon name="bot" :size="11" />仅 AI</span><span>只参与 AI 检索，不展示给学习者</span></div>
+          <div class="legend-row"><span class="legend-mark">[ai]</span><span>在 Markdown 标题内标注可控制单个分节的可见性</span></div>
+        </div>
+      </aside>
       </div>
     </template>
 
@@ -390,6 +452,26 @@ onBeforeUnmount(() => clearTimeout(noticeTimer))
 .search-box input::placeholder { color: var(--faint, #a6a9bd); }
 
 .guest-note { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12.5px; margin: 0 0 10px; }
+
+/* ===== 双栏：左资料管理 + 右知识图谱（LightRAG 预留） ===== */
+.kw-columns { display: flex; gap: 16px; align-items: flex-start; flex: 1 0 auto; min-width: 0; }
+.kw-main { flex: 1; min-width: 0; }
+.kw-side { flex: 0 0 264px; display: flex; flex-direction: column; gap: 12px; }
+.side-card { border: 1px solid var(--line); border-radius: 12px; background: var(--surface); padding: 14px 16px; }
+.side-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+.side-head h4 { margin: 0; font-size: 13.5px; color: var(--ink); }
+.side-tag { font-size: 11px; color: var(--brand); background: var(--brand-soft); border-radius: 99px; padding: 2px 9px; font-weight: 600; white-space: nowrap; }
+.side-desc { color: var(--muted); font-size: 12px; line-height: 1.65; margin: 8px 0 0; }
+.rag-graph { width: 100%; height: auto; display: block; margin-top: 2px; }
+.rag-graph .edges path { fill: none; stroke: #cdd0e6; stroke-width: 1.2; }
+.rag-graph .node rect { fill: var(--brand-soft); stroke: #d9dbf3; }
+.rag-graph .node circle { fill: #fff; stroke: #cdd0e6; }
+.rag-graph text { font-size: 9px; fill: var(--ink-soft); text-anchor: middle; }
+.graph-note { margin: 6px 0 0; font-size: 11px; color: var(--faint, #a6a9bd); }
+.legend-row { display: flex; align-items: flex-start; gap: 8px; margin: 7px 0; font-size: 12px; color: var(--muted); line-height: 1.5; }
+.legend-row .tag { flex: 0 0 auto; margin-top: 1px; }
+.legend-mark { flex: 0 0 auto; font-size: 11px; font-weight: 600; color: var(--brand-deep, var(--brand)); background: var(--brand-soft); border-radius: 5px; padding: 1px 6px; margin-top: 1px; }
+@media (max-width: 1080px) { .kw-columns { flex-direction: column; } .kw-side { flex: 1 1 auto; flex-direction: row; } .kw-side .side-card { flex: 1; } }
 
 /* ===== 拖放上传区（紧凑单行） ===== */
 .dropzone { display: flex; flex: 0 0 auto; align-items: center; gap: 10px; padding: 13px 16px; border: 1.5px dashed #cdd0e6; border-radius: 12px; background: var(--surface); color: var(--muted); cursor: pointer; transition: border-color .15s, background .15s; margin-bottom: 14px; }
