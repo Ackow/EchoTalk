@@ -279,6 +279,20 @@ journalctl -u echotalk-backend -f         # 看实时日志
 journalctl -u echotalk-backend --since today
 ```
 
+**改完 service 文件后必须重载才生效**：`sudo systemctl daemon-reload && sudo systemctl restart echotalk-backend`。注意 `/etc/systemd/system/echotalk-backend.service` 是**拷贝**过去的副本，改仓库里的 `deploy/echotalk-backend.service` 不会自动影响它，需要重新 `sudo cp deploy/echotalk-backend.service /etc/systemd/system/`。
+
+**外部直接访问 API（测试期）**：service 与 `.env` 里的 `ECHOTALK_API_HOST` 都设为 `0.0.0.0` 后，可通过 `http://<服务器IP>:8000/api/health` 访问（需在云安全组放行 8000）。正式部署改回 `127.0.0.1` 并走 Nginx/HTTPS。
+
+**常见故障排查**：
+
+| 现象 | 原因与处理 |
+|---|---|
+| `status=203/EXEC Permission denied` | `User=` 与安装依赖的用户不一致。uv 装的 Python 在 `/root/.local/share/uv` 下，若用 root 装依赖，service 里必须 `User=root`；改完 `daemon-reload`。venv 本身损坏则 `rm -rf .venv && uv sync` 重建 |
+| `curl` 连不上但 status 显示 running | 服务监听在 `127.0.0.1`，外部访问不到；改监听地址或用 Nginx 转发 |
+| 日志 `RuntimeError: 未配置数据库密码` | `backend/.env` 未配置 `ECHOTALK_DB_PASSWORD`，按 `deploy/.env.production.example` 补齐 |
+| 日志 `Access denied for user 'echotalk_app'` | `.env` 中的密码/端口与 MySQL 实际建号不一致（云端默认端口 3306，本地开发是 3307） |
+| `update.sh` 跑完 `.env` 里的配置没变 | 脚本只在 `.env` 不存在时生成模板，**已存在的 `.env` 不会被覆盖**（避免丢密码），需手动改 |
+
 ---
 
 ## 第 6 步：Nginx 反向代理 + HTTPS

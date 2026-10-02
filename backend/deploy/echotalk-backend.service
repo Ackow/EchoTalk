@@ -1,8 +1,12 @@
 # EchoTalk 2.0 API systemd 服务单元
-# 安装：sudo cp echotalk-backend.service /etc/systemd/system/
+# 安装：sudo cp deploy/echotalk-backend.service /etc/systemd/system/
 #       sudo systemctl daemon-reload && sudo systemctl enable --now echotalk-backend
 # 前提：代码位于 /opt/echotalk，虚拟环境由 uv sync 创建于 backend/.venv
-#       运行用户为 deploy（如不同请同步修改 User 与路径）
+#
+# 注意 User= 必须与「实际安装依赖的用户」保持一致：
+#   - 用 root 跑 uv sync / 部署脚本 → User=root（uv 的 Python 解释器装在 /root/.local/share/uv 下）
+#   - 用 deploy 用户跑 → User=deploy，且 /opt/echotalk 需归 deploy 所有
+#     （否则 systemd 执行 .venv/bin/uvicorn 时会报 status=203/EXEC Permission denied）
 
 [Unit]
 Description=EchoTalk 2.0 API (FastAPI + uvicorn)
@@ -11,20 +15,22 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-User=deploy
-Group=deploy
+User=root
+Group=root
 WorkingDirectory=/opt/echotalk/backend
-ExecStart=/opt/echotalk/backend/.venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8000 --workers 2
+# 监听 0.0.0.0:8000，外部可直接访问（测试期方便；正式部署建议改回 127.0.0.1 并走 Nginx/HTTPS，
+# 同时 .env 里 ECHOTALK_API_HOST 也要同步改为 127.0.0.1）
+ExecStart=/opt/echotalk/backend/.venv/bin/python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 2
 Restart=always
 RestartSec=3
 Environment=PYTHONUNBUFFERED=1
 # .env 由应用自行从 WorkingDirectory 加载，无需在此重复配置
 
-# 基础加固
+# 基础加固（若再遇 exec 权限类问题，可先注释掉 Protect* 两行再排查）
 NoNewPrivileges=true
 PrivateTmp=true
-ProtectSystem=full
-ProtectHome=read-only
+# ProtectSystem=full
+# ProtectHome=read-only
 
 [Install]
 WantedBy=multi-user.target
