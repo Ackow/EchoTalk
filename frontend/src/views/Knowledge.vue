@@ -239,6 +239,7 @@
                 ref="lrSvg"
                 class="rag-graph lr-canvas"
                 :viewBox="`${lrView.x} ${lrView.y} ${lrView.w} ${lrView.h}`"
+                :style="{ height: lrLayout.height + 'px' }"
                 aria-label="实体关系图"
                 @wheel.prevent="onLrWheel"
                 @mousedown="onLrDown"
@@ -316,8 +317,8 @@
             </div>
             <p v-else class="graph-note">上传资料后自动生成实体关系图</p>
             <p class="side-desc">{{ graphData?.engine === 'lightrag'
-              ? 'LightRAG 从资料中抽取的实体关系网络：圆点大小 = 关联数量，颜色 = 实体类型；点击节点聚焦其关系，悬停查看描述。'
-              : '同名分节跨文件合并为桥接节点；虚线连接内容相关的跨文件分节。上传资料并等待 LightRAG 索引完成后自动切换为实体关系网络。' }}</p>
+              ? '颜色 = 实体类型，大小 = 关联数；点击聚焦，悬停看详情。'
+              : '同名分节跨文件合并；虚线 = 内容相关。索引完成后切换。' }}</p>
           </div>
           <div class="side-card">
             <div class="side-head"><h4>可见性图例</h4></div>
@@ -1151,12 +1152,12 @@ const lrLayout = computed(() => {
   const ranked = [...graphData.value.nodes]
     .map((n) => ({ ...n, degree: degree.get(n.id) || 0 }))
     .sort((a, b) => b.degree - a.degree || a.label.localeCompare(b.label))
-  // 画布尺寸：宽度随容器、高度随窗口高度（扣除页面其他区域 + 下方说明与可见性图例的空间）
+  // 画布尺寸：宽度随容器、高度随窗口高度（扣除页面顶部、卡片说明与可见性图例的空间，保证右栏一屏内）
   const width = Math.round(Math.min(760, Math.max(240, lrWrapWidth.value)))
-  const usable = Math.max(260, lrWinHeight.value - 440)
-  const height = Math.round(Math.max(260, Math.min(width * 1.05, usable, 760)))
+  const usable = Math.max(240, lrWinHeight.value - 530)
+  const height = Math.round(Math.max(240, Math.min(width * 1.05, usable, 760)))
   // 展示实体数随画布高度收缩：窗口矮时自动少展示几个实体，保证右栏整体一屏内、图例完整可见
-  const show = Math.max(10, Math.min(LR_SHOW, Math.floor(height / 15)))
+  const show = Math.max(8, Math.min(LR_SHOW, Math.floor(height / 15)))
   const picked = ranked.slice(0, show)
   const keep = new Set(picked.map((n) => n.id))
   const edges = graphData.value.edges.filter((e) => keep.has(e.source) && keep.has(e.target))
@@ -1264,7 +1265,7 @@ onBeforeUnmount(() => {
 .side-desc { color: var(--muted); font-size: 12px; line-height: 1.65; margin: 8px 0 0; }
 .rag-graph-wrap { max-height: 300px; overflow-y: auto; margin-top: 2px; }
 /* LightRAG 力导向图：画布高度随窗口高度联动（与 JS 侧 usable 公式一致），过长滚动；详情与图例在容器外始终可见 */
-.rag-graph-wrap.lr { max-height: calc(100vh - 440px); position: relative; }
+.rag-graph-wrap.lr { max-height: calc(100vh - 530px); overflow: hidden; position: relative; }
 .rag-graph.lr-canvas { cursor: grab; touch-action: none; }
 .rag-graph.lr-canvas:active { cursor: grabbing; }
 .lr-zoom { position: absolute; top: 6px; right: 8px; display: flex; gap: 4px; z-index: 1; }
