@@ -254,6 +254,9 @@
                   <title>{{ n.label }}（{{ lrTypeLabel(n.entity_type) }}）· {{ n.degree }} 条关联 · {{ n.description }}</title>
                 </g>
               </svg>
+            </div>
+            <!-- 详情 / 截断提示 / 类型图例：放在滚动容器外，窗口再矮也完整显示 -->
+            <template v-if="lrLayout">
               <div v-if="lrSelected" class="lr-detail">
                 <p class="lr-detail-name">
                   <span class="lr-dot" :style="{ background: lrTypeColor(lrSelected.entity_type) }" />
@@ -268,7 +271,7 @@
                   <span class="lr-dot" :style="{ background: lrTypeColor(t) }" />{{ lrTypeLabel(t) }}
                 </span>
               </div>
-            </div>
+            </template>
             <!-- 规则版回退：文件-分节双列图 -->
             <div v-else-if="graphLayout" class="rag-graph-wrap">
               <svg class="rag-graph" :viewBox="`0 0 296 ${graphLayout.height}`" aria-label="实体关系图">
@@ -1169,8 +1172,8 @@ onBeforeUnmount(() => {
 .side-tag { font-size: 11px; color: var(--brand); background: var(--brand-soft); border-radius: 99px; padding: 2px 9px; font-weight: 600; white-space: nowrap; }
 .side-desc { color: var(--muted); font-size: 12px; line-height: 1.65; margin: 8px 0 0; }
 .rag-graph-wrap { max-height: 300px; overflow-y: auto; margin-top: 2px; }
-/* LightRAG 力导向图：画布高度随窗口高度联动（与 JS 侧 usable 公式一致），过长滚动 */
-.rag-graph-wrap.lr { max-height: calc(100vh - 330px); min-height: 300px; }
+/* LightRAG 力导向图：画布高度随窗口高度联动（与 JS 侧 usable 公式一致），过长滚动；详情与图例在容器外始终可见 */
+.rag-graph-wrap.lr { max-height: calc(100vh - 330px); }
 .rag-graph { width: 100%; height: auto; display: block; }
 .rag-graph .edges path { fill: none; stroke-width: 1.2; opacity: .55; }
 .rag-graph .edges path.contains { opacity: .45; }
