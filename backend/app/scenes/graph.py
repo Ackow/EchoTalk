@@ -112,6 +112,9 @@ def _lightrag_graph(kind: str, owner_id: Any, meta: dict[str, Any]) -> dict[str,
             "totals": {"entities": len(nodes), "relations": len(edges)},
             "truncated": False,
         }
+        from app.scenes import lightrag_service
+
+        payload["index"] = lightrag_service.index_status(kind, owner_id)  # 透传构建进度（缓存命中时随 payload 一起复用）
         _graphml_cache[(str(graphml), mtime)] = payload
         return {**payload, **meta}
     except Exception as exc:
@@ -215,13 +218,20 @@ def _build_graph(documents: list[Any], chunks_by_doc: dict[int, list[Any]], meta
 
 
 def scene_graph(db: Session, scene_id: str) -> dict[str, Any]:
-    """场景知识图谱：LightRAG 已建索引时返回真实实体关系图，否则规则抽取版。"""
+    """场景知识图谱：LightRAG 已建索引时返回真实实体关系图，否则规则抽取版。
+
+    无论走哪个引擎，都带 index 字段（索引构建进度/失败原因），前端据此
+    展示"构建中 X/N"或失败提示——避免后台索引对用户完全不可见。
+    """
     from app.scenes import lightrag_service
 
     if lightrag_service.available():
         lr = _lightrag_graph("scene", scene_id, {"scene_id": scene_id})
         if lr is not None:
             return lr
+        index_meta = lightrag_service.index_status("scene", scene_id)
+    else:
+        index_meta = {"status": "disabled", "done": 0, "total": 0, "failed": 0, "error": None}
     documents = knowledge.list_documents(db, scene_id)
     chunks_by_doc: dict[int, list[Any]] = defaultdict(list)
     if documents:
@@ -230,7 +240,7 @@ def scene_graph(db: Session, scene_id: str) -> dict[str, Any]:
             knowledge.Chunk.scene_id == scene_id, knowledge.Chunk.document_id.in_(doc_ids)
         ).order_by(knowledge.Chunk.id):
             chunks_by_doc[row.document_id].append(row)
-    return _build_graph(documents, chunks_by_doc, {"scene_id": scene_id})
+    return {**_build_graph(documents, chunks_by_doc, {"scene_id": scene_id}), "index": index_meta}
 
 
 def personal_graph(db: Session, user_id: int) -> dict[str, Any]:
@@ -242,6 +252,9 @@ def personal_graph(db: Session, user_id: int) -> dict[str, Any]:
         lr = _lightrag_graph("personal", user_id, {"scope": "personal", "owner_id": user_id})
         if lr is not None:
             return lr
+        index_meta = lightrag_service.index_status("personal", user_id)
+    else:
+        index_meta = {"status": "disabled", "done": 0, "total": 0, "failed": 0, "error": None}
 
     documents = (
         db.query(PersonalDocument)
@@ -256,4 +269,4 @@ def personal_graph(db: Session, user_id: int) -> dict[str, Any]:
             PersonalChunk.document_id.in_(doc_ids)
         ).order_by(PersonalChunk.id):
             chunks_by_doc[row.document_id].append(row)
-    return _build_graph(documents, chunks_by_doc, {"scope": "personal", "owner_id": user_id})
+    return {**_build_graph(documents, chunks_by_doc, {"scope": "personal", "owner_id": user_id}), "index": index_meta}

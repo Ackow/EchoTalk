@@ -16,9 +16,11 @@
   维护静默跳过，查询接口报 400。
 """
 import asyncio
+import json
 import logging
 import shutil
 import threading
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -72,6 +74,59 @@ def _submit(coro: Any, timeout: float | None = None) -> Any:
 
 def _working_dir(kind: str, owner_id: Any) -> Path:
     return config.LIGHTRAG_ROOT / kind / str(owner_id)
+
+
+# ---- 索引状态机（供前端展示构建进度 / 失败原因，文件持久化防进程重启丢状态） ----
+
+def _status_path(kind: str, owner_id: Any) -> Path:
+    return _working_dir(kind, owner_id) / "_index_status.json"
+
+
+def _read_index_status(kind: str, owner_id: Any) -> dict[str, Any] | None:
+    path = _status_path(kind, owner_id)
+    if not path.exists():
+        return None
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+
+
+def _write_index_status(kind: str, owner_id: Any, **fields: Any) -> None:
+    """合并写入状态字段（调用全部在单一后台循环线程内，无并发写）。"""
+    data = _read_index_status(kind, owner_id) or {}
+    data.update(fields)
+    data["updated_at"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    path = _status_path(kind, owner_id)
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
+    except OSError:
+        logger.warning("LightRAG 索引状态写入失败：%s", path)
+
+
+def index_status(kind: str, owner_id: Any) -> dict[str, Any]:
+    """索引状态查询（图谱端点透传给前端）。
+
+    status 语义：building 构建中 / ready 就绪（failed>0 表示部分失败）/
+    error 全部失败 / empty 从未索引；disabled 由调用方在 available()=False 时给出。
+    """
+    stored = _read_index_status(kind, owner_id)
+    if stored is None:
+        # 无状态记录：目录里有非空 graphml 视为历史索引就绪，否则从未索引
+        graphml = _working_dir(kind, owner_id) / "graph_chunk_entity_relation.graphml"
+        try:
+            ready = graphml.exists() and graphml.stat().st_size > 200
+        except OSError:
+            ready = False
+        return {"status": "ready" if ready else "empty", "done": 0, "total": 0, "failed": 0, "error": None}
+    return {
+        "status": str(stored.get("status") or "empty"),
+        "done": int(stored.get("done") or 0),
+        "total": int(stored.get("total") or 0),
+        "failed": int(stored.get("failed") or 0),
+        "error": stored.get("error"),
+    }
 
 
 def _llm_model_func():
@@ -154,12 +209,18 @@ async def _upsert(kind: str, owner_id: Any, document_id: int, text: str) -> None
     async with lock:
         rag = await _get_instance(key, kind, owner_id)
         lr_id = _lr_doc_id(kind, document_id)
+        _write_index_status(kind, owner_id, status="building", done=0, total=1, failed=0, error=None)
         try:  # 更新场景：旧 id 残留会污染图谱，先删后插
             await rag.adelete_by_doc_id(lr_id)
         except Exception:
             pass  # id 不存在时忽略
-        await rag.ainsert(text, ids=lr_id, file_paths=f"{kind}/{document_id}")
-        logger.info("LightRAG 已索引 %s/%s（%d 字符）", key, lr_id, len(text))
+        try:
+            await rag.ainsert(text, ids=lr_id, file_paths=f"{kind}/{document_id}")
+            _write_index_status(kind, owner_id, status="ready", done=1, total=1)
+            logger.info("LightRAG 已索引 %s/%s（%d 字符）", key, lr_id, len(text))
+        except Exception as exc:
+            _write_index_status(kind, owner_id, status="error", done=0, total=1, failed=1, error=str(exc)[:200])
+            raise
 
 
 async def _delete(kind: str, owner_id: Any, document_id: int) -> None:
@@ -174,7 +235,11 @@ async def _delete(kind: str, owner_id: Any, document_id: int) -> None:
 
 
 async def _rebuild(kind: str, owner_id: Any, docs: list[tuple[int, str]]) -> int:
-    """清空 working_dir 全量重建（换抽取 LLM / 索引损坏后的兜底入口）。"""
+    """清空 working_dir 全量重建（换抽取 LLM / 索引损坏后的兜底入口）。
+
+    逐篇 ainsert（LightRAG 批量 insert 内部本就串行），每篇完成即更新
+    索引状态，前端得以展示"构建中 X/N"的实时进度。
+    """
     key = f"{kind}:{owner_id}"
     lock = _dir_locks.setdefault(key, asyncio.Lock())
     async with lock:
@@ -186,12 +251,29 @@ async def _rebuild(kind: str, owner_id: Any, docs: list[tuple[int, str]]) -> int
                 pass
         shutil.rmtree(_working_dir(kind, owner_id), ignore_errors=True)
         if not docs:
+            _write_index_status(kind, owner_id, status="empty", done=0, total=0, failed=0, error=None)
             return 0
         rag = await _get_instance(key, kind, owner_id)
-        ids = [_lr_doc_id(kind, doc_id) for doc_id, _text in docs]
-        await rag.ainsert([text for _doc_id, text in docs], ids=ids)
-        logger.info("LightRAG 重建完成：%s（%d 篇）", key, len(docs))
-        return len(docs)
+        total = len(docs)
+        _write_index_status(kind, owner_id, status="building", done=0, total=total, failed=0, error=None)
+        done = failed = 0
+        last_error: str | None = None
+        for doc_id, text in docs:
+            lr_id = _lr_doc_id(kind, doc_id)
+            try:
+                await rag.ainsert(text, ids=lr_id, file_paths=f"{kind}/{doc_id}")
+                done += 1
+                logger.info("LightRAG 已索引 %s/%s（%d 字符）", key, lr_id, len(text))
+            except Exception as exc:
+                failed += 1
+                last_error = str(exc)[:200]
+                logger.exception("LightRAG 索引失败 %s/%s：%s", key, lr_id, exc)
+            _write_index_status(kind, owner_id, done=done, total=total, failed=failed, error=last_error)
+        # 全部失败 → error；部分失败也置 ready（failed 字段供前端提示）
+        final_status = "error" if failed == total else "ready"
+        _write_index_status(kind, owner_id, status=final_status)
+        logger.info("LightRAG 重建完成：%s（%d/%d 篇成功）", key, done, total)
+        return done
 
 
 def schedule_upsert(kind: str, owner_id: Any, document_id: int, text: str) -> None:

@@ -230,9 +230,16 @@
           <div class="side-card">
             <div class="side-head">
               <h4>实体关系</h4>
-              <span class="side-tag">{{ graphData?.engine === 'lightrag' ? 'LightRAG · LLM 抽取' : '自动抽取 · 规则版' }}</span>
+              <span class="side-tag">{{ graphBadge }}</span>
             </div>
             <div v-if="graphLoading" class="graph-note">图谱生成中…</div>
+            <!-- 索引状态提示：后台构建对用户可见，完成后自动切换为 LightRAG 图谱 -->
+            <div v-else-if="graphData?.index?.status === 'building'" class="graph-note">
+              实体图谱正在后台生成（{{ graphData.index.done }}/{{ graphData.index.total }}），完成后自动切换，无需刷新
+            </div>
+            <div v-else-if="graphData?.index?.status === 'error'" class="graph-note">
+              实体图谱生成失败：{{ graphData.index.error || '未知原因' }}；请检查抽取 LLM 配置后重新触发重建
+            </div>
             <!-- LightRAG 版：实体-关系力导向图（节点大小 = 关联数，颜色 = 实体类型） -->
             <div v-else-if="lrLayout" ref="lrWrap" class="rag-graph-wrap lr">
               <svg
@@ -446,7 +453,7 @@ const searchQuery = ref('') // 检索输入（回车触发）
 const searching = ref(false) // 检索请求进行中
 const searchEngine = ref('hybrid') // 检索引擎：hybrid（关键词+向量 RRF）/ lightrag（图谱上下文）
 const engineOptions = [
-  { value: 'hybrid', label: '混合检索', hint: '快 · 免费' },
+  { value: 'hybrid', label: '混合检索', hint: '快' },
   { value: 'lightrag', label: '图谱检索', hint: 'LightRAG · 较慢' },
 ]
 const searchState = ref({ active: false, q: '', mode: 'none', items: [], context: '' }) // 检索结果
@@ -562,6 +569,25 @@ watch(scope, (val) => {
   if (val === 'personal') {
     if (!personalLoaded.value) loadPersonal()
     loadGraph()
+  }
+})
+
+/* ---- 索引状态展示：构建中每 10s 轮询图谱端点，ready/error 后自动停止 ---- */
+
+// 图谱右上角标签：优先反映索引状态（构建中 / 失败），其次按引擎区分
+const graphBadge = computed(() => {
+  const index = graphData.value?.index
+  if (index?.status === 'building') return `索引构建中 ${index.done}/${index.total}`
+  if (index?.status === 'error') return '索引失败'
+  if (graphData.value?.engine === 'lightrag') return 'LightRAG · LLM 抽取'
+  return '自动抽取 · 规则版'
+})
+
+let graphPollTimer = null
+watch(graphData, (val) => {
+  if (graphPollTimer) { clearInterval(graphPollTimer); graphPollTimer = null }
+  if (val?.index?.status === 'building') {
+    graphPollTimer = setInterval(() => { loadGraph() }, 10000)
   }
 })
 
@@ -1200,6 +1226,7 @@ onBeforeUnmount(() => {
   clearTimeout(noticeTimer)
   lrResizeObserver?.disconnect()
   clearTimeout(lrResizeTimer)
+  if (graphPollTimer) clearInterval(graphPollTimer)
   window.removeEventListener('resize', onWindowResize)
 })
 </script>
