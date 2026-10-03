@@ -986,11 +986,6 @@ const lrView = ref({ x: 0, y: 0, w: 0, h: 0 })
 let lrDrag = null // { sx, sy, view } 拖拽起点
 let lrMovedPx = 0 // 本次按下的累计位移（区分拖拽与点击）
 
-watch(lrLayout, (layout) => {
-  // 画布尺寸或数据变化时重置视图，避免缩放窗口残留错位
-  if (layout) lrView.value = { x: 0, y: 0, w: layout.width, h: layout.height }
-})
-
 function lrClampWidth(w) {
   const base = lrLayout.value
   return Math.min(base.width * 2.5, Math.max(base.width * 0.35, w))
@@ -1170,6 +1165,11 @@ const lrLayout = computed(() => {
   const pos = {}
   nodes.forEach((n) => { pos[n.id] = { x: n.x, y: n.y, r: n.r } })
   return { nodes, edges, pos, width, height, truncated: ranked.length - picked.length }
+})
+
+// 画布尺寸或数据变化时重置缩放视图，避免残留错位（须在 lrLayout 声明之后注册）
+watch(lrLayout, (layout) => {
+  if (layout) lrView.value = { x: 0, y: 0, w: layout.width, h: layout.height }
 })
 
 /* ---- 生命周期 ---- */
