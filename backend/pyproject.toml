@@ -6,6 +6,7 @@ requires-python = ">=3.12,<3.13"
 dependencies = [
     "fastapi>=0.115,<1.0",
     "lightrag-hku==1.5.7",
+    "openai==3.23.0",
     "pymysql[rsa]>=1.1,<2.0",
     "pypdf==6.16.2",
     "python-dotenv>=1.0,<2.0",
