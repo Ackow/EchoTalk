@@ -162,3 +162,10 @@ html[data-platform="darwin"] .sidebar-hidden .content-header { padding-left: 80p
   .account-trigger { padding: 8px 10px; }
   .content-header { height: 52px; flex-basis: 52px; padding: 0 18px; -webkit-app-region: no-drag; }
 }
+
+/* 数字人角色页可读性覆盖：该页文字密度高，全局 muted/faint 偏浅，页面作用域内提升到 WCAG AA。
+   --muted 白底 5.86:1 / 工作区底 5.53:1；--faint 白底 4.70:1 / 工作区底 4.43:1。 */
+.avatar-page {
+  --muted: #5f6478;
+  --faint: #6e7387;
+}

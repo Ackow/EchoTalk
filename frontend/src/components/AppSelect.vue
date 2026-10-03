@@ -65,7 +65,7 @@ onBeforeUnmount(() => document.removeEventListener('mousedown', onGlobalMouseDow
 .as-trigger:hover { border-color: #d5d7e6; }
 .as-trigger.open, .as-trigger:focus-visible { border-color: var(--brand); box-shadow: 0 0 0 3px var(--brand-soft); outline: none; }
 .as-label { flex: 0 0 auto; font-size: 12.5px; color: var(--muted); }
-.as-value { max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink); font-size: 13.5px; font-weight: 500; }
+.as-value { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink); font-size: 13.5px; font-weight: 500; }
 .as-chev { position: absolute; right: 10px; color: var(--muted); pointer-events: none; transition: transform .18s; }
 .as-chev.flip { transform: rotate(180deg); }
 
