@@ -44,34 +44,38 @@
     </div>
 
     <template v-else>
-      <!-- 筛选行：场景下拉（仅场景范围）+ 混合检索（两范围可用） -->
+      <!-- 筛选行：左侧场景选择 + 右侧检索引擎与搜索框成组靠右 -->
       <div class="filter-row">
-        <AppSelect
-          v-if="scope === 'scene'"
-          v-model="activeSceneId"
-          :options="sceneOptions"
-          label="场景"
-          aria-label="选择要管理的场景"
-        />
-        <span v-else class="search-scope-label">个人资料</span>
-        <AppSelect
-          v-model="searchEngine"
-          :options="engineOptions"
-          label="检索"
-          aria-label="选择检索引擎"
-        />
-        <label class="search-box" :title="searchEngine === 'lightrag' ? '图谱检索：LightRAG 实体关系上下文（较慢）' : '混合检索：关键词 + 语义向量'">
-          <AppIcon name="search" :size="14" />
-          <input
-            v-model="searchQuery"
-            type="text"
-            :placeholder="searchEngine === 'lightrag' ? '图谱检索，回车执行' : '搜索资料内容，回车检索'"
-            @keyup.enter="runSearch"
-          >
-          <button v-if="searchQuery || searchState.active" class="search-clear" type="button" title="清除检索" @click="clearSearch">
-            <AppIcon name="x" :size="13" />
-          </button>
-        </label>
+        <div class="filter-left">
+          <AppSelect
+            v-if="scope === 'scene'"
+            v-model="activeSceneId"
+            :options="sceneOptions"
+            label="场景"
+            aria-label="选择要管理的场景"
+          />
+          <span v-else class="search-scope-label">个人资料</span>
+        </div>
+        <div class="filter-right">
+          <AppSelect
+            v-model="searchEngine"
+            :options="engineOptions"
+            label="检索"
+            aria-label="选择检索引擎"
+          />
+          <label class="search-box" :title="searchEngine === 'lightrag' ? '图谱检索：LightRAG 实体关系上下文（较慢）' : '混合检索：关键词 + 语义向量'">
+            <AppIcon name="search" :size="14" />
+            <input
+              v-model="searchQuery"
+              type="text"
+              :placeholder="searchEngine === 'lightrag' ? '图谱检索，回车执行' : '搜索资料内容，回车检索'"
+              @keyup.enter="runSearch"
+            >
+            <button v-if="searchQuery || searchState.active" class="search-clear" type="button" title="清除检索" @click="clearSearch">
+              <AppIcon name="x" :size="13" />
+            </button>
+          </label>
+        </div>
       </div>
 
       <!-- 双栏：左资料管理 + 右实体关系图谱 -->
@@ -231,7 +235,17 @@
             <div v-if="graphLoading" class="graph-note">图谱生成中…</div>
             <!-- LightRAG 版：实体-关系力导向图（节点大小 = 关联数，颜色 = 实体类型） -->
             <div v-else-if="lrLayout" ref="lrWrap" class="rag-graph-wrap lr">
-              <svg class="rag-graph" :viewBox="`0 0 ${lrLayout.width} ${lrLayout.height}`" aria-label="实体关系图">
+              <svg
+                ref="lrSvg"
+                class="rag-graph lr-canvas"
+                :viewBox="`${lrView.x} ${lrView.y} ${lrView.w} ${lrView.h}`"
+                aria-label="实体关系图"
+                @wheel.prevent="onLrWheel"
+                @mousedown="onLrDown"
+                @mousemove="onLrMove"
+                @mouseup="onLrUp"
+                @mouseleave="onLrUp"
+              >
                 <g class="edges">
                   <path
                     v-for="e in lrLayout.edges"
@@ -254,6 +268,11 @@
                   <title>{{ n.label }}（{{ lrTypeLabel(n.entity_type) }}）· {{ n.degree }} 条关联 · {{ n.description }}</title>
                 </g>
               </svg>
+              <div class="lr-zoom">
+                <button type="button" title="放大" @click="lrZoomBy(1.3)">+</button>
+                <button type="button" title="缩小" @click="lrZoomBy(0.77)">−</button>
+                <button type="button" class="lr-zoom-reset" title="重置视图" @click="lrResetView">重置</button>
+              </div>
             </div>
             <!-- 详情 / 截断提示 / 类型图例：放在滚动容器外，窗口再矮也完整显示 -->
             <template v-if="lrLayout">
@@ -957,7 +976,76 @@ function onWindowResize() {
 const lrSelected = computed(() => lrLayout.value?.nodes.find((n) => n.id === lrSelectedId.value) || null)
 
 function toggleLrNode(node) {
+  if (lrMovedPx > 5) return // 拖拽平移后的松手不算点击，避免误聚焦
   lrSelectedId.value = lrSelectedId.value === node.id ? '' : node.id
+}
+
+/* ---- 图谱缩放与平移：viewBox 驱动；滚轮以鼠标位置为中心缩放，按住拖拽平移 ---- */
+const lrSvg = ref(null)
+const lrView = ref({ x: 0, y: 0, w: 0, h: 0 })
+let lrDrag = null // { sx, sy, view } 拖拽起点
+let lrMovedPx = 0 // 本次按下的累计位移（区分拖拽与点击）
+
+watch(lrLayout, (layout) => {
+  // 画布尺寸或数据变化时重置视图，避免缩放窗口残留错位
+  if (layout) lrView.value = { x: 0, y: 0, w: layout.width, h: layout.height }
+})
+
+function lrClampWidth(w) {
+  const base = lrLayout.value
+  return Math.min(base.width * 2.5, Math.max(base.width * 0.35, w))
+}
+
+// 屏幕坐标 → viewBox 坐标
+function lrSvgPoint(evt) {
+  const rect = lrSvg.value.getBoundingClientRect()
+  const v = lrView.value
+  return {
+    x: v.x + (evt.clientX - rect.left) * (v.w / rect.width),
+    y: v.y + (evt.clientY - rect.top) * (v.h / rect.height),
+  }
+}
+
+function onLrWheel(evt) {
+  if (!lrLayout.value || !lrSvg.value) return
+  const p = lrSvgPoint(evt)
+  const v = lrView.value
+  const nw = lrClampWidth(v.w * (evt.deltaY < 0 ? 0.87 : 1.15))
+  const k = nw / v.w
+  lrView.value = { w: nw, h: v.h * k, x: p.x - (p.x - v.x) * k, y: p.y - (p.y - v.y) * k }
+}
+
+function lrZoomBy(factor) {
+  if (!lrLayout.value) return
+  const v = lrView.value
+  const cx = v.x + v.w / 2
+  const cy = v.y + v.h / 2
+  const nw = lrClampWidth(v.w / factor)
+  const k = nw / v.w
+  lrView.value = { w: nw, h: v.h * k, x: cx - (cx - v.x) * k, y: cy - (cy - v.y) * k }
+}
+
+function lrResetView() {
+  const layout = lrLayout.value
+  if (layout) lrView.value = { x: 0, y: 0, w: layout.width, h: layout.height }
+}
+
+function onLrDown(evt) {
+  lrDrag = { sx: evt.clientX, sy: evt.clientY, view: { ...lrView.value } }
+  lrMovedPx = 0
+}
+
+function onLrMove(evt) {
+  if (!lrDrag || !lrSvg.value) return
+  const rect = lrSvg.value.getBoundingClientRect()
+  const dx = (evt.clientX - lrDrag.sx) * (lrDrag.view.w / rect.width)
+  const dy = (evt.clientY - lrDrag.sy) * (lrDrag.view.h / rect.height)
+  lrMovedPx = Math.max(lrMovedPx, Math.abs(evt.clientX - lrDrag.sx) + Math.abs(evt.clientY - lrDrag.sy))
+  lrView.value = { ...lrDrag.view, x: lrDrag.view.x - dx, y: lrDrag.view.y - dy }
+}
+
+function onLrUp() {
+  lrDrag = null
 }
 
 // 选中节点的邻居集合（高亮其邻边、淡化无关节点）；未选中时为 null 表示全部常态显示
@@ -1135,6 +1223,9 @@ onBeforeUnmount(() => {
 
 /* ===== 筛选行 ===== */
 .filter-row { display: flex; flex: 0 0 auto; align-items: center; justify-content: space-between; gap: 14px; margin-bottom: 14px; }
+/* 左右分组：场景选择靠左；检索引擎与搜索框成组靠右 */
+.filter-left { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.filter-right { display: flex; align-items: center; gap: 10px; flex: 0 0 auto; }
 
 .personal-hint { margin: 0 0 12px; font-size: 12.5px; color: var(--muted); line-height: 1.6; }
 
@@ -1173,7 +1264,12 @@ onBeforeUnmount(() => {
 .side-desc { color: var(--muted); font-size: 12px; line-height: 1.65; margin: 8px 0 0; }
 .rag-graph-wrap { max-height: 300px; overflow-y: auto; margin-top: 2px; }
 /* LightRAG 力导向图：画布高度随窗口高度联动（与 JS 侧 usable 公式一致），过长滚动；详情与图例在容器外始终可见 */
-.rag-graph-wrap.lr { max-height: calc(100vh - 440px); }
+.rag-graph-wrap.lr { max-height: calc(100vh - 440px); position: relative; }
+.rag-graph.lr-canvas { cursor: grab; touch-action: none; }
+.rag-graph.lr-canvas:active { cursor: grabbing; }
+.lr-zoom { position: absolute; top: 6px; right: 8px; display: flex; gap: 4px; z-index: 1; }
+.lr-zoom button { height: 22px; padding: 0 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: var(--ink-soft); font-size: 12px; line-height: 1; cursor: pointer; }
+.lr-zoom button:hover { color: var(--ink); border-color: var(--brand, #6265e8); }
 .rag-graph { width: 100%; height: auto; display: block; }
 .rag-graph .edges path { fill: none; stroke-width: 1.2; opacity: .55; }
 .rag-graph .edges path.contains { opacity: .45; }
