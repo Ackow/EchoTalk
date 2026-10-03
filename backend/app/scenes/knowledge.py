@@ -17,6 +17,7 @@ from dotenv import load_dotenv
 from sqlalchemy.orm import Session
 
 from app.models import Chunk, Document, Scene
+from app.scenes import lightrag_service as lightrag_svc
 from app.scenes.errors import SceneNotFoundError, SceneUnsupportedFileError
 
 logger = logging.getLogger(__name__)
@@ -261,19 +262,79 @@ def add_document(
     )
     db.add(document)
     db.flush()  # 取 document.id
+    old_document_id = existing.id if existing is not None else None
+    rows = []
     for chunk in chunks:
-        db.add(
-            Chunk(
-                document_id=document.id,
-                scene_id=scene.id,
-                section=chunk["section"],
-                visibility=chunk["visibility"],  # 优先级：标题标记 > 文件名前缀 > 文件级
-                ordinal=chunk["ordinal"],
-                text=chunk["text"],
-            )
+        row = Chunk(
+            document_id=document.id,
+            scene_id=scene.id,
+            section=chunk["section"],
+            visibility=chunk["visibility"],  # 优先级：标题标记 > 文件名前缀 > 文件级
+            ordinal=chunk["ordinal"],
+            text=chunk["text"],
         )
+        db.add(row)
+        rows.append(row)
+    db.flush()  # 取各 chunk.id（提交后嵌入用）
+    pending = [(row.id, row.text, "scene") for row in rows]
     db.commit()
+    embed_chunks_best_effort(db, pending)  # 尽力嵌入：失败不影响上传结果
+    # LightRAG 图谱索引维护（fire-and-forget）：同名更新时 document.id 变化，旧 id 需移除
+    if old_document_id is not None and old_document_id != document.id:
+        lightrag_svc.schedule_delete("scene", scene.id, old_document_id)
+    lightrag_svc.schedule_upsert("scene", scene.id, document.id, text)
     return document
+
+
+def embed_chunks_best_effort(db: Session, chunk_refs: list[tuple[int, str, str]]) -> int:
+    """为分块生成并写入向量（尽力而为）：未配置 key 或上游失败时跳过。
+
+    chunk_refs: [(chunk_id, text, kind)]，kind = 'scene' | 'personal'。
+    返回写入条数；失败只记日志，由 reindex 端点补齐，绝不阻塞上传/编辑主流程。
+    """
+    from app.models import ChunkEmbedding, PersonalChunkEmbedding
+    from app.scenes import embedding as embedding_svc
+
+    if not chunk_refs or not embedding_svc.available():
+        return 0
+    try:
+        vectors = embedding_svc.embed_texts([text for _, text, _ in chunk_refs])
+    except Exception as exc:
+        logger.warning("分块嵌入失败（可稍后 reindex 补齐）：%s", exc)
+        return 0
+    model = embedding_svc.config.EMBEDDING_MODEL
+    for (chunk_id, _text, kind), vec in zip(chunk_refs, vectors):
+        target = ChunkEmbedding if kind == "scene" else PersonalChunkEmbedding
+        db.merge(target(chunk_id=chunk_id, model=model, embedding=embedding_svc.pack(vec)))
+    db.commit()
+    return len(vectors)
+
+
+def reindex_scene(db: Session, scene_id: str) -> int:
+    """为场景中缺失向量的分块补嵌（上传时嵌入失败 / 换模型后的全量重建入口）。"""
+    from app.models import Chunk, ChunkEmbedding
+
+    rows = (
+        db.query(Chunk)
+        .outerjoin(ChunkEmbedding, ChunkEmbedding.chunk_id == Chunk.id)
+        .filter(Chunk.scene_id == scene_id, ChunkEmbedding.id.is_(None))
+        .all()
+    )
+    return embed_chunks_best_effort(db, [(row.id, row.text, "scene") for row in rows])
+
+
+def reindex_personal(db: Session, user_id: int) -> int:
+    """为本人全部个人资料中缺失向量的分块补嵌。"""
+    from app.models import PersonalChunk, PersonalChunkEmbedding, PersonalDocument
+
+    rows = (
+        db.query(PersonalChunk)
+        .join(PersonalDocument, PersonalDocument.id == PersonalChunk.document_id)
+        .outerjoin(PersonalChunkEmbedding, PersonalChunkEmbedding.chunk_id == PersonalChunk.id)
+        .filter(PersonalDocument.owner_id == user_id, PersonalChunkEmbedding.id.is_(None))
+        .all()
+    )
+    return embed_chunks_best_effort(db, [(row.id, row.text, "personal") for row in rows])
 
 
 def document_time():
@@ -318,6 +379,7 @@ def delete_document(db: Session, scene_id: str, document_id: int) -> Document:
     delete_file(scene_id, document.filename)
     db.delete(document)  # chunks 由 CASCADE 级联删除
     db.commit()
+    lightrag_svc.schedule_delete("scene", scene_id, document_id)  # 图谱索引同步清理
     return document
 
 
@@ -352,6 +414,74 @@ def document_overview(db: Session, scene_id: str) -> list[dict[str, Any]]:
     ]
 
 
+def list_document_chunks(db: Session, scene_id: str, document_id: int) -> list[dict[str, Any]]:
+    """资料的分块明细（含正文全文，只读）：知识工作区查看数据源。编辑走源文件。"""
+    rows = (
+        db.query(Chunk)
+        .filter(Chunk.scene_id == scene_id, Chunk.document_id == document_id)
+        .order_by(Chunk.id)
+        .all()
+    )
+    return [
+        {
+            "id": row.id,
+            "section": row.section or "_",
+            "ordinal": row.ordinal,
+            "visibility": row.visibility,
+            "text": row.text,
+        }
+        for row in rows
+    ]
+
+
+# 源文件文本可编辑的扩展名（pdf 为二进制提取结果，不支持文本回写）
+EDITABLE_SOURCE_EXTENSIONS = {".md", ".markdown", ".txt"}
+
+
+def read_document_source(db: Session, scene_id: str, document_id: int) -> dict[str, Any]:
+    """资料源文件全文：知识工作区源文件编辑数据源（pdf 返回 editable=False）。"""
+    document = (
+        db.query(Document)
+        .filter(Document.scene_id == scene_id, Document.id == document_id)
+        .first()
+    )
+    if document is None:
+        raise SceneNotFoundError(f"{scene_id}/knowledge/{document_id}")
+    suffix = Path(document.filename).suffix.lower()
+    if suffix not in EDITABLE_SOURCE_EXTENSIONS:
+        return {"id": document.id, "filename": document.filename, "editable": False, "text": ""}
+    path = knowledge_dir(scene_id) / document.filename
+    if not path.exists():
+        raise SceneNotFoundError(f"{scene_id}/knowledge/{document_id}/source")
+    try:
+        text = path.read_text(encoding="utf-8")
+    except UnicodeDecodeError as exc:
+        raise SceneUnsupportedFileError(f"源文件不是有效的 UTF-8 文本：{document.filename}") from exc
+    return {"id": document.id, "filename": document.filename, "editable": True, "text": text}
+
+
+def update_document_source(db: Session, scene: Scene, document_id: int, text: str) -> Document:
+    """编辑源文件并重新解析：覆盖写盘 → 同名重建 documents/chunks。
+
+    分块是解析产物，编辑必须落在源文件上；重新解析后标题行 [user]/[ai]
+    标记与文件名前缀重新生效（界面上对分节可见性的人工调整会被重置）。
+    """
+    document = (
+        db.query(Document)
+        .filter(Document.scene_id == scene.id, Document.id == document_id)
+        .first()
+    )
+    if document is None:
+        raise SceneNotFoundError(f"{scene.id}/knowledge/{document_id}")
+    suffix = Path(document.filename).suffix.lower()
+    if suffix not in EDITABLE_SOURCE_EXTENSIONS:
+        raise SceneUnsupportedFileError("PDF 源文件不支持文本编辑，请删除后重新上传")
+    if not text.strip():
+        raise SceneUnsupportedFileError("源文件内容不能为空")
+    # add_document 对同名资料先删后建（chunks 级联重建），并覆盖写盘
+    return add_document(db, scene, document.filename, text.encode("utf-8"), document.content_type, document.visibility)
+
+
 def visible_sections(db: Session, scene_id: str, only_user: bool = True) -> list[dict[str, Any]]:
     """分节概览：{section, visibility, chunk_count, preview}；only_user 时仅 user 可见分节。"""
     query = db.query(Chunk).filter(Chunk.scene_id == scene_id)
@@ -384,3 +514,178 @@ def set_section_visibility(db: Session, scene_id: str, section: str, visibility:
 def file_checksum(content: bytes) -> str:
     """文件 SHA-256（manifest 校验和用）。"""
     return f"sha256:{hashlib.sha256(content).hexdigest()}"
+
+
+# ---- 个人工作区资料（阶段二）：跨场景复用，owner 隔离 -----------------------
+
+def personal_dir(user_id: int) -> Path:
+    """个人资料目录：按用户隔离，与场景资料（scenes/{id}/）互不混杂。"""
+    return STORAGE_ROOT / "personal" / str(user_id) / "knowledge"
+
+
+def add_personal_document(
+    db: Session,
+    user_id: int,
+    filename: str,
+    content: bytes,
+    content_type: str | None,
+) -> "PersonalDocument":
+    """上传个人资料：保存源文件 → 解析分块 → 入库（同名覆盖即更新）。
+
+    个人资料不做 ai/user 可见性区分：全部分块对用户可见，
+    标题行 [user]/[ai] 标注仅从标题中清理，不改变可见性。
+    """
+    from app.models import PersonalChunk, PersonalDocument
+
+    filename = Path(filename).name  # 防路径穿越：只取文件名部分
+    check_extension(filename)
+    if len(content) > MAX_FILE_SIZE:
+        raise SceneUnsupportedFileError(f"文件过大（上限 10 MB）：{filename}")
+    text = load_text(filename, content)
+    chunks = chunk_document(filename, text, "user")
+    if not chunks:
+        raise SceneUnsupportedFileError(f"未能从文档中解析出有效文本：{filename}")
+    for chunk in chunks:
+        chunk["visibility"] = "user"  # 个人资料统一用户可见：标注不生效，仅被清理
+
+    target_dir = personal_dir(user_id)
+    target_dir.mkdir(parents=True, exist_ok=True)
+    (target_dir / filename).write_bytes(content)
+
+    existing = db.query(PersonalDocument).filter(
+        PersonalDocument.owner_id == user_id, PersonalDocument.filename == filename
+    ).first()
+    old_document_id = existing.id if existing is not None else None
+    if existing is not None:
+        db.delete(existing)  # personal_chunks 随 CASCADE 级联删除
+        db.flush()
+
+    document = PersonalDocument(
+        owner_id=user_id,
+        filename=filename,
+        content_type=content_type,
+        chunk_count=len(chunks),
+        created_at=document_time(),
+    )
+    db.add(document)
+    db.flush()
+    rows = []
+    for chunk in chunks:
+        row = PersonalChunk(
+            document_id=document.id,
+            section=chunk["section"],
+            visibility=chunk["visibility"],  # 个人资料统一 user（写入前已强制）
+            ordinal=chunk["ordinal"],
+            text=chunk["text"],
+        )
+        db.add(row)
+        rows.append(row)
+    db.flush()  # 取各 chunk.id（提交后嵌入用）
+    pending = [(row.id, row.text, "personal") for row in rows]
+    db.commit()
+    embed_chunks_best_effort(db, pending)
+    # LightRAG 图谱索引维护（fire-and-forget）：同名更新时 document.id 变化，旧 id 需移除
+    if old_document_id is not None and old_document_id != document.id:
+        lightrag_svc.schedule_delete("personal", user_id, old_document_id)
+    lightrag_svc.schedule_upsert("personal", user_id, document.id, text)
+    return document
+
+
+def _load_personal_document(db: Session, user_id: int, document_id: int) -> "PersonalDocument":
+    """按 owner 装载个人资料：越权与不存在同报 404（不泄露存在性）。"""
+    from app.models import PersonalDocument
+
+    row = db.query(PersonalDocument).filter(
+        PersonalDocument.id == document_id, PersonalDocument.owner_id == user_id
+    ).first()
+    if row is None:
+        raise SceneNotFoundError(f"personal/{document_id}")
+    return row
+
+
+def personal_document_overview(db: Session, user_id: int) -> list[dict[str, Any]]:
+    """个人资料文件级概览（含分节分组）：知识工作区个人页数据源。"""
+    from app.models import PersonalChunk, PersonalDocument
+
+    documents = db.query(PersonalDocument).filter(
+        PersonalDocument.owner_id == user_id
+    ).order_by(PersonalDocument.id).all()
+    by_doc: dict[int, dict[str, dict[str, Any]]] = {}
+    for row in db.query(PersonalChunk).join(PersonalDocument).filter(
+        PersonalDocument.owner_id == user_id
+    ).order_by(PersonalChunk.id):
+        agg = by_doc.setdefault(row.document_id, {}).setdefault(
+            row.section or "_",
+            {"section": row.section or "_", "visibility": row.visibility, "chunk_count": 0, "preview": ""},
+        )
+        agg["chunk_count"] += 1
+        if not agg["preview"] and row.text:
+            agg["preview"] = row.text[:120]
+    return [
+        {
+            "id": doc.id,
+            "filename": doc.filename,
+            "chunk_count": doc.chunk_count,
+            "created_at": doc.created_at.isoformat() if doc.created_at else None,
+            "sections": list(by_doc.get(doc.id, {}).values()),
+        }
+        for doc in documents
+    ]
+
+
+def list_personal_chunks(db: Session, user_id: int, document_id: int) -> list[dict[str, Any]]:
+    """个人资料的分块明细（只读）。"""
+    from app.models import PersonalChunk
+
+    _load_personal_document(db, user_id, document_id)
+    rows = (
+        db.query(PersonalChunk)
+        .filter(PersonalChunk.document_id == document_id)
+        .order_by(PersonalChunk.id)
+        .all()
+    )
+    return [
+        {"id": row.id, "section": row.section or "_", "ordinal": row.ordinal, "visibility": row.visibility, "text": row.text}
+        for row in rows
+    ]
+
+
+def read_personal_source(db: Session, user_id: int, document_id: int) -> dict[str, Any]:
+    """个人资料源文件全文（文本类可编辑，pdf 返回 editable=False）。"""
+    document = _load_personal_document(db, user_id, document_id)
+    suffix = Path(document.filename).suffix.lower()
+    if suffix not in EDITABLE_SOURCE_EXTENSIONS:
+        return {"id": document.id, "filename": document.filename, "editable": False, "text": ""}
+    path = personal_dir(user_id) / document.filename
+    if not path.exists():
+        raise SceneNotFoundError(f"personal/{document_id}/source")
+    try:
+        text = path.read_text(encoding="utf-8")
+    except UnicodeDecodeError as exc:
+        raise SceneUnsupportedFileError(f"源文件不是有效的 UTF-8 文本：{document.filename}") from exc
+    return {"id": document.id, "filename": document.filename, "editable": True, "text": text}
+
+
+def update_personal_source(db: Session, user_id: int, document_id: int, text: str) -> "PersonalDocument":
+    """编辑个人资料源文件并重新解析（同名重建，document.id 变化）。"""
+    document = _load_personal_document(db, user_id, document_id)
+    suffix = Path(document.filename).suffix.lower()
+    if suffix not in EDITABLE_SOURCE_EXTENSIONS:
+        raise SceneUnsupportedFileError("PDF 源文件不支持文本编辑，请删除后重新上传")
+    if not text.strip():
+        raise SceneUnsupportedFileError("源文件内容不能为空")
+    return add_personal_document(db, user_id, document.filename, text.encode("utf-8"), document.content_type)
+
+
+def delete_personal_document(db: Session, user_id: int, document_id: int) -> "PersonalDocument":
+    """删除个人资料：源文件 + 记录。"""
+    from app.models import PersonalDocument
+
+    document = _load_personal_document(db, user_id, document_id)
+    target = personal_dir(user_id) / document.filename
+    if target.exists():
+        target.unlink()
+    db.delete(document)  # personal_chunks 由 CASCADE 级联删除
+    db.commit()
+    lightrag_svc.schedule_delete("personal", user_id, document_id)  # 图谱索引同步清理
+    return document

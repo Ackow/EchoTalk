@@ -105,7 +105,9 @@ const icons = {
   // 信息圆（说明提示）
   info: ['M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20z', 'M12 16v-4', 'M12 8h.01'],
   // 下箭头（展开）
-  'chevron-down': ['M6 9l6 6 6-6']
+  'chevron-down': ['M6 9l6 6 6-6'],
+  // 右箭头（打开弹窗/进入）
+  'chevron-right': ['M9 6l6 6-6 6']
 }
 </script>
 

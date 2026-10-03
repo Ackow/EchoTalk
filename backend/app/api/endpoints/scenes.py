@@ -280,6 +280,107 @@ def list_scene_documents(
     return scene_service.document_overview(db, scene_id, user)
 
 
+@router.get("/{scene_id}/knowledge/documents/{document_id}/chunks")
+def get_document_chunks(
+    scene_id: str,
+    document_id: int,
+    user: User | None = Depends(get_optional_user),
+    db: Session = Depends(get_db),
+):
+    """资料的分块明细（含正文全文）：知识工作区查看数据源。"""
+    return scene_service.document_chunks(db, scene_id, document_id, user)
+
+
+@router.get("/{scene_id}/knowledge/documents/{document_id}/source")
+def get_document_source(
+    scene_id: str,
+    document_id: int,
+    user: User | None = Depends(get_optional_user),
+    db: Session = Depends(get_db),
+):
+    """资料源文件全文（文本类可编辑，pdf 返回 editable=false）：源文件编辑数据源。"""
+    return scene_service.document_source(db, scene_id, document_id, user)
+
+
+@router.put("/{scene_id}/knowledge/documents/{document_id}/source")
+async def put_document_source(
+    scene_id: str,
+    document_id: int,
+    request: Request,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """编辑源文件并重新解析分块：覆盖写盘 → 同名重建 documents/chunks（§编辑模型）。"""
+    data = await read_package_body(request)
+    text = data.get("text")
+    if not isinstance(text, str) or not text.strip():
+        raise AppError("text 不能为空", code="SCENE_UNSUPPORTED_FILE")
+    return scene_service.update_document_source(db, user, scene_id, document_id, text.strip())
+
+
+@router.get("/{scene_id}/knowledge/graph")
+def get_scene_graph(
+    scene_id: str,
+    user: User | None = Depends(get_optional_user),
+    db: Session = Depends(get_db),
+):
+    """实体关系图谱（阶段三，规则抽取）：文件-分节从属 + 跨文件分节相关边。"""
+    return scene_service.scene_graph(db, scene_id, user)
+
+
+@router.get("/{scene_id}/knowledge/search")
+def search_scene_knowledge(
+    scene_id: str,
+    q: str,
+    top_k: int = 4,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """知识混合检索：ngram 全文关键词 + 向量余弦（RRF 融合）；未配置嵌入 key 时纯关键词。"""
+    if not q.strip():
+        raise AppError("检索词不能为空", code="SCENE_UNSUPPORTED_FILE")
+    return scene_service.search_knowledge(db, user, scene_id, q.strip(), max(1, min(top_k, 20)))
+
+
+@router.post("/{scene_id}/knowledge/reindex")
+def reindex_scene_knowledge(
+    scene_id: str,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """为场景分块补建向量（上传时嵌入失败 / 换嵌入模型后的全量重建）。"""
+    return scene_service.reindex_knowledge(db, user, scene_id)
+
+
+@router.get("/{scene_id}/knowledge/lightrag")
+def lightrag_scene_knowledge(
+    scene_id: str,
+    q: str,
+    mode: str = "mix",
+    top_k: int = 6,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """场景知识图谱检索（LightRAG）：返回实体/关系/分块检索上下文，不生成答案。"""
+    if not q.strip():
+        raise AppError("检索词不能为空", code="SCENE_UNSUPPORTED_FILE")
+    try:
+        context = scene_service.lightrag_scene_query(db, user, scene_id, q.strip(), mode, max(1, min(top_k, 20)))
+    except ValueError as exc:
+        raise AppError(str(exc), code="SCENE_UNSUPPORTED_FILE") from exc
+    return {"query": q.strip(), "mode": mode, "context": context}
+
+
+@router.post("/{scene_id}/knowledge/lightrag/rebuild")
+def lightrag_scene_rebuild(
+    scene_id: str,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """全量重建场景图谱索引（后台执行：LLM 实体抽取耗时数十秒/篇）。"""
+    return scene_service.lightrag_scene_rebuild(db, user, scene_id)
+
+
 @router.patch("/{scene_id}/knowledge/sections/{section_name}")
 def patch_section_visibility(
     scene_id: str,

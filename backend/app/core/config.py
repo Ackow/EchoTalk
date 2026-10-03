@@ -48,3 +48,23 @@ CORS_ORIGINS = [
 ]
 API_BIND_HOST = os.getenv("ECHOTALK_API_HOST", "127.0.0.1")  # 监听地址
 API_BIND_PORT = int(os.getenv("ECHOTALK_API_PORT", "8000"))  # 监听端口
+
+# ---- 嵌入（Hybrid RAG）配置：SiliconFlow OpenAI 兼容接口，BAAI/bge-m3 ----
+# 未配置 key 时嵌入链路自动停用，检索退化为纯关键词（ngram 全文）模式。
+EMBEDDING_API_KEY = os.getenv("ECHOTALK_SILICONFLOW_API_KEY", "").strip()
+EMBEDDING_API_BASE = os.getenv("ECHOTALK_EMBEDDING_API_BASE", "https://api.siliconflow.cn/v1").strip().rstrip("/")
+EMBEDDING_MODEL = os.getenv("ECHOTALK_EMBEDDING_MODEL", "BAAI/bge-m3").strip()  # 换模型需全量重建索引（reindex）
+EMBEDDING_DIM = int(os.getenv("ECHOTALK_EMBEDDING_DIM", "1024"))  # bge-m3 输出维度
+EMBEDDING_TIMEOUT = float(os.getenv("ECHOTALK_EMBEDDING_TIMEOUT", "15"))  # 单次请求超时（秒）
+EMBEDDING_BATCH_SIZE = int(os.getenv("ECHOTALK_EMBEDDING_BATCH", "16"))  # 单请求文本条数上限
+
+# ---- LightRAG（图谱 RAG）配置：实体抽取 LLM 独立配置（base_url + key + 模型名），与嵌入分开 ----
+# 未配置 LLM key 或 ECHOTALK_LIGHTRAG_ENABLED=false 时整条链路停用
+# （维护操作静默跳过，查询接口 400）。嵌入仍走上面的 SiliconFlow bge-m3。
+# 抽取 LLM 官方建议 ≥32B 且非推理模型；默认 DeepSeek-V3（中文实体抽取强、性价比高）。
+LIGHTRAG_ENABLED = os.getenv("ECHOTALK_LIGHTRAG_ENABLED", "true").strip().lower() not in ("0", "false", "no", "off")
+LIGHTRAG_LLM_API_BASE = os.getenv("ECHOTALK_LIGHTRAG_LLM_API_BASE", "https://api.siliconflow.cn/v1").strip().rstrip("/")
+LIGHTRAG_LLM_API_KEY = os.getenv("ECHOTALK_LIGHTRAG_LLM_API_KEY", "").strip()
+LIGHTRAG_LLM_MODEL = os.getenv("ECHOTALK_LIGHTRAG_LLM_MODEL", "deepseek-ai/DeepSeek-V3").strip()
+LIGHTRAG_LLM_TIMEOUT = int(os.getenv("ECHOTALK_LIGHTRAG_LLM_TIMEOUT", "120"))  # 单次抽取/查询超时（秒）
+LIGHTRAG_ROOT = Path(os.getenv("ECHOTALK_LIGHTRAG_DIR", str(BACKEND_DIR / "storage" / "lightrag")))

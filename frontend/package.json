@@ -12,7 +12,9 @@
     "pack": "npm run build && electron-builder"
   },
   "dependencies": {
+    "@milkdown/kit": "^7.22.2",
     "axios": "^1.6.8",
+    "marked": "^18.0.14",
     "vue": "^3.4.21",
     "vue-router": "^4.3.0"
   },

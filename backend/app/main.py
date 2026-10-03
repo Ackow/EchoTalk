@@ -13,6 +13,7 @@ from sqlalchemy import text
 
 from app import models  # noqa: F401 导入即注册 SQLAlchemy 表定义
 from app.api.endpoints.auth import router as auth_router
+from app.api.endpoints.knowledge import router as knowledge_router
 from app.api.endpoints.scenes import router as scenes_router
 from app.core.config import CORS_ORIGINS
 from app.core.database import engine, SessionLocal
@@ -63,6 +64,7 @@ app.add_middleware(
 )
 app.include_router(auth_router, prefix="/api")  # 账户路由统一挂 /api 前缀
 app.include_router(scenes_router, prefix="/api")  # 场景包路由（/api/scenes）
+app.include_router(knowledge_router, prefix="/api")  # 个人资料路由（/api/knowledge/personal）
 
 
 @app.get("/api/health", tags=["服务"])

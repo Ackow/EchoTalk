@@ -42,15 +42,12 @@
         >{{ cat.label }}</button>
       </div>
       <div class="filter-right">
-        <label class="sort-box">
-          <span>排序</span>
-          <select v-model="sortBy" aria-label="排序方式">
-            <option value="hot">热度最高</option>
-            <option value="newest">最新创建</option>
-            <option value="downloads">下载最多</option>
-            <option value="favorites">收藏最多</option>
-          </select>
-        </label>
+        <AppSelect
+          v-model="sortBy"
+          :options="SORT_OPTIONS"
+          label="排序"
+          aria-label="排序方式"
+        />
         <label class="search-box">
           <AppIcon name="search" :size="14" />
           <input v-model="keyword" type="search" placeholder="搜索场景名称、描述或标签" />
@@ -336,6 +333,7 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import AppIcon from '../components/AppIcon.vue'
+import AppSelect from '../components/AppSelect.vue'
 import { session } from '../auth/session'
 import {
   coverUrl, deleteScene, duplicateScene, exportScene, favoriteScene, getScene, importScene,
@@ -428,6 +426,8 @@ const SORTERS = {
   downloads: { label: '下载最多', fn: (a, b) => (b.stats?.downloads || 0) - (a.stats?.downloads || 0) || hotScore(b) - hotScore(a) },
   favorites: { label: '收藏最多', fn: (a, b) => (b.stats?.favorites || 0) - (a.stats?.favorites || 0) || hotScore(b) - hotScore(a) },
 }
+// AppSelect 的选项数据（与 SORTERS 保持同一 key 顺序）
+const SORT_OPTIONS = Object.entries(SORTERS).map(([value, { label }]) => ({ value, label }))
 const sortBy = ref('hot')
 const sortedItems = computed(() => {
   const arr = [...filteredItems.value]
@@ -677,12 +677,9 @@ async function toggleFavorite(scene) {
 .toolbar-actions { display: flex; align-items: center; gap: 9px; }
 .hidden-input { display: none; }
 
-/* 筛选行：分类 chips + 排序 + 搜索 */
+/* 筛选行：分类 chips + 排序 + 搜索（排序下拉已提取为公共 AppSelect 组件） */
 .filter-row { display: flex; flex: 0 0 auto; align-items: center; justify-content: space-between; gap: 14px; margin-bottom: 16px; }
 .filter-right { display: flex; align-items: center; gap: 8px; }
-.sort-box { display: inline-flex; flex: 0 0 auto; align-items: center; gap: 7px; height: 34px; padding: 0 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--faint); font-size: 13px; transition: border-color .15s, box-shadow .15s; }
-.sort-box:focus-within { border-color: var(--brand); box-shadow: 0 0 0 3px rgba(98, 101, 232, .12); }
-.sort-box select { border: 0; outline: none; background: transparent; color: var(--ink); font-size: 13.5px; font-family: inherit; cursor: pointer; }
 .cat-chips { display: flex; flex-wrap: wrap; gap: 6px; }
 .cat-chip { height: 29px; padding: 0 13px; border: 1px solid var(--line); border-radius: 15px; background: var(--surface); color: var(--ink-soft); font-size: 13px; transition: border-color .15s, background .15s, color .15s; }
 .cat-chip:hover { border-color: #d5d7e6; color: var(--ink); }

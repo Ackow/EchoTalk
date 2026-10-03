@@ -12,6 +12,7 @@ from app.core.errors import AppError
 from app.core.timeutil import utcnow
 from app.models import Chunk, Document, Scene, User
 from app.scenes import knowledge as knowledge_svc
+from app.scenes import graph as graph_svc
 from app.scenes import packaging, registry, social
 from app.scenes.errors import (
     SceneBuiltinReadonlyError,
@@ -326,12 +327,226 @@ def document_overview(db: Session, scene_id: str, user: User | None) -> dict[str
     return {"scene_id": scene_id, "documents": knowledge_svc.document_overview(db, scene_id)}
 
 
+def document_chunks(db: Session, scene_id: str, document_id: int, user: User | None) -> dict[str, Any]:
+    """资料的分块明细（含正文全文）：知识工作区查看数据源。"""
+    row = load_scene(db, scene_id)
+    ensure_visible(row, user)
+    return {
+        "scene_id": scene_id,
+        "document_id": document_id,
+        "chunks": knowledge_svc.list_document_chunks(db, scene_id, document_id),
+    }
+
+
+def document_source(db: Session, scene_id: str, document_id: int, user: User | None) -> dict[str, Any]:
+    """资料源文件全文（文本类可编辑）：知识工作区源文件编辑数据源。"""
+    row = load_scene(db, scene_id)
+    ensure_visible(row, user)
+    return knowledge_svc.read_document_source(db, scene_id, document_id)
+
+
+def update_document_source(db: Session, user: User, scene_id: str, document_id: int, text: str) -> dict[str, Any]:
+    """编辑源文件并重新解析分块（作者可写场景）。"""
+    row = load_scene(db, scene_id)
+    ensure_writable(row, user)
+    document = knowledge_svc.update_document_source(db, row, document_id, text)
+    return {
+        "id": document.id,
+        "filename": document.filename,
+        "chunk_count": document.chunk_count,
+        "visibility": document.visibility,
+    }
+
+
 def patch_section_visibility(db: Session, user: User, scene_id: str, section: str, visibility: str) -> dict[str, Any]:
     """修改分节可见性。"""
     row = load_scene(db, scene_id)
     ensure_writable(row, user)
     updated = knowledge_svc.set_section_visibility(db, scene_id, section, visibility)
     return {"section": section, "visibility": visibility, "updated_chunks": updated}
+
+
+def scene_graph(db: Session, scene_id: str, user: User | None) -> dict[str, Any]:
+    """实体关系图谱（阶段三，规则抽取）：知识工作区右侧面板数据源。"""
+    row = load_scene(db, scene_id)
+    ensure_visible(row, user)
+    return graph_svc.scene_graph(db, scene_id)
+
+
+# ---- 混合检索（Hybrid RAG）：关键词 + 向量 RRF 融合 --------------------------
+
+def search_knowledge(db: Session, user: User | None, scene_id: str, query: str, top_k: int) -> dict[str, Any]:
+    """场景知识混合检索：搜索框与对话侧注入共用的数据源。"""
+    row = load_scene(db, scene_id)
+    ensure_visible(row, user)
+    from app.scenes import retrieval as retrieval_svc
+
+    return retrieval_svc.search_scene(db, scene_id, query, top_k)
+
+
+def reindex_knowledge(db: Session, user: User, scene_id: str) -> dict[str, Any]:
+    """为场景分块补建向量（上传时嵌入失败 / 换嵌入模型后的全量重建）。"""
+    row = load_scene(db, scene_id)
+    ensure_writable(row, user)
+    from app.scenes import embedding as embedding_svc
+
+    if not embedding_svc.available():
+        raise AppError("未配置 ECHOTALK_SILICONFLOW_API_KEY，无法生成向量", status_code=400)
+    embedded = knowledge_svc.reindex_scene(db, scene_id)
+    return {"scene_id": scene_id, "model": embedding_svc.config.EMBEDDING_MODEL, "embedded": embedded}
+
+
+def search_personal_knowledge(db: Session, user: User, query: str, top_k: int) -> dict[str, Any]:
+    """个人资料混合检索。"""
+    from app.scenes import retrieval as retrieval_svc
+
+    return retrieval_svc.search_personal(db, user.id, query, top_k)
+
+
+def reindex_personal_knowledge(db: Session, user: User) -> dict[str, Any]:
+    """为本人个人资料分块补建向量。"""
+    from app.scenes import embedding as embedding_svc
+
+    if not embedding_svc.available():
+        raise AppError("未配置 ECHOTALK_SILICONFLOW_API_KEY，无法生成向量", status_code=400)
+    embedded = knowledge_svc.reindex_personal(db, user.id)
+    return {"model": embedding_svc.config.EMBEDDING_MODEL, "embedded": embedded}
+
+
+# ---- LightRAG 图谱检索（阶段 3+）：实体关系索引 ------------------------------
+
+def _lightrag_available_or_400() -> None:
+    from app.scenes import lightrag_service as lightrag_svc
+
+    if not lightrag_svc.available():
+        raise AppError(
+            "LightRAG 未启用：需在 backend/.env 配置 ECHOTALK_LIGHTRAG_LLM_API_KEY（抽取 LLM）"
+            "与 ECHOTALK_SILICONFLOW_API_KEY（嵌入），且 ECHOTALK_LIGHTRAG_ENABLED 不为 false",
+            status_code=400,
+        )
+
+
+def lightrag_scene_query(db: Session, user: User | None, scene_id: str, query: str, mode: str, top_k: int) -> str:
+    """场景知识图谱检索（LightRAG mix 模式，返回检索上下文而非生成答案）。"""
+    row = load_scene(db, scene_id)
+    ensure_visible(row, user)
+    _lightrag_available_or_400()
+    from app.scenes import lightrag_service as lightrag_svc
+
+    return lightrag_svc.query("scene", scene_id, query, mode, top_k)
+
+
+def lightrag_scene_rebuild(db: Session, user: User, scene_id: str) -> dict[str, Any]:
+    """全量重建场景图谱索引（后台执行）。"""
+    row = load_scene(db, scene_id)
+    ensure_writable(row, user)
+    _lightrag_available_or_400()
+    docs = _scene_source_texts(db, scene_id)
+    from app.scenes import lightrag_service as lightrag_svc
+
+    lightrag_svc.schedule_rebuild("scene", scene_id, docs)
+    return {"scheduled": len(docs)}
+
+
+def _scene_source_texts(db: Session, scene_id: str) -> list[tuple[int, str]]:
+    """场景全部资料源文本（可编辑类读盘，pdf 用分块拼接兜底）。"""
+    documents = knowledge_svc.list_documents(db, scene_id)
+    result: list[tuple[int, str]] = []
+    for document in documents:
+        source = knowledge_svc.read_document_source(db, scene_id, document.id)
+        if source.get("editable"):
+            text = source["text"]
+        else:  # pdf：用分块正文拼接（图谱抽取对结构不敏感）
+            chunks = knowledge_svc.list_document_chunks(db, scene_id, document.id)
+            text = "\n\n".join(c["text"] for c in chunks)
+        if text.strip():
+            result.append((document.id, text))
+    return result
+
+
+def _personal_source_texts(db: Session, user_id: int) -> list[tuple[int, str]]:
+    """本人全部个人资料源文本（取数逻辑同上）。"""
+    result: list[tuple[int, str]] = []
+    for document in knowledge_svc.personal_document_overview(db, user_id):
+        source = knowledge_svc.read_personal_source(db, user_id, document["id"])
+        if source.get("editable"):
+            text = source["text"]
+        else:
+            chunks = knowledge_svc.list_personal_chunks(db, user_id, document["id"])
+            text = "\n\n".join(c["text"] for c in chunks)
+        if text.strip():
+            result.append((document["id"], text))
+    return result
+
+
+def lightrag_personal_query(db: Session, user: User, query: str, mode: str, top_k: int) -> str:
+    """个人资料图谱检索。"""
+    _lightrag_available_or_400()
+    from app.scenes import lightrag_service as lightrag_svc
+
+    return lightrag_svc.query("personal", user.id, query, mode, top_k)
+
+
+def lightrag_personal_rebuild(db: Session, user: User) -> dict[str, Any]:
+    """全量重建本人个人资料图谱索引（后台执行）。"""
+    _lightrag_available_or_400()
+    docs = _personal_source_texts(db, user.id)
+    from app.scenes import lightrag_service as lightrag_svc
+
+    lightrag_svc.schedule_rebuild("personal", user.id, docs)
+    return {"scheduled": len(docs)}
+
+
+# ---- 个人工作区资料（阶段二）：owner 隔离，全部要求登录 ----------------------
+
+def personal_overview(db: Session, user: User) -> dict[str, Any]:
+    """个人资料文件级概览。"""
+    return {"documents": knowledge_svc.personal_document_overview(db, user.id)}
+
+
+def personal_graph(db: Session, user: User) -> dict[str, Any]:
+    """个人资料实体关系图谱（与场景图谱同一套抽取逻辑）。"""
+    return graph_svc.personal_graph(db, user.id)
+
+
+def upload_personal(db: Session, user: User, filename: str, content: bytes, content_type: str | None) -> dict[str, Any]:
+    """上传个人资料（同名覆盖即更新）。"""
+    document = knowledge_svc.add_personal_document(db, user.id, filename, content, content_type)
+    return {
+        "id": document.id,
+        "filename": document.filename,
+        "chunk_count": document.chunk_count,
+        "created_at": document.created_at.isoformat() if document.created_at else None,
+    }
+
+
+def personal_chunks(db: Session, user: User, document_id: int) -> dict[str, Any]:
+    """个人资料分块明细（只读）。"""
+    return {
+        "document_id": document_id,
+        "chunks": knowledge_svc.list_personal_chunks(db, user.id, document_id),
+    }
+
+
+def personal_source(db: Session, user: User, document_id: int) -> dict[str, Any]:
+    """个人资料源文件全文。"""
+    return knowledge_svc.read_personal_source(db, user.id, document_id)
+
+
+def update_personal_source(db: Session, user: User, document_id: int, text: str) -> dict[str, Any]:
+    """编辑个人资料源文件并重新解析。"""
+    document = knowledge_svc.update_personal_source(db, user.id, document_id, text)
+    return {
+        "id": document.id,
+        "filename": document.filename,
+        "chunk_count": document.chunk_count,
+    }
+
+
+def delete_personal(db: Session, user: User, document_id: int) -> dict[str, Any]:
+    """删除个人资料。"""
+    document = knowledge_svc.delete_personal_document(db, user.id, document_id)
+    return {"deleted": document.filename}
 
 
 def delete_knowledge(db: Session, user: User, scene_id: str, document_id: int) -> Document:
