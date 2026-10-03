@@ -302,11 +302,11 @@
           </div>
           <div class="side-card">
             <div class="side-head"><h4>可见性图例</h4></div>
-            <div class="legend-row"><span class="tag user"><AppIcon name="eye" :size="11" />用户可见</span><span>展示在对话参考面板，学习者可直接查看</span></div>
-            <div class="legend-row"><span class="tag ai"><AppIcon name="bot" :size="11" />仅 AI</span><span>只参与 AI 检索，不展示给学习者</span></div>
+            <div class="legend-row"><span class="tag user"><AppIcon name="eye" :size="11" />用户可见</span><span>对话参考面板中展示给学习者</span></div>
+            <div class="legend-row"><span class="tag ai"><AppIcon name="bot" :size="11" />仅 AI</span><span>仅参与 AI 检索，不对外展示</span></div>
             <template v-if="scope === 'scene'">
-              <div class="legend-row"><span class="legend-mark">[ai]</span><span>写在 Markdown 标题行内，该分节仅 AI 可见</span></div>
-              <div class="legend-row"><span class="legend-mark">[user]</span><span>写在标题行内显式声明用户可见；未标注的分节默认用户可见</span></div>
+              <div class="legend-row"><span class="legend-mark">[ai]</span><span>标题行内标注，该分节仅 AI 可见</span></div>
+              <div class="legend-row"><span class="legend-mark">[user]</span><span>标题行声明用户可见；未标注默认用户可见</span></div>
             </template>
 <!--            <p v-else class="legend-note">个人资料全部对您可见，不涉及 [ai] / [user] 标注。</p>-->
             <div class="legend-row"><span class="legend-mark">图谱</span><span>{{ graphData?.engine === 'lightrag'
@@ -1068,15 +1068,15 @@ const lrLayout = computed(() => {
   const ranked = [...graphData.value.nodes]
     .map((n) => ({ ...n, degree: degree.get(n.id) || 0 }))
     .sort((a, b) => b.degree - a.degree || a.label.localeCompare(b.label))
-  const picked = ranked.slice(0, LR_SHOW)
+  // 画布尺寸：宽度随容器、高度随窗口高度（扣除页面其他区域 + 下方说明与可见性图例的空间）
+  const width = Math.round(Math.min(760, Math.max(240, lrWrapWidth.value)))
+  const usable = Math.max(260, lrWinHeight.value - 440)
+  const height = Math.round(Math.max(260, Math.min(width * 1.05, usable, 760)))
+  // 展示实体数随画布高度收缩：窗口矮时自动少展示几个实体，保证右栏整体一屏内、图例完整可见
+  const show = Math.max(10, Math.min(LR_SHOW, Math.floor(height / 15)))
+  const picked = ranked.slice(0, show)
   const keep = new Set(picked.map((n) => n.id))
   const edges = graphData.value.edges.filter((e) => keep.has(e.source) && keep.has(e.target))
-  // 画布尺寸联动：宽度随容器、高度随窗口高度（扣除页面其他区域），同时保证容纳全部节点
-  const width = Math.round(Math.min(760, Math.max(240, lrWrapWidth.value)))
-  const usable = Math.max(320, lrWinHeight.value - 330) // 窗口高度里可分配给图谱的部分
-  let height = Math.min(width * 1.05, usable)
-  height = Math.max(height, picked.length * 15, 320)
-  height = Math.round(Math.min(760, height))
   const nodes = picked.map((n) => ({ ...n, r: Math.min(10, 3 + Math.sqrt(n.degree) * 1.5), fx: 0, fy: 0 }))
   lrForceSim(nodes, edges, width, height)
   const pos = {}
@@ -1173,7 +1173,7 @@ onBeforeUnmount(() => {
 .side-desc { color: var(--muted); font-size: 12px; line-height: 1.65; margin: 8px 0 0; }
 .rag-graph-wrap { max-height: 300px; overflow-y: auto; margin-top: 2px; }
 /* LightRAG 力导向图：画布高度随窗口高度联动（与 JS 侧 usable 公式一致），过长滚动；详情与图例在容器外始终可见 */
-.rag-graph-wrap.lr { max-height: calc(100vh - 330px); }
+.rag-graph-wrap.lr { max-height: calc(100vh - 440px); }
 .rag-graph { width: 100%; height: auto; display: block; }
 .rag-graph .edges path { fill: none; stroke-width: 1.2; opacity: .55; }
 .rag-graph .edges path.contains { opacity: .45; }
