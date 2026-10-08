@@ -2,6 +2,16 @@
 const { app, BrowserWindow, ipcMain, shell } = require('electron')
 const path = require('path')
 
+// 开发模式下用 F12 / Ctrl(Cmd)+Shift+I 切换开发者工具。
+// 不用全局快捷键（会抢占系统级组合键），也不用菜单角色——autoHideMenuBar 已隐藏菜单，
+// 菜单加速器在无菜单栏时并不可靠，before-input-event 直接作用于本窗口最稳。
+function isDevtoolsShortcut(input) {
+  if (input.type !== 'keyDown') return false
+  if (input.key === 'F12') return true // F12 各平台一致
+  // Ctrl+Shift+I（Win/Linux）、Cmd+Alt+I（macOS 对应 key 为 i，meta 为 Cmd）
+  return input.key?.toLowerCase() === 'i' && (input.control || input.meta) && input.shift
+}
+
 function createWindow() {
   const window = new BrowserWindow({
     width: 1280, // 留出品牌区与完整账户工作区
@@ -17,12 +27,23 @@ function createWindow() {
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'), // 预加载脚本：向渲染进程暴露安全 API
       contextIsolation: true, // 开启上下文隔离，渲染进程无法直接访问 Node
-      nodeIntegration: false // 关闭 Node 集成，保证渲染进程安全
+      nodeIntegration: false, // 关闭 Node 集成，保证渲染进程安全
+      // 打包后彻底关闭开发者工具：避免渲染层被随意查看与注入
+      devTools: !app.isPackaged
     }
   })
 
   if (app.isPackaged) window.loadFile(path.join(__dirname, '../dist/index.html')) // 打包后加载本地构建产物
   else window.loadURL('http://127.0.0.1:5173') // 开发时加载 Vite 开发服务器
+
+  // 仅开发环境注册快捷键；打包后即使拿到按键也不会打开开发者工具
+  if (!app.isPackaged) {
+    window.webContents.on('before-input-event', (event, input) => {
+      if (!isDevtoolsShortcut(input)) return
+      event.preventDefault() // 拦掉默认行为，避免与页面内快捷键重复触发
+      window.webContents.toggleDevTools()
+    })
+  }
 
   window.webContents.setWindowOpenHandler(({ url }) => {
     if (url.startsWith('https://')) shell.openExternal(url) // 外部 https 链接交给系统浏览器

@@ -59,13 +59,13 @@ const modeOptions = [
   { value: 'auto', label: '自动（推荐）', hint: '2D 不可用时降级头像' },
   { value: '2d', label: '2D 数字人' },
   { value: 'head', label: '轻量头像' },
-  { value: '3d', label: '3D 数字人 · 资源占位' },
+  { value: '3d', label: '3D 数字人 · three.js' },
 ]
 const modeTip = computed(() => ({
   auto: '按形象可用性自动选择，2D 不可用时落到轻量头像',
   '2d': '分层形象 + 基础口型，首批已支持',
   head: '仅显示角色头像与发言状态',
-  '3d': 'Three.js / VRM 接入后启用，当前为资源占位',
+  '3d': 'three.js 程序化 3D 角色：呼吸 / 眨眼 / 口型同步，配色随角色主题自动切换，无需模型文件',
 }[props.presentationMode]))
 
 const voiceOptions = computed(() => props.voices.map((v) => ({ value: v.style, label: v.label, hint: v.available ? '' : '不可用' })))

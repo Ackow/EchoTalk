@@ -3,6 +3,7 @@
 // 组件只接收 props，不拉数据、不持业务状态 —— 对话页 / 面试页 / 角色页共用同一份渲染。
 import { computed, ref } from 'vue'
 import AppIcon from '../AppIcon.vue'
+import AvatarStage3D from './AvatarStage3D.vue'
 import { useLipsync } from './useLipsync'
 
 const props = defineProps({
@@ -36,6 +37,9 @@ const stateLabel = computed(() => ({
 }[shownState.value] || '待机'))
 const lipLabel = computed(() => ({ timeline: '时间轴', envelope: '音量', state: '播放状态', off: '已关闭' }[props.lipSync] || '播放状态'))
 
+// ---- 3D（three.js 程序化角色）：渲染交给 AvatarStage3D；初始化失败回退占位说明 ----
+const render3dFailed = ref(false)
+
 defineExpose({
   // 预览一轮指定状态；传 null 回到真实会话状态
   playDemo(state = 'speaking') { demoState.value = state },
@@ -49,7 +53,8 @@ defineExpose({
     <div class="stage-grid" aria-hidden="true" />
     <div class="stage-glow" aria-hidden="true" />
 
-    <svg class="figure" viewBox="0 0 200 260" role="img" :aria-label="`${avatar?.display_name || '数字人'}，当前${stateLabel}`">
+    <!-- 2D 分层角色：3D 模式下隐藏，避免叠在 3D 画布后面 -->
+    <svg v-if="avatar?.kind !== '3d'" class="figure" viewBox="0 0 200 260" role="img" :aria-label="`${avatar?.display_name || '数字人'}，当前${stateLabel}`">
       <defs>
         <linearGradient :id="`cloth-${avatar?.id || 'default'}`" x1="0" y1="0" x2="1" y2="1">
           <stop offset="0" :stop-color="palette.cloth" />
@@ -116,11 +121,19 @@ defineExpose({
       <span class="head-letter">{{ initial }}</span>
     </div>
 
-    <!-- 3D 占位：不留空白，明确说明接入位置 -->
-    <div v-if="avatar?.kind === '3d'" class="stage-empty">
+    <!-- 3D：three.js 程序化角色（主题配色随角色走）；初始化失败时回退到占位说明 -->
+    <AvatarStage3D
+      v-if="avatar?.kind === '3d' && !render3dFailed"
+      :palette="palette"
+      :state="shownState"
+      :lip-sync="lipSync"
+      :mouth-open="mouthOpen"
+      @failed="render3dFailed = true"
+    />
+    <div v-if="avatar?.kind === '3d' && render3dFailed" class="stage-empty">
       <AppIcon name="box" :size="26" />
-      <p>3D 资源位</p>
-      <small>Three.js / VRM 接入后启用，当前显示 2D 示意形象</small>
+      <p>3D 渲染不可用</p>
+      <small>当前环境不支持 WebGL，已回退占位展示；2D 形象不受影响</small>
     </div>
 
     <!-- 舞台标注：左下状态、右上口型级别（如实上报，不谎称时间轴） -->

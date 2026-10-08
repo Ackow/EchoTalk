@@ -93,10 +93,10 @@
 
         <hr class="separator" />
 
-        <!-- 3D 资源位：留明确位置，不做空白 -->
+        <!-- 3D 资源位：3D 已由 three.js 程序化角色落地，此处留动作/表情扩展位 -->
         <div class="future-block">
           <h3>3D 资源位</h3>
-          <p>Three.js / VRM 角色、动作与细口型将在此接入。当前阶段保持头像与 2D 可用，界面位置与数据结构已预留。</p>
+          <p>3D 形象已用 three.js 程序化搭建并随主题配色；动作库、表情细化与服装变体将在此扩展。当前阶段保持头像与 2D 可用。</p>
           <button class="ghost-button" type="button" @click="onResourceInfo">管理形象资源</button>
         </div>
       </aside>
@@ -262,7 +262,7 @@ const currentAvatar = computed(() => {
 })
 const effectiveLip = computed(() => (lipSyncEnabled.value ? 'state' : 'off'))
 const sourceLabel = computed(() => ({ user: '你的选择', scene_role: '场景推荐', scene_package: '整包推荐', default: '应用缺省' }[source.value]))
-const modeLabel = computed(() => ({ auto: '自动', '2d': '2D 数字人', head: '轻量头像', '3d': '3D 占位' }[presentationMode.value]))
+const modeLabel = computed(() => ({ auto: '自动', '2d': '2D 数字人', head: '轻量头像', '3d': '3D 数字人' }[presentationMode.value]))
 const lipRows = computed(() => [
   { level: 'L1', text: 'TTS 词级时间戳驱动，口型与语音对齐', active: effectiveLip.value === 'timeline' },
   { level: 'L2', text: '音量包络驱动，开合随实时音量', active: effectiveLip.value === 'envelope' },
