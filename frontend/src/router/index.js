@@ -30,7 +30,7 @@ const router = createRouter({
         { path: 'scenes/create', name: 'scene-create', component: () => import('../views/SceneEditor.vue'), meta: { title: '新建场景' } },
         { path: 'scenes/:id/edit', name: 'scene-edit', component: () => import('../views/SceneEditor.vue'), meta: { title: '编辑场景' } },
         { path: 'knowledge', name: 'knowledge', component: () => import('../views/Knowledge.vue'), meta: { title: '知识工作区' } }, // 一期：场景资料管理；检索随阶段三开放
-        { path: 'avatar', name: 'avatar', component: () => import('../views/AvatarSettings.vue'), meta: { title: '数字人角色' } },
+        { path: 'avatar', name: 'avatar', component: () => import('../views/AvatarSettings.vue'), meta: { title: '数字人角色' } }, // 游客可浏览试玩，保存偏好需登录（页面内限制）
         module('review', 'review', '复习计划', '听力错题、词汇与表达的复习队列。'),
         module('report', 'report', '训练报告', '课后总结、纠错记录与发音结果。'),
         module('history', 'history', '历史记录', '会话回放与训练记录检索。'),

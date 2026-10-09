@@ -1,16 +1,17 @@
 <template>
-  <!-- 声音设置：呈现方式 / 声音 / 语速 / 口型开关。语速范围与服务端 clamp(0.5, 2.0) 一致。 -->
+  <!-- 声音设置：声音 / 语速 / 演示口型开关。 -->
   <section class="voice-settings">
     <label class="field">
-      <span class="field-label">呈现方式</span>
-      <AppSelect :model-value="presentationMode" :options="modeOptions" @update:model-value="emit('update:presentationMode', $event)" />
-      <small class="field-tip">{{ modeTip }}</small>
-    </label>
-
-    <label class="field">
       <span class="field-label">声音</span>
-      <AppSelect :model-value="voiceStyle" :options="voiceOptions" @update:model-value="emit('update:voiceStyle', $event)" />
-      <small v-if="!channelAvailable" class="field-tip warn">语音渠道未探测成功，显示本地缺省表</small>
+      <div class="voice-row">
+        <AppSelect aria-label="声音预设" :model-value="voiceStyle" :options="voiceOptions" @update:model-value="emit('update:voiceStyle', $event)" />
+        <button class="preview-btn" type="button" :disabled="!channelAvailable" @click="emit('preview')">
+          <svg v-if="!previewing" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 1.8v8.4L10 6z" fill="currentColor" /></svg>
+          <svg v-else viewBox="0 0 12 12" aria-hidden="true"><rect x="2.5" y="2.5" width="7" height="7" rx="1.5" fill="currentColor" /></svg>
+          {{ previewing ? '停止' : '试听' }}
+        </button>
+      </div>
+      <small v-if="!channelAvailable" class="field-tip warn">{{ probing ? '正在检测声音渠道…' : '声音渠道暂不可用，无法试听' }}</small>
     </label>
 
     <div class="field">
@@ -31,10 +32,10 @@
     <div class="switch-row">
       <div class="switch-text">
         <b>说话时显示口型</b>
-        <small>当前实际级别：{{ lipLabel }}</small>
+        <small>仅用于角色动作演示</small>
       </div>
       <label class="switch">
-        <input type="checkbox" :checked="lipSyncEnabled" @change="emit('update:lipSyncEnabled', $event.target.checked)" />
+        <input aria-label="说话时显示口型" type="checkbox" :checked="lipSyncEnabled" @change="emit('update:lipSyncEnabled', $event.target.checked)" />
         <span class="switch-track" aria-hidden="true"><span class="switch-thumb" /></span>
       </label>
     </div>
@@ -46,47 +47,39 @@ import { computed } from 'vue'
 import AppSelect from '../AppSelect.vue'
 
 const props = defineProps({
-  presentationMode: { type: String, default: 'auto' },
   voiceStyle: { type: String, default: '' },
   voices: { type: Array, default: () => [] },
   speechRate: { type: Number, default: 1 },
   lipSyncEnabled: { type: Boolean, default: true },
-  lipLevel: { type: String, default: 'state' }, // 实际生效的口型级别，如实展示
+  previewing: { type: Boolean, default: false },
 })
-const emit = defineEmits(['update:presentationMode', 'update:voiceStyle', 'update:speechRate', 'update:lipSyncEnabled'])
+const emit = defineEmits(['update:voiceStyle', 'update:speechRate', 'update:lipSyncEnabled', 'preview'])
 
-const modeOptions = [
-  { value: 'auto', label: '自动（推荐）', hint: '2D 不可用时降级头像' },
-  { value: '2d', label: '2D 数字人' },
-  { value: 'head', label: '轻量头像' },
-  { value: '3d', label: '3D 数字人 · three.js' },
-]
-const modeTip = computed(() => ({
-  auto: '按形象可用性自动选择，2D 不可用时落到轻量头像',
-  '2d': '分层形象 + 基础口型，首批已支持',
-  head: '仅显示角色头像与发言状态',
-  '3d': 'three.js 程序化 3D 角色：呼吸 / 眨眼 / 口型同步，配色随角色主题自动切换，无需模型文件',
-}[props.presentationMode]))
-
-const voiceOptions = computed(() => props.voices.map((v) => ({ value: v.style, label: v.label, hint: v.available ? '' : '不可用' })))
+const voiceOptions = computed(() => props.voices.map((v) => ({ value: v.style, label: v.label, hint: v.available === false ? '不可用' : '' })))
 const channelAvailable = computed(() => props.voices.some((v) => v.available))
+const probing = computed(() => props.voices.length > 0 && props.voices.every((v) => v.available == null))
 
 const rateLabel = computed(() => `${props.speechRate.toFixed(2)}× ${props.speechRate === 1 ? '标准语速' : ''}`.trim())
 function onRate(val) { emit('update:speechRate', Number(val) / 100) }
 
-const lipLabel = computed(() => (!props.lipSyncEnabled ? '已关闭' : {
-  timeline: 'L1 时间轴（与语音对齐）',
-  envelope: 'L2 音量包络',
-  state: 'L3 播放状态',
-  off: '不可用，保持闭合',
-}[props.lipLevel] || 'L3 播放状态'))
 </script>
 
 <style scoped>
 .voice-settings { display: grid; gap: 15px; }
-/* 公共 AppSelect 默认按内容宽度收缩，这里在表单里让它撑满字段容器 */
+/* 公共 AppSelect 默认按内容宽度收缩，这里在表单里让它撑满剩余宽度 */
 .field :deep(.app-select) { display: block; width: 100%; }
 .field { display: grid; gap: 6px; }
+.voice-row { display: flex; align-items: stretch; gap: 8px; }
+.voice-row :deep(.app-select) { flex: 1; min-width: 0; }
+.preview-btn {
+  display: inline-flex; flex: 0 0 auto; align-items: center; gap: 5px; padding: 0 12px;
+  border: 1px solid var(--line); border-radius: 8px; background: var(--surface);
+  color: var(--ink-soft); font-size: 12.5px; cursor: pointer;
+  transition: border-color .15s, color .15s, background .15s;
+}
+.preview-btn svg { width: 11px; height: 11px; }
+.preview-btn:hover:not(:disabled) { border-color: #d5d7e6; color: var(--ink); background: #fafafd; }
+.preview-btn:disabled { opacity: .55; cursor: not-allowed; }
 .field-label { display: flex; align-items: baseline; gap: 6px; font-size: 12.5px; color: var(--muted); }
 .rate-value { font-size: 12.5px; font-weight: 500; color: var(--brand-deep, var(--brand)); font-variant-numeric: tabular-nums; }
 .field-tip { font-size: 11.5px; line-height: 1.6; color: var(--faint); }

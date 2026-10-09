@@ -59,12 +59,13 @@
 
 <script setup>
 import { onBeforeUnmount, onMounted, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import AppIcon from '../components/AppIcon.vue'
 import { login, register } from '../api/auth'
 import { saveSession, session } from '../auth/session'
 
 const router = useRouter()
+const route = useRoute()
 const username = ref('')
 const password = ref('')
 const confirmation = ref('')
@@ -97,7 +98,9 @@ async function submit() {
     const { data } = await action({ username: username.value, password: password.value })
     saveSession(data.access_token, data.user)
     session.user = data.user
-    await router.replace({ name: 'workspace' })
+    // 带redirect 来路（如从数字人页拦截而来）时回跳原页面；只接受应用内路径防外链跳转
+    const target = typeof route.query.redirect === 'string' && route.query.redirect.startsWith('/') ? route.query.redirect : { name: 'workspace' }
+    await router.replace(target)
   } catch (requestError) {
     error.value = requestError.message || '无法连接账户服务，请检查网络后重试。' // 错误已在 http.js 中规范化为可读文案
   } finally {

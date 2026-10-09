@@ -40,12 +40,10 @@
           type="button"
           role="radio"
           :aria-checked="a.id === avatarId"
-          :disabled="a.kind === '3d'"
           @click="emit('update:avatarId', a.id)"
         >
           <span class="chip-thumb" :style="{ background: themeOf(a.id).cloth }">{{ a.display_name.charAt(0) }}</span>
           <span class="chip-name">{{ a.display_name.split(' · ')[0] }}</span>
-          <span v-if="a.kind === '3d'" class="chip-tag">3D</span>
         </button>
       </div>
     </div>
