@@ -1,6 +1,6 @@
 # EchoTalk 2.0
 
-EchoTalk 2.0 当前提供账户注册、登录、退出，以及登录后的空白工作区。场景练习、语音、历史、分析、设置和 RAG 尚未实现。
+EchoTalk 2.0 当前提供账户、场景包、知识工作区、检索、数字人偏好与 TTS 基础服务，以及 LangChain + LangGraph 对话框架和练习页面。练习支持文字交流、录音转写后确认发送和语音回放；完整业务工具、课后报告与学习分析仍待接入。配置说明见 [对话 Agent 框架](docs/conversation-framework.md) 和 [录音与 ASR 转写](docs/speech-input.md)。
 
 ## 技术结构
 

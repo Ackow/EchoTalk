@@ -3,7 +3,7 @@
   <main class="workspace-shell" :class="{ 'sidebar-hidden': sidebarHidden }">
     <aside class="sidebar">
       <div class="sidebar-inner">
-        <div class="sidebar-traffic"> <!-- 顶部拖拽区：macOS 红绿灯落位，折叠按钮靠右；Windows/Linux 无红绿灯，按钮靠最左 -->
+        <div v-if="isMac" class="sidebar-traffic"> <!-- macOS：红绿灯落位行，折叠按钮靠右；其他平台不渲染此行 -->
           <button
             v-if="!sidebarHidden"
             class="collapse-toggle"
@@ -18,6 +18,16 @@
         <div class="brand-lockup">
           <span class="brand-mark"><AppIcon name="logo" :size="17" /></span>
           <div class="brand-text"><b>EchoTalk</b><small>2.0</small></div>
+          <button
+            v-if="!isMac && !sidebarHidden"
+            class="collapse-toggle"
+            type="button"
+            :aria-pressed="sidebarHidden"
+            title="隐藏侧边栏"
+            @click="toggleSidebar"
+          > <!-- Windows/Linux：无红绿灯，折叠按钮与品牌同行，logo 靠左、按钮靠右 -->
+            <AppIcon name="panel" :size="15" />
+          </button>
         </div>
         <nav class="side-nav" aria-label="模块导航">
           <template v-for="group in navGroups" :key="group.label">
@@ -137,6 +147,7 @@ const navGroups = [
 
 const route = useRoute()
 const router = useRouter()
+const isMac = window.electronAPI?.platform === 'darwin' // macOS 保留红绿灯顶行，其余平台折叠按钮并入品牌行
 const error = ref('') // 退出失败时的错误提示
 const menuOpen = ref(false) // 账户浮层菜单开关
 const SIDEBAR_PREF_KEY = 'echotalk:sidebar-collapsed' // localStorage 偏好键

@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 from app.api.deps import get_current_user, get_db, get_optional_user
 from app.core.errors import AppError
 from app.models import User
+from app.schemas.knowledge import PracticeKnowledgeResponse
 from app.services import scene_service
 
 router = APIRouter(prefix="/scenes", tags=["场景包"])
@@ -268,6 +269,16 @@ def get_section_overview(
 ):
     """全分节概览（含 ai_only）：管理界面的数据源。"""
     return scene_service.section_overview(db, scene_id, user)
+
+
+@router.get("/{scene_id}/knowledge/content", response_model=PracticeKnowledgeResponse)
+def get_practice_knowledge(
+    scene_id: str,
+    user: User | None = Depends(get_optional_user),
+    db: Session = Depends(get_db),
+):
+    """练习知识点正文：按文件与分节组织，永不返回 ai_only 分块。"""
+    return scene_service.practice_knowledge(db, scene_id, user)
 
 
 @router.get("/{scene_id}/knowledge/documents")

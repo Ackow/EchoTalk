@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 
 from app.core.errors import AppError
 from app.models import AvatarPreference, Scene, User
-from app.schemas import AvatarPreferenceUpdate
+from app.schemas.avatar import AvatarPreferenceUpdate
 from app.services.tts_service import normalize_style
 
 SPEECH_RATE_MIN = 0.75  # 语速下限：与前端滑杆范围一致

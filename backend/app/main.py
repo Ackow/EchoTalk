@@ -17,6 +17,8 @@ from app.api.endpoints.avatars import router as avatars_router
 from app.api.endpoints.knowledge import router as knowledge_router
 from app.api.endpoints.scenes import router as scenes_router
 from app.api.endpoints.tts import router as tts_router
+from app.api.endpoints.sessions import router as sessions_router
+from app.api.endpoints.speech import router as speech_router
 from app.core.config import CORS_ORIGINS
 from app.core.database import engine, SessionLocal
 from app.core.errors import register_exception_handlers
@@ -69,6 +71,8 @@ app.include_router(scenes_router, prefix="/api")  # 场景包路由（/api/scene
 app.include_router(knowledge_router, prefix="/api")  # 个人资料路由（/api/knowledge/personal）
 app.include_router(avatars_router, prefix="/api")  # 数字人偏好路由（/api/preferences/avatar）
 app.include_router(tts_router, prefix="/api")  # TTS 语音合成路由（/api/tts/*）
+app.include_router(sessions_router, prefix="/api")  # 有状态文字对话框架
+app.include_router(speech_router, prefix="/api")  # 浏览器录音的英文 ASR 转写
 
 
 @app.get("/api/health", tags=["服务"])

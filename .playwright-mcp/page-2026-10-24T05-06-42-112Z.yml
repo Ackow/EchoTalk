@@ -1,0 +1,58 @@
+- main [ref=e3]:
+  - complementary [ref=e4]:
+    - generic [ref=e5]:
+      - generic [ref=e6]:
+        - generic [ref=e9]:
+          - generic [ref=e10]: EchoTalk
+          - generic [ref=e11]: "2.0"
+        - button "隐藏侧边栏" [ref=e12] [cursor=pointer]
+      - navigation "模块导航" [ref=e15]:
+        - generic [ref=e16]: 训练
+        - link "今日训练" [ref=e17] [cursor=pointer]:
+          - /url: "#/"
+        - link "语音对话" [ref=e25] [cursor=pointer]:
+          - /url: "#/practice"
+        - link "听力工作室" [ref=e30] [cursor=pointer]:
+          - /url: "#/listening"
+        - link "四六级训练" [ref=e34] [cursor=pointer]:
+          - /url: "#/cet"
+        - link "模拟面试" [ref=e39] [cursor=pointer]:
+          - /url: "#/interview"
+        - link "多角色辩论" [ref=e44] [cursor=pointer]:
+          - /url: "#/debate"
+        - generic [ref=e49]: 内容与工具
+        - link "场景探索" [ref=e50] [cursor=pointer]:
+          - /url: "#/scenes"
+        - link "知识工作区" [ref=e55] [cursor=pointer]:
+          - /url: "#/knowledge"
+        - link "数字人角色" [ref=e60] [cursor=pointer]:
+          - /url: "#/avatar"
+        - generic [ref=e64]: 成长
+        - link "复习计划" [ref=e65] [cursor=pointer]:
+          - /url: "#/review"
+        - link "训练报告" [ref=e70] [cursor=pointer]:
+          - /url: "#/report"
+        - link "历史记录" [ref=e75] [cursor=pointer]:
+          - /url: "#/history"
+        - link "成长分析" [ref=e80] [cursor=pointer]:
+          - /url: "#/analytics"
+      - button "游客 登录后同步你的数据" [ref=e86] [cursor=pointer]:
+        - generic [ref=e91]:
+          - generic [ref=e92]: 游客
+          - generic [ref=e93]: 登录后同步你的数据
+  - generic [ref=e96]:
+    - heading "语音对话" [level=1] [ref=e98]
+    - generic [ref=e100]:
+      - generic [ref=e101]:
+        - generic [ref=e102]:
+          - text: CONVERSATION STUDIO
+          - heading "从一个场景，开始交流" [level=2] [ref=e103]
+          - paragraph [ref=e104]: 选择今天想练习的情境，和你的交流伙伴一起完成任务。
+        - link "探索全部场景" [ref=e105] [cursor=pointer]:
+          - /url: "#/scenes"
+      - paragraph [ref=e109]:
+        - text: 开始练习前，请先
+        - link "登录" [ref=e112] [cursor=pointer]:
+          - /url: "#/login"
+        - text: ，保存你的对话进度。
+      - status [ref=e113]: 正在加载场景…

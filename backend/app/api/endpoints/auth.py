@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from app.api.deps import get_current_session, get_current_user
 from app.core.database import get_db
 from app.models import AuthSession, User
-from app.schemas import AuthResponse, Credentials, UserResponse
+from app.schemas.auth import AuthResponse, Credentials, UserResponse
 from app.services import auth_service
 
 router = APIRouter(prefix="/auth", tags=["账户"])  # 本模块所有接口挂在 /api/auth 下

@@ -482,6 +482,28 @@ def update_document_source(db: Session, scene: Scene, document_id: int, text: st
     return add_document(db, scene, document.filename, text.encode("utf-8"), document.content_type, document.visibility)
 
 
+def learner_content(db: Session, scene_id: str) -> list[dict[str, Any]]:
+    """按文件、分节返回完整用户可见分块；隐藏分块在查询阶段排除。
+
+    分节可见性可以覆盖文件缺省值，因此按 Chunk.visibility 判定。文件与分块
+    同时限定场景范围，避免跨文件同名分节混合或错误关联泄漏内容。
+    """
+    rows = db.query(Chunk, Document).join(Document, Chunk.document_id == Document.id).filter(
+        Chunk.scene_id == scene_id, Document.scene_id == scene_id, Chunk.visibility == "user",
+    ).order_by(Document.id, Chunk.ordinal, Chunk.id).all()
+    documents: dict[int, dict] = {}
+    sections: dict[tuple[int, str], dict] = {}
+    for chunk, document in rows:
+        entry = documents.setdefault(document.id, {"id": document.id, "filename": document.filename, "sections": []})
+        name = chunk.section or "_"
+        key = (document.id, name)
+        if key not in sections:
+            sections[key] = {"name": name, "chunks": []}
+            entry["sections"].append(sections[key])
+        sections[key]["chunks"].append({"id": chunk.id, "ordinal": chunk.ordinal, "text": chunk.text})
+    return list(documents.values())
+
+
 def visible_sections(db: Session, scene_id: str, only_user: bool = True) -> list[dict[str, Any]]:
     """分节概览：{section, visibility, chunk_count, preview}；only_user 时仅 user 可见分节。"""
     query = db.query(Chunk).filter(Chunk.scene_id == scene_id)

@@ -18,13 +18,17 @@ http.interceptors.request.use((config) => {
 })
 
 // 把各类失败统一转换为带可读 message 的 Error，组件里直接展示 err.message。
-function toFriendlyError(error) {
+async function toFriendlyError(error) {
   if (!error.response) {
     return new Error('无法连接服务器，请检查网络或后端是否启动。') // 网络层失败：离线提示
   }
-  const body = error.response.data || {}
+  let body = error.response.data || {}
+  // 音频接口使用 responseType=blob，失败时后端 JSON 也会被包装为 Blob。
+  if (body instanceof Blob) {
+    try { body = JSON.parse(await body.text()) } catch { body = {} }
+  }
   const detail = body.error?.message || body.detail
-  const fallback = { 401: '登录已失效，请重新登录', 403: '没有执行此操作的权限', 404: '请求的资源不存在', 500: '服务内部错误，请稍后重试' }
+  const fallback = { 401: '登录已失效，请重新登录', 403: '没有执行此操作的权限', 404: '请求的资源不存在', 500: '服务内部错误，请稍后重试', 502: '上游服务暂不可用，请稍后重试', 504: '服务响应超时，请重试' }
   const friendly = new Error(detail || fallback[error.response.status] || `请求失败（${error.response.status}）`)
   friendly.code = body.error?.code // 机器可读错误码：供调用方程序化判断（如导入冲突）
   friendly.details = body.error?.details // 字段级详情：供表单逐项标注
@@ -45,6 +49,6 @@ http.interceptors.response.use(
       await new Promise((resolve) => setTimeout(resolve, 500 * config.__retryCount)) // 递增退避：0.5s/1s/1.5s
       return http.request(config)
     }
-    return Promise.reject(toFriendlyError(error))
+    return Promise.reject(await toFriendlyError(error))
   }
 )

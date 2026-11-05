@@ -3,6 +3,7 @@
 声音清单与前端 FALLBACK_VOICES 保持一致（style 为约定枚举）；
 合成结果为 audio/mpeg 字节流，语速按 speech_rate 百分比换算。
 """
+import asyncio
 import logging
 import time
 
@@ -71,12 +72,18 @@ async def synthesize(text: str, style: str, speech_rate: float = 1.0) -> bytes:
     chunks: list[bytes] = []
     try:
         # 构造也纳入保护：参数问题在构造期即抛出，避免穿透为 500
-        communicate = edge_tts.Communicate(text, voice, rate=rate_suffix(speech_rate))
-        async for chunk in communicate.stream():
-            if chunk["type"] == "audio":  # 只收集音频块，忽略 WordBoundary 等元数据
-                chunks.append(chunk["data"])
+        async with asyncio.timeout(25):
+            communicate = edge_tts.Communicate(text, voice, rate=rate_suffix(speech_rate), connect_timeout=8, receive_timeout=15)
+            async for chunk in communicate.stream():
+                if chunk["type"] == "audio":  # 只收集音频块，忽略 WordBoundary 等元数据
+                    chunks.append(chunk["data"])
+    except TimeoutError as exc:
+        raise AppError("语音合成超时，请稍后重新播放", code="TTS_TIMEOUT", status_code=504) from exc
     except Exception as exc:
-        logger.warning("TTS 合成失败（voice=%s）：%r", voice, exc)
+        # 不把 WebSocket URL 中的令牌记录到日志或返回客户端。
+        logger.warning("TTS 合成失败（voice=%s，type=%s，status=%s）", voice, type(exc).__name__, getattr(exc, "status", None))
+        if getattr(exc, "status", None) == 403:
+            raise AppError("语音供应商拒绝连接，请更新语音组件或检查网络", code="TTS_PROVIDER_REJECTED", status_code=502) from exc
         raise AppError("语音合成失败，请稍后重试", code="TTS_SYNTHESIZE_FAILED", status_code=502) from exc
 
     audio = b"".join(chunks)

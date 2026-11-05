@@ -310,6 +310,13 @@ def visible_knowledge(db: Session, scene_id: str, user: User | None) -> dict[str
     return {"scene_id": scene_id, "has_knowledge": bool(sections), "sections": sections}
 
 
+def practice_knowledge(db: Session, scene_id: str, user: User | None) -> dict[str, Any]:
+    """验证场景可访问性后返回学习者知识正文，练习页不调用管理概览接口。"""
+    row = load_scene(db, scene_id)
+    ensure_visible(row, user)
+    return {"scene_id": scene_id, "documents": knowledge_svc.learner_content(db, scene_id)}
+
+
 def section_overview(db: Session, scene_id: str, user: User | None) -> dict[str, Any]:
     """全分节概览（含 ai_only）。"""
     row = load_scene(db, scene_id)

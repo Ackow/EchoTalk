@@ -94,6 +94,9 @@ export const deletePersonalDocument = (documentId) => http.delete(`/knowledge/pe
 // 分节级概览（旧版后端兼容 / 对话侧数据源）
 export const getSectionOverview = (id) => http.get(`/scenes/${id}/knowledge/sections`)
 
+// 对话练习专用正文：后端过滤隐藏分块，按来源文件和分节返回全文。
+export const getPracticeKnowledge = (id, signal) => http.get(`/scenes/${id}/knowledge/content`, { signal })
+
 export const patchSectionVisibility = (id, section, visibility) =>
   http.patch(`/scenes/${id}/knowledge/sections/${encodeURIComponent(section)}`, { visibility })
 

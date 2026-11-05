@@ -21,7 +21,7 @@ const router = createRouter({
       component: AppShell, // 应用壳：侧边栏 + 标题栏
       children: [
         { path: '', name: 'workspace', component: () => import('../views/Workspace.vue'), meta: { title: '今日训练' } },
-        module('practice', 'practice', '语音对话', '场景任务对话、录音转写、纠错与流式回复。'),
+        { path: 'practice', name: 'practice', component: () => import('../views/Practice.vue'), meta: { title: '语音对话' } }, // 一期文字轮次 + TTS 播报，录音转写后续接入
         module('listening', 'listening', '听力工作室', '精听、听写、跟读与五级辅助训练。'),
         module('cet', 'cet', '四六级训练', 'CET4 / CET6 题型专项与整套模拟。'),
         module('interview', 'interview', '模拟面试', '资料驱动的技术 / HR 追问与课后报告。'),

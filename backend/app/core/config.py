@@ -49,6 +49,11 @@ CORS_ORIGINS = [
 API_BIND_HOST = os.getenv("ECHOTALK_API_HOST", "127.0.0.1")  # 监听地址
 API_BIND_PORT = int(os.getenv("ECHOTALK_API_PORT", "8000"))  # 监听端口
 
+# ---- 语音识别：仅服务端持有腾讯云 Flash ASR 凭据 ----
+ASR_APP_ID = os.getenv("ECHOTALK_ASR_APP_ID", "").strip()
+ASR_SECRET_ID = os.getenv("ECHOTALK_ASR_SECRET_ID", "").strip()
+ASR_SECRET_KEY = os.getenv("ECHOTALK_ASR_SECRET_KEY", "").strip()
+
 # ---- 嵌入（Hybrid RAG）配置：SiliconFlow OpenAI 兼容接口，BAAI/bge-m3 ----
 # 未配置 key 时嵌入链路自动停用，检索退化为纯关键词（ngram 全文）模式。
 EMBEDDING_API_KEY = os.getenv("ECHOTALK_SILICONFLOW_API_KEY", "").strip()
