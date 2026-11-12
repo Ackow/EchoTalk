@@ -67,6 +67,7 @@
         :style="{ animationDelay: `${Math.min(index, 8) * 45}ms` }"
         @click="openDetail(scene)"
       >
+        <SceneCover :scene="scene" :category-label="categoryLabel(scene.category)" />
         <div class="card-body">
           <header class="card-head">
             <span class="mode-chip" :data-mode="scene.mode">
@@ -104,7 +105,6 @@
             </div>
           </header>
 
-          <h3 class="card-title">{{ scene.name }}</h3>
           <p class="card-desc">{{ scene.description || '作者还没有填写场景描述。' }}</p>
 
           <div v-if="scene.tags.length" class="card-tags">
@@ -334,7 +334,9 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import AppIcon from '../components/AppIcon.vue'
 import AppSelect from '../components/AppSelect.vue'
+import SceneCover from '../components/scene/SceneCover.vue'
 import { session } from '../auth/session'
+import { usePageLoading } from '../app/loading'
 import {
   coverUrl, deleteScene, duplicateScene, exportScene, favoriteScene, getScene, importScene,
   likeScene, listScenes, publishScene, unpublishScene,
@@ -359,6 +361,7 @@ const CATEGORIES = [
   { key: 'custom', label: '自定义' },
 ]
 const categoryLabel = (key) => CATEGORIES.find((cat) => cat.key === key)?.label || key
+// 封面色调与图标已收敛到 SceneCover 组件，两个页面共用一套映射
 
 const filters = [
   { key: 'all', label: '全部' },
@@ -485,6 +488,8 @@ const diffInfo = (value) => DIFFICULTIES[value] || DIFFICULTIES.normal
 const diffLabel = (value) => diffInfo(value).label
 const diffClass = (value) => diffInfo(value).cls
 
+// 页面级加载：首屏场景列表返回前保持全局遮罩，删除/发布后的重新拉取只走页内骨架
+const finishLoading = usePageLoading()
 async function load() {
   initializing.value = true
   try {
@@ -494,6 +499,7 @@ async function load() {
     notify(error.message)
   } finally {
     initializing.value = false
+    finishLoading()
   }
 }
 onMounted(load)
@@ -667,9 +673,9 @@ async function toggleFavorite(scene) {
 /* 场景探索页样式：沿用全局设计令牌，卡片扁平克制 */
 .scenes-page { flex: 1; min-height: 0; display: flex; flex-direction: column; padding: 22px 28px 32px; overflow-y: auto; }
 
-.scenes-toolbar { display: flex; flex: 0 0 auto; align-items: center; justify-content: space-between; gap: 14px; margin-bottom: 12px; }
+.scenes-toolbar { display: flex; flex: 0 0 auto; flex-wrap: wrap; row-gap: 8px; align-items: center; justify-content: space-between; gap: 14px; margin-bottom: 12px; }
 .seg-filter { display: inline-flex; gap: 3px; padding: 3px; border: 1px solid var(--line); border-radius: 9px; background: var(--surface); }
-.seg-item { display: inline-flex; align-items: center; gap: 6px; height: 31px; padding: 0 13px; border: 0; border-radius: 7px; background: transparent; color: var(--ink-soft); font-size: 13.5px; transition: background .15s, color .15s; }
+.seg-item { display: inline-flex; align-items: center; gap: 6px; height: 31px; padding: 0 13px; border: 0; border-radius: 7px; background: transparent; color: var(--ink-soft); font-size: 13.5px; white-space: nowrap; transition: background .15s, color .15s; }
 .seg-item:hover { color: var(--ink); }
 .seg-item.active { background: var(--brand-soft); color: var(--brand-deep, var(--brand)); font-weight: 500; }
 .seg-count { color: var(--muted); font-size: 11.5px; }
@@ -700,7 +706,7 @@ async function toggleFavorite(scene) {
 
 .scene-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px; align-content: start; flex: 1 0 auto; }
 /* 卡片不裁切（overflow 可见），卡片菜单才能溢出卡片边界显示 */
-.scene-card { display: flex; flex-direction: column; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); cursor: pointer; transition: border-color .18s, transform .18s, box-shadow .18s; animation: card-in .38s cubic-bezier(.22, .8, .32, 1) both; }
+.scene-card { display: flex; flex-direction: column; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); cursor: pointer; transition: border-color .18s, transform .18s, box-shadow .18s; animation: card-in .38s cubic-bezier(.22, .8, .32, 1) backwards; }
 .scene-card:hover { border-color: #d8daea; transform: translateY(-2px); box-shadow: 0 6px 18px rgba(34, 37, 59, .06); }
 @keyframes card-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 
@@ -760,8 +766,8 @@ async function toggleFavorite(scene) {
 .scenes-empty { grid-column: 1 / -1; display: grid; justify-items: center; padding: 46px 20px; border: 1px dashed var(--line); border-radius: 14px; background: rgba(255, 255, 255, .55); text-align: center; }
 .empty-icon { display: grid; width: 48px; height: 48px; place-items: center; border: 1px solid #e3e4fb; border-radius: 12px; background: var(--brand-soft); color: var(--brand); }
 
-/* 分页栏：贴底（卡片少时也被 flex 撑到底部），内容靠右集中 */
-.pagination { display: flex; flex-wrap: wrap; flex: 0 0 auto; justify-content: flex-end; align-items: center; gap: 6px; margin-top: 20px; padding-top: 14px; border-top: 1px solid var(--line); }
+/* 分页栏：随内容排在末尾（不做 sticky），靠 flex 撑到底部；矮窗口靠紧凑布局保证滚动到底即可见 */
+.pagination { display: flex; flex-wrap: wrap; flex: 0 0 auto; justify-content: flex-end; align-items: center; gap: 6px; margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--line); }
 .page-info { color: var(--muted); font-size: 12.5px; margin-right: 8px; }
 .page-btn { display: inline-flex; align-items: center; gap: 4px; height: 31px; padding: 0 11px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--ink-soft); font-size: 13px; transition: border-color .15s, color .15s, background .15s; }
 .page-btn:hover:not(:disabled):not(.active) { border-color: #d5d7e6; color: var(--ink); }
@@ -835,4 +841,52 @@ async function toggleFavorite(scene) {
   .detail-foot { flex-direction: column; align-items: stretch; }
   .detail-actions { justify-content: flex-end; }
 }
+/* 场景探索：筛选与卡片延续今日训练的轻卡通层次，内容仍以真实场景为主。 */
+.scenes-page { padding: 24px clamp(18px, 2.4vw, 34px) 14px; background: #faf9ff; }
+.scenes-toolbar { margin-bottom: 16px; }
+.seg-filter { gap: 4px; padding: 4px; border: 1.5px solid #e9e5f1; border-radius: 13px; background: #fff; }
+.seg-item { height: 34px; border-radius: 10px; font-weight: 600; }
+.seg-item.active { background: #eee8ff; color: #694fc1; }
+.cat-chip { min-height: 32px; border: 1.5px solid #ebe7f5; border-bottom-width: 3px; border-radius: 12px; font-weight: 600; }
+.cat-chip.active { border-color: #a58ee9; border-bottom-color: #8067d1; background: #f0eaff; color: #654ab8; }
+.scene-card { border: 1.5px solid #ebe7f5; border-bottom: 4px solid #e5def1; border-radius: 18px; background: #fff; }
+.scene-card:hover { border-color: #cfc1f1; border-bottom-color: #d9cdef; box-shadow: 0 8px 18px #51408412; }
+.card-body { padding: 16px 18px 17px; }
+.card-title { color: #393451; font-weight: 750; }
+.mode-chip, .source-chip, .tag-chip, .diff-chip { border-radius: 999px; }
+.card-foot { border-color: #efedf5; }
+.scenes-empty { border: 2px dashed #d9d0ef; border-radius: 18px; background: #fff; }
+.empty-icon { width: 54px; height: 54px; border: 0; border-radius: 18px; background: #f0eaff; color: #8067d1; }
+.primary-button.slim, .ghost-button, .danger-button { min-height: 38px; border-radius: 12px; font-weight: 650; }
+.ghost-button { border: 1.5px solid #e9e5f1; border-bottom-width: 3px; }
+.primary-button.slim { border: 1.5px solid #8067d1; border-bottom: 4px solid #6951b8; background: #8b73dd; }
+.scene-card { overflow: visible; border-radius: 19px; }
+/* 卡片 hover 时封面角标浮出（角标已收敛到 SceneCover 组件，需穿透作用域） */
+.scene-card:hover :deep(.scene-cover-mark), .scene-card:focus-visible :deep(.scene-cover-mark) { opacity: 1; transform: translate(0, 0); }
+.card-body { padding: 13px 17px 15px; }
+.card-head { margin-bottom: 9px; }
+.card-desc { min-height: 42px; }
+.card-tags { margin-top: 8px; }
+.tag-chip { padding: 4px 10px; background: #f2eff8; color: #655e78; }
+.card-author { padding-top: 11px; }
+.card-foot { margin-top: 10px; padding-top: 9px; }
+/* 矮窗口（900×640 最小窗口）：收紧页头留白，优先保证首屏看到完整卡片与底部分页 */
+@media (max-height: 700px) {
+  .scenes-page { padding-top: 14px; }
+  .scenes-toolbar { margin-bottom: 10px; }
+  .filter-row { margin-bottom: 10px; }
+  .scene-grid { gap: 12px; }
+  .seg-item { height: 31px; }
+  .cat-chip { min-height: 29px; }
+}
+/* 窄内容区（900×640 最小窗口内容区约 600px）：分段按钮与操作按钮不折行，筛选行整体换行排布 */
+@media (max-width: 1080px) {
+  .seg-item { padding: 0 9px; font-size: 12.5px; }
+  .ghost-button, .primary-button.slim { white-space: nowrap; }
+  .filter-row { flex-wrap: wrap; row-gap: 8px; }
+  .cat-chips { flex: 1 1 100%; }
+  .filter-right { flex: 1 1 100%; justify-content: flex-end; }
+  .search-box { flex: 1 1 auto; max-width: 320px; }
+}
+@media (prefers-reduced-motion: reduce) { .scene-card { transition: none; animation: none; } }
 </style>

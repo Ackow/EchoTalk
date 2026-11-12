@@ -445,6 +445,7 @@ import { useRoute, useRouter } from 'vue-router'
 import AppIcon from '../components/AppIcon.vue'
 import { session } from '../auth/session'
 import { coverUrl, uploadCover, removeCover } from '../api/scenes'
+import { usePageLoading } from '../app/loading'
 import {
   createScene, getScene, listTemplates, updateScene, uploadKnowledge, deleteKnowledge,
 } from '../api/scenes'
@@ -859,27 +860,32 @@ function normalizeDifficulty(value) {
 }
 const DIFFICULTY_SET = new Set(['entry', 'easy', 'normal', 'hard', 'expert'])
 
-// 编辑模式：加载现有包
+// 编辑模式：加载现有包；页面级遮罩等包与模板清单就绪后再撤
+const finishLoading = usePageLoading()
 onMounted(async () => {
-  if (session.token === undefined) await new Promise((resolve) => setTimeout(resolve, 0))
-  if (isEdit.value) {
-    try {
-      const { data } = await getScene(route.params.id)
-      if (data.source === 'builtin') {
-        notify('内置场景只读，已切换为复制创建模式')
-        router.replace({ name: 'scene-create' })
+  try {
+    if (session.token === undefined) await new Promise((resolve) => setTimeout(resolve, 0))
+    if (isEdit.value) {
+      try {
+        const { data } = await getScene(route.params.id)
+        if (data.source === 'builtin') {
+          notify('内置场景只读，已切换为复制创建模式')
+          router.replace({ name: 'scene-create' })
+          return
+        }
+        fillForm(data.package)
+        form.value.documents = data.documents || []
+        coverExists.value = !!data.cover_path
+      } catch (error) {
+        notify(error.message)
+        router.replace({ name: 'scenes' })
         return
       }
-      fillForm(data.package)
-      form.value.documents = data.documents || []
-      coverExists.value = !!data.cover_path
-    } catch (error) {
-      notify(error.message)
-      router.replace({ name: 'scenes' })
-      return
     }
+    await loadTemplates()
+  } finally {
+    finishLoading()
   }
-  loadTemplates()
 })
 
 // ---- 包组装与保存 ----
@@ -1288,4 +1294,20 @@ async function removeDocument(doc) {
   .cover-row { flex-direction: column; }
   .finish-modes { grid-template-columns: 1fr 1fr; }
 }
+/* 场景编辑沿用场景卡片的圆润语言，步骤与主操作保持醒目。 */
+.editor-page { padding-top: 20px; background: #faf9ff; }
+.step-panel { gap: 18px; }
+.form-card, .template-row { border: 1.5px solid #ebe7f5; border-bottom: 4px solid #e5def1; border-radius: 17px; background: #fff; }
+.form-card { padding: 22px; }
+.template-row { border-style: dashed; border-bottom-style: solid; }
+.step-item { border-radius: 11px; font-weight: 600; }
+.step-item.active { background: #eee8ff; color: #694fc1; }
+.step-dot { width: 23px; height: 23px; background: #f0edfa; }
+.step-item.active .step-dot { background: #8b73dd; box-shadow: inset 0 -2px 0 #6951b8; }
+.field input, .field textarea, .field-select, .field select { border-radius: 11px; }
+.role-card, .objective-card { border: 1.5px solid #ece8f4; border-bottom: 3px solid #e5def1; border-radius: 14px; background: #fdfcff; }
+.editor-footer { background: #fbfaff; border-top-color: #ebe7f5; }
+.primary-button.slim, .ghost-button { min-height: 38px; border-radius: 12px; font-weight: 650; }
+.primary-button.slim { border: 1.5px solid #8067d1; border-bottom: 4px solid #6951b8; background: #8b73dd; }
+.ghost-button { border: 1.5px solid #e9e5f1; border-bottom-width: 3px; }
 </style>

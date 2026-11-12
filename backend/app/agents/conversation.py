@@ -1,6 +1,7 @@
 """LangGraph 单轮执行：模型 → 受控工具循环 → 最终回复。"""
 import json
 import logging
+import time
 from copy import deepcopy
 
 from langchain_core.messages import AIMessage, SystemMessage, ToolMessage
@@ -29,10 +30,12 @@ def build_conversation_graph(package, model, registry: ToolRegistry, before: dic
         if final_attempt:
             prompt += "\nNo further tool calls are allowed. Reply using available results only."
         try:
+            started = time.perf_counter()
             message = (model if final_attempt else bound).invoke([SystemMessage(prompt), *state["messages"]])
         except Exception as exc:
             logger.warning("对话模型调用失败：%s", type(exc).__name__)
             raise AppError("对话模型暂不可用，请重试", code="CHAT_MODEL_FAILED", status_code=502) from exc
+        logger.info("对话模型调用耗时 %.2fs，调用序号 %d", time.perf_counter() - started, state["model_calls"] + 1)
         if not isinstance(message, AIMessage) or message.invalid_tool_calls:
             raise AppError("模型返回了无效的工具调用", code="CHAT_INVALID_RESPONSE", status_code=502)
         if final_attempt and message.tool_calls:
@@ -48,6 +51,7 @@ def build_conversation_graph(package, model, registry: ToolRegistry, before: dic
         scenario = deepcopy(state["scenario_state"])
         results, messages = list(state["tool_results"]), list(state["messages"])
         for call in messages[-1].tool_calls:
+            started = time.perf_counter()
             snapshot = deepcopy(scenario)
             try:
                 if len(results) >= MAX_TOOL_CALLS:
@@ -64,6 +68,7 @@ def build_conversation_graph(package, model, registry: ToolRegistry, before: dic
                 logger.warning("工具执行失败：%s %s", call["name"], type(exc).__name__)
                 result = {"name": call["name"], "ok": False, "error": "Tool temporarily unavailable"}
             result.update(call_id=call["id"], args=call["args"])
+            logger.info("对话工具 %s 耗时 %.2fs，成功=%s", call["name"], time.perf_counter() - started, result["ok"])
             results.append(result)
             messages.append(ToolMessage(content=json.dumps(result, ensure_ascii=False), tool_call_id=call["id"]))
             state = {**state, "scenario_state": scenario, "tool_results": results}

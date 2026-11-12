@@ -100,3 +100,6 @@ VoiceModelTest/LFM2.5-Audio-1.5B-4bit/
 
 # --- 运行时用户数据（场景封面/知识资料上传） ---
 backend/storage/
+
+# 浏览器自动化工具的临时快照
+.playwright-mcp/

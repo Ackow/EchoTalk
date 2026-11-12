@@ -1,6 +1,7 @@
 <script setup>
 import { computed, getCurrentInstance } from 'vue'
 import AlternatePortrait from './AlternatePortrait.vue'
+import MalePortrait from './MalePortrait.vue'
 
 const props = defineProps({
   character: { type: String, default: 'mira_2d' },
@@ -109,6 +110,7 @@ const head = computed(() => `translate(${props.gaze.x * 1.8} ${props.gaze.y}) ro
       <circle cx="273" cy="235" r="4" fill="#e9c58d"/>
     </g>
   </svg>
+  <MalePortrait v-else-if="character === 'nora_2d' || character === 'iris_2d'" :character="character" :gaze="gaze" :happy="happy" :state="state" :lip-sync="lipSync" :animated="animated" :name="name" />
   <AlternatePortrait v-else :character="character" :gaze="gaze" :happy="happy" :state="state" :lip-sync="lipSync" :animated="animated" :name="name" />
 </template>
 

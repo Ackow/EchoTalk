@@ -408,6 +408,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import AppIcon from '../components/AppIcon.vue'
 import AppSelect from '../components/AppSelect.vue'
 import { session } from '../auth/session'
+import { usePageLoading } from '../app/loading'
 import {
   deleteKnowledge, deletePersonalDocument, getDocumentSource, getPersonalSource,
   getSectionOverview, lightragPersonalSearch, lightragSceneSearch, listDocumentChunks,
@@ -430,6 +431,7 @@ const MAX_FILE_SIZE = 10 * 1024 * 1024
 const scope = ref('scene') // 资料范围：scene（按场景）/ personal（跨场景，阶段二）
 const scenes = ref([]) // 本人创建的场景（含 knowledge_count）
 const activeSceneId = ref('')
+const finishLoading = usePageLoading() // 页面级：首屏场景 + 资料列表都到位才撤遮罩
 const docs = ref([]) // 当前场景的文件级资料列表
 const docsLoading = ref(false)
 const personalDocs = ref([]) // 个人工作区资料列表
@@ -559,8 +561,10 @@ async function loadGraph() {
   }
 }
 
+// 首屏资料列表：页面遮罩要等这一次请求，之后切换场景只走列表骨架
+let initialDocs = null
 watch(activeSceneId, () => {
-  loadDocs()
+  initialDocs = loadDocs()
   loadGraph()
 })
 watch(scope, (val) => {
@@ -1206,7 +1210,6 @@ function onGlobalKeydown(event) {
 }
 
 onMounted(() => {
-  loadScenes()
   document.addEventListener('keydown', onGlobalKeydown)
   // 监听图谱容器宽度变化（防抖 150ms：拖拽窗口时避免频繁重算力导向）
   lrResizeObserver = new ResizeObserver((entries) => {
@@ -1219,6 +1222,12 @@ onMounted(() => {
   })
   if (lrWrap.value) lrResizeObserver.observe(lrWrap.value)
   window.addEventListener('resize', onWindowResize)
+  // 首屏链路：场景列表 → 默认场景的资料列表，都到位后再撤全局遮罩（图谱自行转圈）
+  loadScenes().then(async () => {
+    await nextTick() // 等 activeSceneId 的 watch 发起资料请求
+    await initialDocs
+    finishLoading()
+  })
 })
 onBeforeUnmount(() => {
   document.removeEventListener('keydown', onGlobalKeydown)
@@ -1460,4 +1469,24 @@ onBeforeUnmount(() => {
 .fade-enter-from, .fade-leave-to { opacity: 0; }
 
 @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+/* 资料工作区：上传、文件列表与知识图谱使用同一套圆润卡片层级。 */
+.kw-page { padding: 24px clamp(18px, 2.4vw, 34px) 30px; background: #faf9ff; }
+.kw-toolbar { margin-bottom: 16px; }
+.seg-filter { gap: 4px; padding: 4px; border: 1.5px solid #e9e5f1; border-radius: 13px; background: #fff; }
+.seg-item { height: 34px; border-radius: 10px; font-weight: 600; }
+.seg-item.active { background: #eee8ff; color: #694fc1; }
+.dropzone { min-height: 74px; border: 2px dashed #d9d0ef; border-radius: 17px; background: #fff; }
+.dropzone:hover, .dropzone.drag { border-color: #9d86e4; background: #f5f1ff; }
+.doc-card, .side-card, .doc-skeleton { border: 1.5px solid #ebe7f5; border-bottom: 4px solid #e5def1; border-radius: 17px; background: #fff; }
+.side-card { padding: 16px 18px; }
+.side-head h4 { font-size: 14px; font-weight: 750; color: #393451; }
+.search-box { border-radius: 12px; }
+.search-box:focus-within { border-color: #a58ee9; box-shadow: 0 0 0 3px #eee8ff; }
+.icon-btn { border-radius: 10px; }
+.icon-btn:hover { background: #f2edff; color: #694fc1; }
+.btn-save, .btn-ghost, .btn-ghost-danger { min-height: 34px; border-radius: 11px; font-weight: 650; }
+.btn-save { background: #8b73dd; box-shadow: inset 0 -3px 0 #6951b8; }
+.btn-ghost { border-width: 1.5px; border-bottom-width: 3px; }
+.kw-empty .placeholder-glyph { width: 58px; height: 58px; border: 0; border-radius: 18px; background: #f0eaff; color: #8067d1; }
+.kw-empty { align-self: center; width: min(620px, 100%); margin: auto; padding: 34px 28px; border: 1.5px dashed #d9d0ef; border-radius: 20px; background: #fff; }
 </style>

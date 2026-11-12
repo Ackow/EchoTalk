@@ -8,3 +8,12 @@ import './assets/styles.css' // 全局样式
 document.documentElement.dataset.platform = window.electronAPI?.platform || ''
 
 createApp(App).use(router).mount('#app') // 只装路由，无其他全局插件
+
+// 首屏遮罩退场：等首帧绘制后再淡出，避免 Vue 内容与遮罩之间出现空档
+const bootMask = document.getElementById('boot')
+if (bootMask) {
+  requestAnimationFrame(() => {
+    bootMask.classList.add('boot-out')
+    setTimeout(() => bootMask.remove(), 260) // 与 boot.css 的 .22s 过渡对齐
+  })
+}

@@ -5,7 +5,7 @@ import AppIcon from '../AppIcon.vue'
 import { getPracticeKnowledge } from '../../api/scenes'
 
 // 场景知识点弹窗：分资料模块 Tab + Markdown 正文（交互对齐 1.0 的独立知识面板）。
-const props = defineProps({ sceneId: { type: String, required: true }, description: { type: String, default: '' } })
+const props = defineProps({ sceneId: { type: String, required: true }, description: { type: String, default: '' }, goals: { type: Array, default: () => [] } })
 const emit = defineEmits(['close'])
 const documents = ref([])
 const activeDoc = ref(0) // 当前资料模块下标
@@ -81,7 +81,11 @@ onBeforeUnmount(() => { generation += 1; request?.abort() })
           <p v-if="!docSections.length" class="knowledge-notice">没有匹配的知识点，试试其他关键词。</p>
         </div>
       </template>
-      <p v-else class="knowledge-notice knowledge-body">这个场景暂无可展示的知识点。可在知识工作区添加资料并设为用户可见。</p>
+      <div v-else class="knowledge-body knowledge-empty">
+        <h4>本场景练习目标</h4>
+        <ul v-if="goals.length"><li v-for="goal in goals" :key="goal.id">{{ goal.label }}</li></ul>
+        <p>这个场景暂未添加可供学习者查看的知识资料。可在知识工作区添加资料并设为用户可见。</p>
+      </div>
       <footer class="knowledge-foot"><router-link :to="{ name: 'knowledge' }" @click="emit('close')">前往知识工作区<AppIcon name="arrow-right" :size="13" /></router-link></footer>
     </section>
   </div>
@@ -89,7 +93,7 @@ onBeforeUnmount(() => { generation += 1; request?.abort() })
 
 <style scoped>
 .modal-backdrop { position: fixed; inset: 0; z-index: 60; display: grid; place-items: center; padding: 24px; background: rgba(34, 37, 59, .32); animation: fade-in .18s ease; }
-.knowledge-modal { display: flex; flex-direction: column; width: min(720px, 94vw); max-height: min(78vh, 660px); padding: 0; overflow: hidden; }
+.knowledge-modal { display: flex; flex-direction: column; width: min(720px, 94vw); max-height: min(78vh, 660px); padding: 0; overflow: hidden; border: 1px solid #e6e5ef; border-radius: 16px; background: #fff; box-shadow: 0 22px 65px rgba(31, 33, 55, .24); }
 @keyframes fade-in { from { opacity: 0; } }
 
 .knowledge-head { display: flex; flex-shrink: 0; align-items: center; justify-content: space-between; gap: 10px; padding: 16px 20px 12px; }
@@ -110,6 +114,10 @@ onBeforeUnmount(() => { generation += 1; request?.abort() })
 .knowledge-search input { width: 100%; min-width: 0; border: 0; outline: none; font: inherit; font-size: 12px; color: var(--ink); background: transparent; }
 
 .knowledge-body { flex: 1; min-height: 120px; overflow-y: auto; scrollbar-width: thin; overscroll-behavior: contain; padding: 2px 20px 16px; }
+.knowledge-empty { color: var(--ink-soft); font-size: 13px; line-height: 1.8; }
+.knowledge-empty h4 { margin: 12px 0 6px; color: var(--ink); }
+.knowledge-empty ul { margin: 0; padding-left: 20px; }
+.knowledge-empty p { margin: 16px 0 0; color: var(--muted); }
 .knowledge-section { margin-top: 12px; padding: 14px 16px; border: 1px solid var(--line); border-radius: 11px; background: #fcfcfe; }
 .knowledge-section h4 { margin: 0 0 2px; color: var(--ink); font-size: 13px; font-weight: 600; }
 .knowledge-source { display: flex; align-items: center; gap: 5px; margin: 0 0 4px; color: var(--faint); font-size: 10.5px; overflow-wrap: anywhere; }

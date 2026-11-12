@@ -36,7 +36,7 @@ button:disabled { cursor: default; }
 .workspace-shell { display: grid; width: 100%; height: 100%; min-height: 0; grid-template-columns: 248px minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); transition: grid-template-columns .22s ease; } /* 行高 minmax(0,1fr)：防止高内容把整行撑出窗口 */
 .sidebar-hidden { grid-template-columns: 0px minmax(0, 1fr); } /* 侧边栏整体隐藏，内容区占满 */
 .sidebar { position: relative; min-width: 0; overflow: hidden; } /* 裁切容器：滑出动画时侧栏被裁切而非挤压 */
-.sidebar-inner { display: flex; flex-direction: column; width: 248px; height: 100%; padding: 0 14px 14px; border-right: 1px solid var(--line); background: var(--surface); transition: transform .22s ease; will-change: transform; }
+.sidebar-inner { display: flex; flex-direction: column; width: 248px; height: 100%; padding: 0 14px 14px; border-right: 1px solid var(--line); background: var(--surface); transition: transform .22s ease; }
 .sidebar-hidden .sidebar-inner { transform: translateX(-100%); } /* WorkBuddy 式折叠：面板整体向左滑出，而非原地收窄裁切 */
 .sidebar-traffic { display: flex; flex: 0 0 48px; align-items: center; -webkit-app-region: drag; user-select: none; } /* macOS 专属：红绿灯落位行（高度对齐红绿灯中线），折叠按钮 margin-left:auto 靠右 */
 .collapse-toggle { display: grid; width: 27px; height: 27px; flex: 0 0 27px; place-items: center; margin-left: auto; border: 0; border-radius: 7px; background: transparent; color: var(--muted); -webkit-app-region: no-drag; transition: background .15s, color .15s; } /* 拖拽区内需显式 no-drag，否则按钮点击被窗口拖拽吞掉 */
@@ -74,6 +74,9 @@ html:not([data-platform="darwin"]) .brand-lockup { padding-top: 12px; -webkit-ap
 .account-name { min-width: 0; flex: 1; overflow: hidden; font-size: 13.5px; }
 
 .workspace-content { min-width: 0; min-height: 0; display: flex; flex-direction: column; overflow: hidden; background: var(--bg); } /* min-height:0 + overflow:hidden：滚动约束在页面内部，侧栏账户卡不被顶出 */
+/* 页面切换：新页面快速淡入，弱化整块内容被替换时的闪白（不影响布局与滚动） */
+.workspace-content > section { animation: view-fade .15s ease-out; }
+@keyframes view-fade { from { opacity: 0; } }
 .content-header { z-index: 1; display: flex; height: 48px; flex: 0 0 48px; align-items: center; padding: 0 28px; border-bottom: 1px solid var(--line); background: var(--surface); -webkit-app-region: drag; user-select: none; } /* 48px 与侧栏顶行同高：标题中线=红绿灯中线 */
 .content-header .collapse-toggle { margin-left: 0; margin-right: 10px; } /* 侧栏隐藏时按钮融入标题栏左端 */
 html[data-platform="darwin"] .sidebar-hidden .content-header { padding-left: 80px; } /* macOS：为悬浮红绿灯让位（红绿灯约占 x16-70） */
@@ -167,4 +170,107 @@ html[data-platform="darwin"] .sidebar-hidden .content-header { padding-left: 80p
 .avatar-page {
   --muted: #5f6478;
   --faint: #6e7387;
+}
+
+/* 应用外壳：与今日训练页统一的柔和色彩与圆角。 */
+.sidebar-inner { background: #fff; border-right-color: #ece9f5; }
+.brand-lockup { gap: 11px; }
+.brand-mark { width: 36px; height: 36px; flex-basis: 36px; border-radius: 12px; background: #8b75dc; box-shadow: inset 0 -3px 0 #7059c0; }
+.brand-text b { color: #35304e; font-weight: 750; }
+.brand-lockup small { color: #9290a6; }
+.nav-group-label { color: #9490a7; letter-spacing: .02em; font-size: 11px; }
+.nav-item { height: 34px; flex-basis: 34px; gap: 10px; padding: 0 10px; border-radius: 11px; color: #625e76; font-size: 14px; }
+.nav-item:hover { background: #f7f4fd; color: #5946a7; }
+.nav-item.active { background: #eee9ff; color: #6c52c4; font-weight: 700; }
+.nav-item.active svg { stroke-width: 2.35; }
+.account-trigger { border: 1px solid #ece8f5; border-bottom: 3px solid #e7e1f2; border-radius: 14px; background: #f9f7fe; }
+.account-trigger:hover { background: #f1edfb; }
+.account-trigger .avatar { background: #fff; color: #775dc9; }
+.collapse-toggle { border-radius: 9px; color: #918ba6; }
+.collapse-toggle:hover { background: #f2eefb; color: #6d57bb; }
+.content-header { background: #fff; border-bottom-color: #efedf5; }
+.content-header h1 { color: #393451; font-weight: 700; }
+
+/* 账户页延续首页插画与按钮，但保持表单清晰可用。 */
+.auth-page { background: #fbfaff; }
+.auth-brand-panel { background: #eee9ff; color: #35304e; }
+.auth-brand-lockup { color: #3d345d; font-weight: 750; }
+.auth-brand-lockup small { color: #9185b2; }
+.auth-brand-mark { border: 0; border-radius: 12px; background: #8b75dc; color: #fff; box-shadow: inset 0 -3px 0 #7059c0; }
+.brand-art { top: 14%; right: 0; width: min(550px, 93%); aspect-ratio: 1.45; }
+.brand-art img { display: block; width: 100%; height: 100%; object-fit: contain; object-position: center bottom; }
+.auth-brand-copy { padding-bottom: 32px; }
+.auth-brand-copy .eyebrow { display: inline-block; margin-bottom: 15px; padding: 7px 12px; border-radius: 15px; background: #fff; color: #725ec0; font-size: 11px; letter-spacing: 0; }
+.auth-brand-copy h1 { color: #3b315b; font-weight: 800; }
+.auth-brand-copy > p:last-child { color: #77708d; }
+.brand-footer { color: #847a9d; font-size: 11px; }
+.auth-panel { background: #fbfaff; }
+.auth-panel-top { color: #8d869d; }
+.auth-panel .back-button { border-radius: 10px; color: #79718d; }
+.auth-panel .back-button:hover { background: #efeafb; color: #6853b5; }
+.auth-form-wrap { padding: 30px; border: 2px solid #eeeaf6; border-bottom: 5px solid #e5dff1; border-radius: 24px; background: #fff; }
+.auth-kicker { color: #8b77cf; font-size: 11px; letter-spacing: 0; }
+.auth-form-wrap h2 { color: #37314e; font-size: 26px; font-weight: 800; }
+.auth-form-wrap .description { color: #817b91; line-height: 1.6; }
+.auth-form-wrap label { color: #514b63; font-size: 12.5px; font-weight: 650; }
+.auth-form-wrap input { height: 47px; border: 2px solid #ebe8f1; border-radius: 12px; background: #fdfcff; }
+.auth-form-wrap input:focus { border-color: #a38ee7; box-shadow: 0 0 0 3px #e9e2fd; }
+.auth-form-wrap .primary-button { height: 48px; border: 2px solid #8067d1; border-bottom: 5px solid #6951b8; border-radius: 13px; background: #8b73dd; font-weight: 700; transition: transform .15s, background .15s; }
+.auth-form-wrap .primary-button:hover:not(:disabled) { background: #7d64d1; transform: translateY(-2px); }
+.auth-form-wrap .primary-button:active:not(:disabled) { transform: translateY(1px); }
+.auth-form-wrap .mode-button { color: #765dc9; font-weight: 700; }
+@media (max-width: 700px) { .auth-form-wrap { padding: 24px; }.auth-panel { background: #f8f6ff; }.sidebar-inner { border-top-color: #ece9f5; } }
+@media (prefers-reduced-motion: reduce) { .workspace-shell, .sidebar-inner, .nav-item, .auth-form-wrap .primary-button { transition: none; }.auth-form-wrap .primary-button:hover:not(:disabled) { transform: none; }.workspace-content > section { animation: none; } }
+
+/* 用户提供的 EchoTalk 吉祥物：加大品牌展示区并提高标记与底色的反差。 */
+.brand-mark { width: 46px; height: 46px; flex-basis: 46px; overflow: hidden; border: 1px solid #ddd3f5; border-radius: 14px; background: #fff; box-shadow: 0 2px 0 #e6def5; }
+.brand-lockup { gap: 12px; }
+.brand-text b { font-size: 16px; letter-spacing: -.015em; }
+.brand-lockup small { color: #716a84; font-weight: 500; }
+.auth-brand-lockup { gap: 14px; font-size: 19px; }
+.auth-brand-lockup > span:last-child { color: #34294f; font-weight: 800; letter-spacing: -.025em; }
+.auth-brand-lockup small { display: inline-flex; align-items: center; height: 20px; margin-left: 8px; padding: 0 7px; border: 1px solid #ddd3f5; border-radius: 999px; background: #fff; color: #7966ad; font-size: 10px; font-weight: 700; letter-spacing: .02em; vertical-align: 2px; }
+.auth-brand-mark { width: 58px; height: 58px; overflow: hidden; border: 2px solid #fff; border-radius: 19px; background: #fff; box-shadow: 0 4px 0 #dfd5f5, 0 8px 18px #6550a31a; }
+.brand-mark img { display: block; width: 100%; height: 100%; object-fit: contain; }
+.auth-brand-mark img { display: block; width: 100%; height: 100%; object-fit: contain; transform: scale(1.35); }
+
+/* 导航参考：留白明确、图标与文字同基线，当前页用轻量紫色胶囊标记。 */
+.side-nav { gap: 3px; padding-top: 2px; }
+.nav-group-label { margin: 16px 10px 7px; color: #777187; font-size: 12px; font-weight: 650; letter-spacing: .01em; }
+.nav-group-label:first-child { margin-top: 2px; }
+.nav-item { height: 37px; flex-basis: 37px; gap: 11px; padding: 0 11px; border-radius: 11px; color: #514b65; font-size: 14.5px; font-weight: 500; }
+.nav-item svg { width: 17px; height: 17px; color: #625b78; stroke-width: 2; }
+.nav-item:hover { background: #f5f1fc; color: #503da0; }
+.nav-item.active { background: #eae2ff; color: #563bb3; font-weight: 700; }
+.nav-item.active svg { color: #6245c4; stroke-width: 2.35; }
+.content-header { background: #fff; border-bottom-color: #efedf5; }
+.content-header h1 { color: #393451; font-weight: 750; }
+
+/* ── 矮窗口压缩：保证 900×640 最小窗口下侧栏 13 项导航 + 账户卡无需滚动即可全部可见 ── */
+@media (max-height: 800px) {
+  .sidebar-traffic { flex-basis: 42px; }
+  .brand-mark { width: 40px; height: 40px; flex-basis: 40px; border-radius: 12px; }
+  .brand-lockup { padding-bottom: 10px; }
+  .side-nav { gap: 2px; }
+  .nav-group-label { margin: 12px 10px 4px; font-size: 11.5px; }
+  .nav-item { height: 34px; flex-basis: 34px; }
+  .account-wrap { margin-top: 8px; }
+  .account-trigger { padding: 7px 10px; }
+  .sidebar-inner { padding-bottom: 12px; }
+}
+@media (max-height: 700px) {
+  .sidebar-traffic { flex-basis: 32px; }
+  .brand-mark { width: 32px; height: 32px; flex-basis: 32px; border-radius: 10px; }
+  .brand-lockup { gap: 9px; padding: 1px 8px 6px; }
+  .brand-text b { font-size: 15px; }
+  .brand-lockup small { font-size: 11px; }
+  .side-nav { gap: 1px; padding-top: 1px; }
+  .nav-group-label { margin: 6px 10px 2px; font-size: 10.5px; }
+  .nav-item { height: 31px; flex-basis: 31px; gap: 10px; padding: 0 10px; font-size: 13.5px; }
+  .nav-item svg { width: 15px; height: 15px; }
+  .account-wrap { margin-top: 6px; }
+  .account-trigger { padding: 5px 9px; gap: 8px; }
+  .account-trigger .avatar { width: 24px; height: 24px; flex-basis: 24px; font-size: 12px; }
+  .account-name { font-size: 12.5px; }
+  .sidebar-inner { padding-bottom: 8px; }
 }

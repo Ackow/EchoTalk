@@ -24,7 +24,8 @@ from app.agents.model_gateway import create_chat_model
 from app.agents.tools import ToolRegistry
 from app.core.database import Base
 from app.core.errors import AppError, register_exception_handlers
-from app.models import PracticeSession, PracticeTurn, Scene, User
+from app.models import Chunk, Document, PracticeSession, PracticeTurn, Scene, User
+from app.scenes import retrieval
 from app.scenes.schema import ScenePackage
 from app.services import session_service
 from app.services.scene_runtime import advance, initial_state
@@ -144,6 +145,20 @@ class ConversationTests(unittest.TestCase):
         self.run_turn(followup, request_id="next")
         self.assertNotIn("internal_fixture", str(followup.prompts))
 
+    def test_empty_scene_search_skips_index_and_embedding(self):
+        # 其他场景有资料时，也不能让当前空场景触发昂贵的远程检索。
+        self.db.add(Scene(id="other_scene", name="Other", source="builtin", package_json={}))
+        self.db.flush()
+        doc = Document(scene_id="other_scene", filename="other.md")
+        self.db.add(doc)
+        self.db.flush()
+        self.db.add(Chunk(document_id=doc.id, scene_id="other_scene", ordinal=0, text="content"))
+        self.db.commit()
+        with patch.object(retrieval, "_ensure_fulltext", side_effect=AssertionError("unexpected index work")), \
+             patch.object(retrieval.embedding_svc, "embed_texts", side_effect=AssertionError("unexpected embedding")):
+            result = retrieval.search_scene(self.db, self.package.meta.id, "launch")
+        self.assertEqual(result, {"query": "launch", "mode": "none", "items": []})
+
     def test_isolation(self):
         with self.assertRaises(AppError) as caught:
             session_service.get_session(self.db, self.other_uid, self.sid)
@@ -212,6 +227,29 @@ class ConversationTests(unittest.TestCase):
             for text in ["", "   ", "x" * 4001]:
                 response = client.post(f"/api/sessions/{self.sid}/turns", json={"request_id": "x", "text": text})
                 self.assertEqual(response.status_code, 422)
+
+    def test_latest_session_and_turn_audio_are_isolated(self):
+        self.assertIsNone(session_service.latest_session(self.db, self.user, self.package.meta.id))
+        turn = self.run_turn(ScriptedModel(AIMessage("Hello there.")))
+        self.assertEqual(session_service.latest_session(self.db, self.user, self.package.meta.id)["id"], self.sid)
+        self.assertIsNone(session_service.latest_session(self.db, self.other, self.package.meta.id))
+        app = FastAPI()
+        register_exception_handlers(app)
+        app.include_router(router, prefix="/api")
+        app.dependency_overrides[get_current_user] = lambda: self.user
+        app.dependency_overrides[get_db] = lambda: self.db
+        with TemporaryDirectory() as directory:
+            path = Path(directory) / "reply.mp3"
+            path.write_bytes(b"reply")
+            with patch("app.services.practice_audio_service.get_audio", AsyncMock(return_value=path)) as audio, TestClient(app) as client:
+                latest = client.get("/api/sessions/latest", params={"scene_id": self.package.meta.id})
+                self.assertEqual(latest.json()["session"]["id"], self.sid)
+                reply = client.get(f"/api/sessions/{self.sid}/turns/{turn['turn_id']}/audio")
+                self.assertEqual(reply.content, b"reply")
+                self.assertEqual(client.get(f"/api/sessions/{self.sid}/turns/unknown/audio").status_code, 404)
+                app.dependency_overrides[get_current_user] = lambda: self.other
+                self.assertEqual(client.get(f"/api/sessions/{self.sid}/turns/{turn['turn_id']}/audio").status_code, 404)
+                audio.assert_awaited_once()
 
     def test_greeting_audio_requires_ownership_and_valid_voice_options(self):
         app = FastAPI()

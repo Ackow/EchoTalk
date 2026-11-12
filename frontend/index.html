@@ -3,10 +3,23 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" type="image/png" href="./src/assets/echotalk-brand.png" />
     <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' __ECHOTALK_DEV_INLINE__ __ECHOTALK_DEV_EVAL__; style-src 'self' __ECHOTALK_DEV_INLINE__; img-src 'self' data: blob: __ECHOTALK_API_ORIGIN__ __ECHOTALK_DEV_ORIGINS__; media-src 'self' blob:; connect-src 'self' __ECHOTALK_API_ORIGIN__ __ECHOTALK_DEV_ORIGINS__;" />
     <title>EchoTalk 2.0</title>
+    <link rel="stylesheet" href="./boot.css" /> <!-- 首屏遮罩样式：外链而非内联，生产环境 CSP 不放行内联样式 -->
   </head>
   <body>
+    <!-- 首屏遮罩：JS 尚未就绪时先显示品牌 logo 与加载动画，Vue 挂载后淡出移除 -->
+    <div id="boot" class="boot">
+      <div class="boot-stage">
+        <span class="boot-halo"></span>
+        <span class="boot-ring outer"></span>
+        <span class="boot-ring inner"></span>
+        <span class="boot-logo"><img src="./src/assets/echotalk-brand.png" alt="EchoTalk" /></span>
+      </div>
+      <div class="boot-brand"><b>EchoTalk</b><em>2.0</em></div>
+      <p class="boot-text">正在加载<span class="boot-dots"><i></i><i></i><i></i></span></p>
+    </div>
     <div id="app"></div>
     <script type="module" src="/src/main.js"></script>
   </body>

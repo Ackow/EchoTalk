@@ -1,7 +1,6 @@
 <template>
   <section class="practice-page">
-    <!-- 进入会话前选场景；工具行 + 卡片网格对齐场景探索页，不做 hero。 -->
-    <div v-if="phase === 'select'" class="page-scroll">
+    <div v-if="phase === 'select' && !resuming" class="page-scroll">
       <div class="pick-toolbar">
         <div class="seg-filter" role="tablist" aria-label="场景分类筛选">
           <button
@@ -29,28 +28,35 @@
       <p v-if="!session.user" class="login-hint"><AppIcon name="info" :size="14" />开始练习前，请先<router-link :to="{ name: 'login' }">登录</router-link>，保存你的对话进度。</p>
       <p v-if="error" class="page-error" role="alert"><AppIcon name="alert" :size="14" />{{ error }}</p>
       <div v-if="!loadingScenes" class="scene-grid">
-        <button
+        <article
           v-for="(scene, index) in filteredScenes" :key="scene.id"
-          class="scene-card" type="button"
-          :disabled="starting"
+          class="scene-card"
+          :class="{ busy: starting }"
+          role="button" tabindex="0"
+          :aria-disabled="starting"
           :style="{ animationDelay: `${Math.min(index, 8) * 45}ms` }"
-          @click="confirmScene = scene"
+          @click="chooseScene(scene)"
+          @keydown.enter.prevent="chooseScene(scene)"
+          @keydown.space.prevent="chooseScene(scene)"
         >
-          <span class="card-head">
-            <span class="mode-chip"><AppIcon :name="modeIcon(scene.mode)" :size="13" />{{ modeLabel(scene.mode) }}</span>
-            <span v-if="scene.difficulty" class="diff-chip" :class="diffClass(scene.difficulty)">{{ diffLabel(scene.difficulty) }}</span>
-          </span>
-          <b class="scene-name">{{ scene.name }}</b>
-          <span class="scene-desc">{{ scene.description || '在真实情境中练习英语表达。' }}</span>
-          <span class="scene-foot">
-            <span class="scene-meta">
-              <span v-if="scene.objective_count"><AppIcon name="target" :size="12" />{{ scene.objective_count }} 个目标</span>
-              <span v-if="scene.stage_count"><AppIcon name="chart-line" :size="12" />{{ scene.stage_count }} 阶段</span>
-              <span v-if="scene.knowledge_count"><AppIcon name="book-open" :size="12" />{{ scene.knowledge_count }} 份资料</span>
-            </span>
-            <span class="scene-go">{{ starting ? '准备中…' : '开始对话' }}<AppIcon name="arrow-right" :size="14" /></span>
-          </span>
-        </button>
+          <!-- 封面与场景探索页共用同一组件，色调/图标/标题层级保持一致 -->
+          <SceneCover :scene="scene" :category-label="coverLabel(scene.category)" mark-icon="arrow-right" />
+          <div class="card-body">
+            <div class="card-head">
+              <span class="mode-chip"><AppIcon :name="modeIcon(scene.mode)" :size="13" />{{ modeLabel(scene.mode) }}</span>
+              <span v-if="scene.difficulty" class="diff-chip" :class="diffClass(scene.difficulty)">{{ diffLabel(scene.difficulty) }}</span>
+            </div>
+            <p class="scene-desc">{{ scene.description || '在真实情境中练习英语表达。' }}</p>
+            <div class="scene-foot">
+              <span class="scene-meta">
+                <span v-if="scene.objective_count"><AppIcon name="target" :size="12" />{{ scene.objective_count }} 个目标</span>
+                <span v-if="scene.stage_count"><AppIcon name="chart-line" :size="12" />{{ scene.stage_count }} 阶段</span>
+                <span v-if="scene.knowledge_count"><AppIcon name="book-open" :size="12" />{{ scene.knowledge_count }} 份资料</span>
+              </span>
+              <span class="scene-go">{{ starting ? '准备中…' : '开始对话' }}<AppIcon name="arrow-right" :size="14" /></span>
+            </div>
+          </div>
+        </article>
         <div v-if="!filteredScenes.length" class="scenes-empty">
           <div class="empty-icon"><AppIcon name="messages" :size="20" /></div>
           <h3>{{ keyword || pickCategory !== 'all' ? '没有匹配的场景' : '暂无可对话场景' }}</h3>
@@ -59,20 +65,37 @@
       </div>
       <div v-else class="scene-grid" aria-busy="true" aria-label="正在加载场景">
         <div v-for="n in 4" :key="n" class="scene-card skeleton">
-          <div class="sk-line w40"></div>
-          <div class="sk-line w80"></div>
-          <div class="sk-line w60"></div>
-          <div class="sk-line w70"></div>
+          <div class="sk-cover"></div>
+          <div class="sk-body">
+            <div class="sk-line w40"></div>
+            <div class="sk-line w80"></div>
+            <div class="sk-line w60"></div>
+            <div class="sk-line w70"></div>
+          </div>
         </div>
       </div>
+    </div>
+
+    <!-- 历史记录入口：会话恢复完成前不渲染场景选择页；全局遮罩显示时容器留白、不重复跑一份动画 -->
+    <div v-else-if="resuming" class="practice-loading" aria-busy="true" aria-live="polite">
+      <template v-if="!loadingVisible">
+        <span class="loading-ring" aria-hidden="true"></span>
+        <div class="loading-copy">
+          <b>正在打开这次练习</b>
+          <small>正在恢复对话记录与训练进度…</small>
+        </div>
+        <span class="loading-track" aria-hidden="true"><i></i></span>
+      </template>
     </div>
 
     <div v-else class="chat-page">
       <!-- 延续旧版独立场景工具栏，场景操作不再挤占聊天卡头部。 -->
       <header class="session-toolbar">
         <button class="back-button" type="button" :disabled="sending" aria-label="返回场景选择" title="切换场景" @click="backToSelect"><AppIcon name="chevron-left" :size="19" /></button>
-        <div class="session-heading"><h2>{{ sceneTitle }}</h2><p>{{ categoryLabel(sceneMeta?.package?.meta?.category) }}<span>·</span>{{ finished ? '本次练习已完成' : '场景口语练习' }}</p></div>
-        <span class="session-counter"><AppIcon name="messages" :size="14" />{{ stateInfo.turn_count || 0 }} 轮对话</span>
+        <div class="session-heading">
+          <h2>{{ sceneTitle }}</h2>
+          <p>{{ categoryLabel(sceneMeta?.package?.meta?.category) }}<span>·</span>{{ finished ? '本次练习已完成' : '场景口语练习' }}<span>·</span>{{ stateInfo.turn_count || 0 }} 轮对话</p>
+        </div>
         <button class="ghost-button reference-button" type="button" @click="knowledgeOpen = true"><AppIcon name="book-open" :size="14" />知识点</button>
         <button class="exit-button" type="button" :disabled="sending" @click="finishAndExit"><AppIcon name="log-out" :size="14" />退出练习</button>
       </header>
@@ -85,6 +108,29 @@
             <button class="text-toggle" type="button" :aria-pressed="showOriginal" @click="showOriginal = !showOriginal"><AppIcon name="file-text" :size="14" />{{ showOriginal ? '原文已显示' : '原文已隐藏' }}</button>
           </header>
 
+          <!-- 阶段 / 目标 / 场景状态：原在右栏底部，上移到对话卡顶部，开口时视线不用来回跑 -->
+          <div class="progress-rail">
+            <span v-if="currentStage" class="rail-stage" :title="currentStage.guidance || currentStage.name">
+              <AppIcon name="chart-line" :size="12" />
+              <small>阶段</small>
+              <b>{{ currentStage.name }}</b>
+              <em v-if="stageTotal">{{ stageIndex }} / {{ stageTotal }}</em>
+            </span>
+            <span v-else class="rail-stage is-open">
+              <AppIcon name="chart-line" :size="12" /><small>阶段</small><b>开放交流</b>
+            </span>
+            <span v-if="stateInfo.goals?.length" class="rail-goal">
+              <small>目标</small>
+              <progress :value="completedGoals" :max="stateInfo.goals.length" aria-label="训练目标完成进度"></progress>
+              <b>{{ completedGoals }} / {{ stateInfo.goals.length }}</b>
+            </span>
+            <div v-if="stateRows.length" class="rail-state">
+              <button ref="stateButton" class="rail-state-button" type="button" title="场景状态" :aria-expanded="stateOpen" @click="toggleStatePop">
+                <AppIcon name="eye" :size="12" />状态<AppIcon name="chevron-down" :size="12" :class="{ flip: stateOpen }" />
+              </button>
+            </div>
+          </div>
+
           <div ref="chatBody" class="chat-body" role="log" aria-label="聊天记录" :aria-busy="sending">
             <div class="conversation-start"><span></span><small>练习开始 · 放轻松，试着用英语表达</small><span></span></div>
             <article v-for="msg in messages" :key="msg.key" class="msg-row" :class="msg.role">
@@ -95,10 +141,11 @@
                 <!-- agent 消息：参照 1.0 的语音胶囊展现——深灰胶囊常驻，原文面板平滑展开，胶囊不消失 -->
                 <template v-else>
                   <div class="bubble-row">
-                    <button class="ai-voice-capsule" :class="{ playing: playingKey === msg.key }" :style="{ width: capsuleWidth(msg.text) }" type="button" :disabled="ttsBusyKey === msg.key" :aria-label="playingKey === msg.key ? '停止播放回复' : '播放回复语音'" @click="playingKey === msg.key ? stopAudio() : playMessage(msg)">
+                    <button class="ai-voice-capsule" :class="{ playing: playingKey === msg.key }" :style="{ width: capsuleWidth(msg) }" type="button" :disabled="ttsBusyKey === msg.key" :aria-label="playingKey === msg.key ? '停止播放回复' : '播放回复语音'" @click="playingKey === msg.key ? stopAudio() : playMessage(msg)">
                       <i v-if="playingKey === msg.key" class="capsule-progress" :style="{ width: `${Math.min(100, playbackTime / (playbackDuration || estimateSeconds(msg.text)) * 100)}%` }" aria-hidden="true"></i>
-                      <AppIcon :name="ttsBusyKey === msg.key ? 'loader' : playingKey === msg.key ? 'pause' : 'headphones'" :size="16" :class="{ spin: ttsBusyKey === msg.key }" />
-                      <span class="capsule-duration">{{ ttsBusyKey === msg.key ? '合成中' : playingKey === msg.key ? `${Math.round(playbackTime)}″ / ${Math.round(playbackDuration || estimateSeconds(msg.text))}″` : `${estimateSeconds(msg.text)}″` }}</span>
+                      <AppIcon v-if="ttsBusyKey === msg.key" name="loader" :size="16" class="spin" />
+                      <svg v-else class="voice-wave-icon" width="16" height="18" viewBox="0 0 16 18" fill="none" aria-hidden="true"><circle cx="3" cy="9" r="1.35" fill="currentColor"/><path d="M6 5.8a4.5 4.5 0 0 1 0 6.4M8.5 3.3a8 8 0 0 1 0 11.4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+                      <span class="capsule-duration">{{ ttsBusyKey === msg.key ? '准备中' : msg.duration ? `${Math.ceil(msg.duration)}\"` : `${estimateSeconds(msg.text)}\"` }}</span>
                     </button>
                     <button v-if="!showOriginal" class="original-toggle" type="button" :aria-expanded="expandedMessages.has(msg.key)" @click="toggleOriginal(msg.key)"><AppIcon name="file-text" :size="13" />{{ expandedMessages.has(msg.key) ? '收起' : '原文' }}</button>
                   </div>
@@ -141,13 +188,10 @@
               <!-- 待机：纯居中构图，模式切换下沉到 foot 行 -->
               <div v-else class="composer voice-bar idle">
                 <button class="mic-orb" type="button" :disabled="sending || finished || asrAvailable === false || !recordingSupported" :title="voiceCtaText" aria-label="开始语音输入" @click="startRecording"><AppIcon name="mic" :size="17" /><i class="orb-ring" aria-hidden="true"></i></button>
-                <button class="voice-bar-info" type="button" :disabled="sending || finished || asrAvailable === false || !recordingSupported" @click="startRecording">
-                  <b>{{ voiceCtaText }}</b>
-                  <span>{{ voiceHintText }}</span>
-                </button>
+                <button class="voice-bar-info" type="button" :disabled="sending || finished || asrAvailable === false || !recordingSupported" @click="startRecording"><b>{{ voiceCtaText }}</b></button>
               </div>
               <div class="composer-foot">
-                <span><AppIcon name="mic" :size="12" />{{ asrAvailable === false ? '语音暂不可用' : '转写结果确认后再发送' }}</span>
+                <span>{{ voiceHintText }}</span>
                 <button class="foot-toggle" type="button" :disabled="voiceBusy" @click="toggleInputMode"><AppIcon name="pencil" :size="12" />改用文字输入</button>
               </div>
             </template>
@@ -166,31 +210,32 @@
 
         <aside class="chat-side" aria-label="练习辅助">
           <section class="companion-card">
-            <div class="side-head"><h3>交流伙伴</h3><router-link :to="{ name: 'avatar' }" class="side-link" aria-label="设置数字人形象"><AppIcon name="settings" :size="15" /></router-link></div>
-            <AvatarStage :avatar="companionAvatar" :state="voiceBusy ? (voiceStatus === 'recording' ? 'listening' : 'thinking') : avatarState" :size="238" :show-backdrop="false" />
-            <div class="companion-identity"><b>{{ activeRole?.display_name || '交流伙伴' }}</b><span>{{ activeRole?.title || '英语练习伙伴' }}</span></div>
-            <label class="autoplay-control"><input v-model="autoPlayReplies" type="checkbox" @change="saveAutoPlayPreference" />自动播放问候与回复</label>
-            <details class="voice-settings"><summary><AppIcon name="volume" :size="13" />声音与语速<span>{{ speechRate.toFixed(2) }}×</span><AppIcon name="chevron-down" :size="13" /></summary><div class="voice-controls"><label for="practice-voice">播报音色</label><select id="practice-voice" v-model="voiceStyle" class="voice-select"><option v-for="voice in voices" :key="voice.style" :value="voice.style">{{ voice.label || voice.style }}{{ voice.available === false ? '（不可用）' : '' }}</option></select><label for="practice-rate">语速 {{ speechRate.toFixed(2) }}×</label><input id="practice-rate" v-model.number="speechRate" class="voice-rate" type="range" min="0.75" max="1.25" step="0.05" /></div></details>
-          </section>
-
-          <section class="support-card">
-            <div class="support-tabs" role="group" aria-label="辅助信息"><button v-for="tab in supportTabs" :key="tab.id" type="button" :aria-pressed="sideTab === tab.id" :class="{ active: sideTab === tab.id }" @click="sideTab = tab.id">{{ tab.label }}</button></div>
-            <div v-if="sideTab === 'task'" class="support-content">
-              <div class="task-heading"><h3>本次训练目标</h3><span>{{ completedGoals }} / {{ stateInfo.goals?.length || 0 }}</span></div>
-              <progress class="goal-progress" :value="completedGoals" :max="stateInfo.goals?.length || 1" aria-label="训练目标完成进度"></progress>
-              <div v-if="currentStage" class="current-stage"><small>当前阶段</small><b>{{ currentStage.name }}</b><p v-if="currentStage.guidance">{{ currentStage.guidance }}</p></div>
-              <ul v-if="stateInfo.goals?.length" class="goal-list"><li v-for="(goal, index) in stateInfo.goals" :key="goal.id" :class="{ done: goal.done }"><span class="goal-number"><AppIcon v-if="goal.done" name="check" :size="12" /><template v-else>{{ index + 1 }}</template></span><span>{{ goal.label }}</span></li></ul>
-              <p v-else class="support-empty">这个场景采用开放交流，按自己的节奏继续。</p>
+            <div class="side-head"><h3>交流伙伴</h3></div>
+            <div class="companion-stage">
+              <AvatarStage :avatar="companionAvatar" :state="voiceBusy ? (voiceStatus === 'recording' ? 'listening' : 'thinking') : avatarState" :size="238" :show-backdrop="false" />
             </div>
-            <div v-else-if="sideTab === 'feedback'" class="support-content"><span class="support-symbol"><AppIcon name="headphones" :size="21" /></span><h3>先交流，再打磨表达</h3><p class="support-description">逐句纠错与发音评分尚未开放。你可以回放伙伴的回复，留意表达方式和语音节奏。</p></div>
+            <div class="companion-identity"><b>{{ activeRole?.display_name || '交流伙伴' }}</b><span>{{ activeRole?.title || '英语练习伙伴' }}</span></div>
+            <div class="companion-meta">
+              <label class="autoplay-control"><input v-model="autoPlayReplies" type="checkbox" @change="saveAutoPlayPreference" />自动播放</label>
+              <span class="voice-summary" :title="`${selectedVoiceLabel} · ${speechRate.toFixed(2)}×`"><AppIcon name="volume" :size="12" />{{ selectedVoiceLabel }} · {{ speechRate.toFixed(2) }}×</span>
+            </div>
           </section>
 
-          <section class="support-card state-card">
-            <details class="state-details">
-              <summary>场景状态<AppIcon name="chevron-down" :size="13" /></summary>
-              <ul v-if="stateRows.length" class="state-list"><li v-for="row in stateRows" :key="row.key"><span>{{ row.key }}</span><b>{{ row.value }}</b></li></ul>
-              <p v-else class="support-empty">本场景暂无可展示的运行状态。</p>
-            </details>
+          <!-- 目标清单：阶段与进度已上移到对话卡顶部，这里只留可勾选的细项 -->
+          <section class="support-card">
+            <div class="support-head">
+              <h3>训练目标</h3>
+              <span>{{ completedGoals }} / {{ stateInfo.goals?.length || 0 }}</span>
+            </div>
+            <progress class="goal-progress" :value="completedGoals" :max="stateInfo.goals?.length || 1" aria-label="训练目标完成进度"></progress>
+            <ul v-if="stateInfo.goals?.length" class="goal-list">
+              <li v-for="(goal, index) in stateInfo.goals" :key="goal.id" :class="{ done: goal.done }">
+                <span class="goal-number"><AppIcon v-if="goal.done" name="check" :size="12" /><template v-else>{{ index + 1 }}</template></span>
+                <span>{{ goal.label }}<small v-if="!goalHasCheck(goal.id)">尚未接入自动判定</small></span>
+              </li>
+            </ul>
+            <p v-else class="support-empty">这个场景采用开放交流，按自己的节奏继续。</p>
+            <p class="support-foot"><AppIcon name="headphones" :size="13" />练习反馈尚未接入</p>
           </section>
         </aside>
       </div>
@@ -200,43 +245,67 @@
     <div v-if="confirmScene" class="modal-backdrop" @click.self="confirmScene = null">
       <div class="modal-card" role="alertdialog" aria-modal="true" :aria-label="`开始场景 ${confirmScene.name}`">
         <div class="modal-icon"><AppIcon name="messages" :size="18" /></div>
-        <h3>开始「{{ confirmScene.name }}」？</h3>
-        <p>将创建一条新的练习会话，与场景角色从开场白开始对话。</p>
-        <ul class="modal-facts">
+        <h3>「{{ confirmScene.name }}」</h3>
+        <p v-if="checkingHistory">正在查找练习记录…</p>
+        <p v-else-if="historyError" class="history-error" role="alert">{{ historyError }}</p>
+        <p v-else-if="latestHistory">{{ latestHistory.state?.status === 'finished' ? '你有一条已结束的练习记录，可以查看记录或开始新练习。' : '你有一条未结束的练习记录，要继续上次练习还是新开一场？' }}</p>
+        <p v-else>将创建一条新的练习会话，与场景角色从开场白开始对话。</p>
+        <ul v-if="!latestHistory && !checkingHistory && !historyError" class="modal-facts">
           <li v-if="confirmScene.objective_count"><span>训练目标</span><b>{{ confirmScene.objective_count }} 个</b></li>
           <li v-if="confirmScene.stage_count"><span>对话阶段</span><b>{{ confirmScene.stage_count }} 个</b></li>
           <li v-if="confirmScene.difficulty"><span>难度</span><b>{{ diffLabel(confirmScene.difficulty) }}</b></li>
         </ul>
         <div class="modal-actions">
           <button class="ghost-button" type="button" :disabled="starting" @click="confirmScene = null">取消</button>
-          <button class="confirm-button" type="button" :disabled="starting" @click="confirmStart">
-            <AppIcon :name="starting ? 'loader' : 'arrow-right'" :size="14" />{{ starting ? '准备中…' : '确认开始' }}
+          <button v-if="historyError" class="ghost-button" type="button" :disabled="checkingHistory" @click="chooseScene(confirmScene)">重试</button>
+          <button v-if="latestHistory" class="ghost-button" type="button" :disabled="starting || checkingHistory" @click="startScene(confirmScene, latestHistory.id)">{{ latestHistory.state?.status === 'finished' ? '查看记录' : '继续练习' }}</button>
+          <button class="confirm-button" type="button" :disabled="starting || checkingHistory || !!historyError" @click="confirmStart">
+            <AppIcon :name="starting ? 'loader' : 'arrow-right'" :size="14" />{{ starting ? '准备中…' : latestHistory ? '新开练习' : '确认开始' }}
           </button>
         </div>
       </div>
     </div>
 
+    <!-- 场景状态浮层：挂在 body 上，避免被对话卡圆角裁切 -->
+    <Teleport to="body">
+      <template v-if="stateOpen">
+        <div class="rail-pop-backdrop" @click="stateOpen = false"></div>
+        <div class="rail-pop" role="dialog" aria-label="场景状态" :style="{ top: `${statePop.top}px`, right: `${statePop.right}px` }">
+          <p>根据对话更新，仅供练习参考。</p>
+          <ul><li v-for="row in stateRows" :key="row.key"><span>{{ row.key }}</span><b>{{ row.value }}</b></li></ul>
+        </div>
+      </template>
+    </Teleport>
+
     <!-- 场景知识点弹窗：分资料模块 Tab + Markdown 正文（对齐 1.0 的独立知识面板） -->
-    <PracticeKnowledge v-if="knowledgeOpen" :scene-id="sessionInfo.scene_id" :description="sceneMeta?.package?.meta?.description || ''" @close="knowledgeOpen = false" />
+    <PracticeKnowledge v-if="knowledgeOpen" :scene-id="sessionInfo.scene_id" :description="sceneMeta?.package?.meta?.description || ''" :goals="stateInfo.goals || []" @close="knowledgeOpen = false" />
   </section>
 </template>
 
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import AppIcon from '../components/AppIcon.vue'
 import AvatarStage from '../components/avatar/AvatarStage.vue'
 import PracticeKnowledge from '../components/practice/PracticeKnowledge.vue'
+import SceneCover from '../components/scene/SceneCover.vue'
 import { getScene, listScenes } from '../api/scenes'
-import { createSession, getGreetingAudio, submitTurn } from '../api/sessions'
+import { createSession, getSession, getLatestSession, getGreetingAudio, getTurnAudio, submitTurn } from '../api/sessions'
+import { loadingVisible, usePageLoading } from '../app/loading'
 import { getSpeechStatus } from '../api/speech'
 import { useVoiceInput } from '../composables/useVoiceInput'
-import { FALLBACK_AVATARS, FALLBACK_VOICES, fetchTtsVoices, getAvatarPreference, synthesizeSpeech, VOICE_STYLE_ALIASES } from '../api/avatar'
+import { FALLBACK_AVATARS, FALLBACK_VOICES, getAvatarPreference, VOICE_STYLE_ALIASES } from '../api/avatar'
 import { session } from '../auth/session'
 
 const CATEGORY_LABELS = { daily: '日常', interview: '面试', career: '职业', academic: '学术', custom: '自定义', travel: '旅行', business: '商务', campus: '校园', debate: '辩论' }
+const route = useRoute()
+const router = useRouter()
 const FINISH_REASONS = { condition_met: '场景任务已完成，本次练习结束。', max_turns: '已达到本场景的轮次上限，练习结束。' }
 
 const phase = ref('select') // select=选场景 / chat=对话中
+const resuming = ref(Boolean(route.query.session)) // 从历史记录进入会话时，恢复完成前保持加载态
+// 页面级加载：场景列表（及历史会话恢复）到位后才收起全局遮罩；恢复入口已知会慢，立即盖住
+const finishLoading = usePageLoading(route.query.session ? '正在打开这次练习' : '', Boolean(route.query.session))
 const scenes = ref([])
 const loadingScenes = ref(false)
 const starting = ref(false)
@@ -244,6 +313,10 @@ const error = ref('')
 const pickCategory = ref('all') // 选场景页分类筛选
 const keyword = ref('') // 选场景页搜索关键词
 const confirmScene = ref(null) // 进入对话前的确认弹窗（点确认才创建会话）
+const latestHistory = ref(null)
+const checkingHistory = ref(false)
+const historyError = ref('')
+let historyGeneration = 0
 
 const sessionInfo = ref(null) // 后端会话公开字段 { id, scene_id, greeting, state, version }
 const sceneMeta = ref(null) // 场景详情（阶段名/角色/描述）
@@ -269,17 +342,26 @@ const {
 })
 const voiceStatusLabel = computed(() => ({ requesting: '正在请求麦克风权限…', recording: '正在录音', stopping: '正在整理录音…', transcribing: '正在识别英语…' }[voiceStatus.value] || '语音输入'))
 const avatarState = ref('idle') // 数字人展示状态：idle/listening/thinking/speaking
-const sideTab = ref('task')
+const stateOpen = ref(false) // 对话卡顶部的「场景状态」浮层
+const stateButton = ref(null)
+const statePop = ref({ top: 0, right: 0 })
+// 浮层固定定位：按按钮实际位置计算坐标，避免被对话卡的圆角裁掉
+function toggleStatePop() {
+  if (!stateOpen.value && stateButton.value) {
+    const rect = stateButton.value.getBoundingClientRect()
+    statePop.value = { top: Math.round(rect.bottom + 8), right: Math.round(window.innerWidth - rect.right) }
+  }
+  stateOpen.value = !stateOpen.value
+}
 const knowledgeOpen = ref(false) // 场景知识点弹窗（参照 1.0 独立面板，分资料模块 Tab）
 const showOriginal = ref(false) // 默认语音气泡：原文默认隐藏，可全局显示或逐条展开
 const expandedMessages = ref(new Set())
-const supportTabs = [{ id: 'task', label: '任务' }, { id: 'feedback', label: '反馈' }] // 知识点已改为独立弹窗（对齐 1.0），不再占右栏 Tab
 let msgSeq = 0
 
 // TTS 播报：音色/语速取场景档偏好，未设置时用缺省值
-const voices = ref(FALLBACK_VOICES)
 const voiceStyle = ref('emma')
 const speechRate = ref(1)
+const selectedVoiceLabel = computed(() => FALLBACK_VOICES.find(voice => voice.style === voiceStyle.value)?.label || voiceStyle.value)
 const ttsBusyKey = ref('')
 const playingKey = ref('')
 const playbackTime = ref(0) // 当前播放秒数（胶囊进度条用）
@@ -289,10 +371,12 @@ function estimateSeconds(text) {
   const words = (text || '').trim().split(/\s+/).filter(Boolean).length
   return Math.max(2, Math.round(words / 2))
 }
-function capsuleWidth(text) {
-  return `${Math.min(320, Math.max(120, 110 + estimateSeconds(text) * 9))}px`
+function capsuleWidth(msg) {
+  const seconds = msg.duration ? Math.ceil(msg.duration) : estimateSeconds(msg.text)
+  return `${Math.min(320, Math.max(120, 110 + seconds * 9))}px`
 }
 let currentAudio = null
+const audioCache = new Map() // 当前练习内复用音频，不向磁盘持久化私人对话。
 let playbackGeneration = 0 // 丢弃切换消息或离开页面后才完成的语音合成
 let sessionGeneration = 0
 const autoPlayReplies = ref(localStorage.getItem('echotalk:autoplay-replies') !== '0')
@@ -312,12 +396,19 @@ const roleInitial = computed(() => (activeRole.value?.display_name || 'A').slice
 const userInitial = computed(() => (session.user?.username || 'A').slice(0, 1).toUpperCase())
 const sceneTitle = computed(() => sceneMeta.value?.package?.meta?.name || sceneMeta.value?.name || '场景对话')
 const currentStage = computed(() => sceneMeta.value?.package?.stages?.find(stage => stage.id === stateInfo.value.stage))
+// 阶段进度：用于顶部信息条显示「2 / 4」
+const stageTotal = computed(() => sceneMeta.value?.package?.stages?.length || 0)
+const stageIndex = computed(() => {
+  const i = (sceneMeta.value?.package?.stages || []).findIndex(stage => stage.id === stateInfo.value.stage)
+  return i >= 0 ? i + 1 : 0
+})
 const completedGoals = computed(() => (stateInfo.value.goals || []).filter(goal => goal.done).length)
+const goalHasCheck = id => Boolean(sceneMeta.value?.package?.objectives?.find(goal => goal.id === id)?.check)
 const conversationStatus = computed(() => finished.value ? '本次练习已结束' : voiceBusy.value ? voiceStatusLabel.value : sending.value ? '正在思考你的回答…' : ttsBusyKey.value ? '正在准备语音…' : playingKey.value ? '正在播放回复' : '等待你的回应')
 // 语音优先 CTA 文案：按服务配置、环境支持与练习状态给出可执行提示
 const voiceCtaText = computed(() => {
-  if (asrAvailable.value === false) return '语音服务未配置，请改用文字输入'
-  if (!recordingSupported.value) return '当前环境不支持录音，请改用文字输入'
+  if (asrAvailable.value === false) return '语音暂不可用'
+  if (!recordingSupported.value) return '当前环境不支持录音'
   if (sending.value) return '正在发送…'
   if (finished.value) return '本次练习已结束'
   return '点击说英语'
@@ -327,7 +418,7 @@ const voiceHintText = computed(() => {
   if (asrAvailable.value === false) return '切换文字输入可以继续交流'
   if (!recordingSupported.value) return '切换文字输入可以继续交流'
   if (finished.value) return '退出后可另选场景练习'
-  return '英语语音 · 最长 60 秒 · 转写后确认发送'
+  return '最长 60 秒，转写后确认发送'
 })
 // 录音中迷你声波：7 根柱子按基准波形 × 实时音量缩放
 const LEVEL_BARS = [0.35, 0.6, 0.9, 1, 0.75, 0.5, 0.65]
@@ -335,11 +426,13 @@ function levelBar(i) {
   const scaled = LEVEL_BARS[i % LEVEL_BARS.length] * (0.35 + recordingLevel.value * 1.3)
   return `${Math.max(3, Math.min(15, Math.round(scaled * 15)))}px`
 }
+// 场景状态变量是场景包里的机器键名（update_scene_state 按此写入），只展示已登记中文名的键；未登记的键不直接暴露英文
+const STATE_LABELS = { issue_explained: '问题说明', rebooked: '新行程', options_compared: '方案比较', reported: '进度汇报', clarified: '问题澄清', next_step: '下一步', confirmed: '订单确认', paid: '付款', order: '点单内容', greeted: '打招呼', price_asked: '问价', booked: '预订' }
 // 场景状态卡：仅展示原始值字段，对象/数组不强行渲染
 const stateRows = computed(() =>
   Object.entries(stateInfo.value.scenario_state || {})
-    .filter(([, value]) => ['string', 'number', 'boolean'].includes(typeof value))
-    .map(([key, value]) => ({ key, value: String(value) }))
+    .filter(([key, value]) => STATE_LABELS[key] && ['string', 'number', 'boolean'].includes(typeof value))
+    .map(([key, value]) => ({ key: STATE_LABELS[key], value: typeof value === 'boolean' ? (value ? '已确认' : '待确认') : String(value) }))
 )
 // 伙伴形象：优先用户场景档偏好，其次缺省清单首个
 const companionAvatar = computed(() => {
@@ -349,6 +442,9 @@ const companionAvatar = computed(() => {
 const companionAvatarId = ref(null)
 
 const categoryLabel = (key) => CATEGORY_LABELS[key] || key || '通用'
+// 卡片封面沿用场景探索页的长文案，筛选 Tab 与对话页副标题仍用短文案
+const COVER_LABELS = { daily: '日常沟通', business: '职场沟通', career: '求职训练', academic: '学术场景', custom: '自定义' }
+const coverLabel = (key) => COVER_LABELS[key] || categoryLabel(key)
 const diffLabel = (key) => ({ entry: '入门', easy: '简单', normal: '普通', hard: '困难', expert: '专家' }[key] || key)
 const diffClass = (key) => ({ entry: 'entry', easy: 'easy', normal: 'normal', hard: 'hard', expert: 'expert' }[key] || 'normal')
 
@@ -392,7 +488,7 @@ function pushMessage(role, text) {
   const msg = { key: `m${++msgSeq}`, role, text }
   messages.value.push(msg)
   scrollToBottom()
-  return msg
+  return messages.value[messages.value.length - 1]
 }
 
 async function scrollToBottom() {
@@ -404,46 +500,96 @@ async function scrollToBottom() {
 
 onMounted(async () => {
   getSpeechStatus().then(({ data }) => { asrAvailable.value = data.configured }).catch(() => {})
+  // 历史记录入口：会话详情与场景列表并行拉取，过渡态不必串行等两次往返
+  const resumeId = route.query.session
+  const pendingSession = resumeId ? getSession(resumeId) : null
+  if (pendingSession) pendingSession.catch(() => {}) // 场景列表失败时避免留下未处理的拒绝
   loadingScenes.value = true
   try {
     const { data } = await listScenes()
     scenes.value = data?.items || []
+    const selected = scenes.value.find(scene => scene.id === route.query.scene)
+    if (selected) void chooseScene(selected)
+    else if (resumeId) await resumeSession(resumeId, pendingSession) // 从历史记录进入某次会话：等恢复完成再收遮罩
   } catch (err) {
     error.value = err.message
   } finally {
     loadingScenes.value = false
+    finishLoading() // 场景列表（或恢复的会话）就绪，交还遮罩
   }
-  const list = await fetchTtsVoices()
-  if (list?.length) voices.value = list // 探测失败保持前端缺省清单
 })
 
-async function startScene(scene) {
+async function resumeSession(sessionId, pending) {
+  // 历史记录入口：先按会话查出所属场景，再复用 startScene 的恢复流程回放对话
+  if (!session.token) {
+    error.value = '请先登录后查看练习记录。'
+    resuming.value = false
+    return
+  }
+  try {
+    const { data } = await (pending || getSession(sessionId))
+    const scene = scenes.value.find(item => item.id === data.scene_id)
+    if (!scene) { error.value = '对应的场景已不可用，无法打开这条练习记录。'; return }
+    await startScene(scene, sessionId)
+  } catch (err) {
+    error.value = err.message
+  } finally {
+    resuming.value = false // 成功时已切到对话态；失败则退回场景选择并显示原因
+  }
+}
+
+async function chooseScene(scene) {
+  if (starting.value) return // 已在准备会话时不重复弹窗
+  confirmScene.value = scene
+  latestHistory.value = null
+  historyError.value = ''
+  const generation = ++historyGeneration
+  if (!session.token) { historyError.value = '请先登录后开始练习。'; return }
+  checkingHistory.value = true
+  try {
+    const { data } = await getLatestSession(scene.id)
+    if (generation === historyGeneration && confirmScene.value?.id === scene.id) latestHistory.value = data.session
+  } catch (err) {
+    if (generation === historyGeneration && confirmScene.value?.id === scene.id) historyError.value = err.message
+  } finally {
+    if (generation === historyGeneration) checkingHistory.value = false
+  }
+}
+
+async function startScene(scene, existingId = null) {
   if (starting.value) return
   starting.value = true
   const generation = ++sessionGeneration
   error.value = ''
   try {
     // 知识点面板按需独立加载，不因资料服务失败阻塞进入对话。
-    const [detailRes, sessionRes] = await Promise.all([
+    const [detailRes, sessionRes, preference] = await Promise.all([
       getScene(scene.id),
-      createSession(scene.id),
+      existingId ? getSession(existingId) : createSession(scene.id),
+      getAvatarPreference(scene.id),
     ])
     if (generation !== sessionGeneration) return
-    sceneMeta.value = detailRes.data
+    applyVoicePreference(preference)
+    sceneMeta.value = { ...detailRes.data, package: sessionRes.data.scene_display || detailRes.data.package }
     sessionInfo.value = sessionRes.data
     messages.value = []
     const greetingMessage = sessionRes.data.greeting ? pushMessage('agent', sessionRes.data.greeting) : null
     if (greetingMessage) greetingMessage.greetingSessionId = sessionRes.data.id
+    for (const turn of sessionRes.data.turns || []) {
+      pushMessage('user', turn.input_text)
+      const reply = pushMessage('agent', turn.text)
+      reply.turnId = turn.turn_id
+      reply.sessionId = sessionRes.data.id
+    }
     phase.value = 'chat'
     avatarState.value = 'idle'
     confirmScene.value = null // 进入成功后收起确认弹窗
-    await loadVoicePreference(scene.id)
     await nextTick()
     if (generation !== sessionGeneration) return
     composerBox.value?.focus()
-    if (greetingMessage && autoPlayReplies.value) void playMessage(greetingMessage, { automatic: true })
+    if (!existingId && greetingMessage && autoPlayReplies.value) void playMessage(greetingMessage, { automatic: true })
   } catch (err) {
-    error.value = err.message
+    historyError.value = err.message
   } finally {
     starting.value = false
   }
@@ -454,11 +600,12 @@ function confirmStart() {
   if (confirmScene.value) startScene(confirmScene.value)
 }
 
-async function loadVoicePreference(sceneId) {
-  const pref = await getAvatarPreference(sceneId)
+function applyVoicePreference(pref) {
+  voiceStyle.value = 'emma'
+  speechRate.value = 1
   companionAvatarId.value = pref?.avatar_id || null
   const style = VOICE_STYLE_ALIASES[pref?.voice_style] || pref?.voice_style
-  if (style && voices.value.some((v) => v.style === style)) voiceStyle.value = style
+  if (style && FALLBACK_VOICES.some((v) => v.style === style)) voiceStyle.value = style
   if (Number.isFinite(pref?.speech_rate)) speechRate.value = Math.min(1.25, Math.max(0.75, pref.speech_rate))
 }
 
@@ -469,19 +616,21 @@ function backToSelect() {
   cancelRecording()
   transcribedText.value = ''
   stopAudio()
+  clearAudioCache()
   phase.value = 'select'
   sessionInfo.value = null
   sceneMeta.value = null
   messages.value = []
   draft.value = ''
   expandedMessages.value.clear()
-  sideTab.value = 'task'
+  stateOpen.value = false
   error.value = ''
+  if (route.query.session) { router.replace({ name: 'history' }); return } // 由历史记录进入时退回列表，而非场景选择
 }
 
 function finishAndExit() {
   // 复盘报告依赖训练报告模块（未接入），先做客户端确认后返回
-  if (window.confirm('退出当前练习并返回场景列表？')) backToSelect()
+  if (window.confirm(route.query.session ? '退出回放并返回历史记录？' : '退出当前练习并返回场景列表？')) backToSelect()
 }
 
 // ---- 对话轮次 ---------------------------------------------------------------
@@ -543,6 +692,8 @@ async function sendTurn() {
     const { data } = await submitTurn(sessionInfo.value.id, requestId, text)
     if (generation !== sessionGeneration) return
     replyMessage = pushMessage('agent', data.text)
+    replyMessage.turnId = data.turn_id
+    replyMessage.sessionId = data.session_id
     sessionInfo.value = { ...sessionInfo.value, state: data.state, version: data.version }
   } catch (err) {
     if (generation !== sessionGeneration) return
@@ -567,14 +718,24 @@ async function playMessage(msg, { automatic = false } = {}) {
   const generation = playbackGeneration
   ttsBusyKey.value = msg.key
   try {
-    const blob = msg.greetingSessionId
-      ? await getGreetingAudio(msg.greetingSessionId, voiceStyle.value, speechRate.value)
-      : await synthesizeSpeech(msg.text, voiceStyle.value, speechRate.value)
+    const cacheKey = JSON.stringify([msg.key, voiceStyle.value, speechRate.value])
+    let blob = audioCache.get(cacheKey)
+    if (!blob) {
+      blob = msg.greetingSessionId
+        ? await getGreetingAudio(msg.greetingSessionId, voiceStyle.value, speechRate.value)
+        : await getTurnAudio(msg.sessionId, msg.turnId, voiceStyle.value, speechRate.value)
+      if (generation !== playbackGeneration) return
+      audioCache.set(cacheKey, blob)
+    }
     if (generation !== playbackGeneration) return
     const url = URL.createObjectURL(blob)
     currentAudio = new Audio(url)
     currentAudio.ontimeupdate = () => { playbackTime.value = currentAudio?.currentTime || 0 }
-    currentAudio.onloadedmetadata = () => { playbackDuration.value = isFinite(currentAudio?.duration) ? currentAudio.duration : 0 }
+    currentAudio.onloadedmetadata = () => {
+      playbackDuration.value = Number.isFinite(currentAudio?.duration) ? currentAudio.duration : 0
+      const displayed = messages.value.find(item => item.key === msg.key)
+      if (displayed && playbackDuration.value) displayed.duration = playbackDuration.value
+    }
     currentAudio.onended = () => stopAudio()
     currentAudio.onerror = () => stopAudio()
     await currentAudio.play()
@@ -605,7 +766,8 @@ function stopAudio() {
   if (avatarState.value === 'speaking') avatarState.value = 'idle'
 }
 
-onBeforeUnmount(() => { sessionGeneration += 1; stopAudio() })
+function clearAudioCache() { audioCache.clear() }
+onBeforeUnmount(() => { sessionGeneration += 1; stopAudio(); clearAudioCache() })
 </script>
 
 <style scoped>
@@ -656,11 +818,21 @@ button { cursor: pointer; } button:disabled { cursor: not-allowed; }
 button:focus-visible, a:focus-visible, summary:focus-visible { outline: 2px solid var(--brand); outline-offset: 3px; }
 /* ---- 选场景页：工具行 + 卡片网格（对齐场景探索页） ---- */
 .page-scroll { flex: 1; min-height: 0; overflow: auto; padding: 22px 28px 32px; }
+/* 历史记录入口的过渡态：会话恢复完成前不渲染场景选择页，避免列表闪一下 */
+.practice-loading { display: flex; flex: 1; flex-direction: column; align-items: center; justify-content: center; gap: 16px; background: #faf9ff; }
+.loading-ring { width: 40px; height: 40px; border: 3.5px solid #e2d8f8; border-top-color: #7c62d2; border-radius: 50%; box-shadow: 0 0 0 8px #f3eefd; animation: spin .8s linear infinite; }
+.loading-copy { display: flex; flex-direction: column; align-items: center; gap: 6px; text-align: center; }
+.loading-copy b { color: #3f3959; font-size: 15px; font-weight: 700; letter-spacing: -.01em; }
+.loading-copy small { color: #948da8; font-size: 12.5px; }
+.loading-track { position: relative; width: 156px; height: 4px; overflow: hidden; border-radius: 999px; background: #e8e1f7; }
+.loading-track i { position: absolute; top: 0; bottom: 0; left: 0; width: 46%; border-radius: 999px; background: linear-gradient(90deg, #b6a2ee, #7c62d2); animation: loading-slide 1.1s cubic-bezier(.5, 0, .5, 1) infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes loading-slide { from { transform: translateX(-105%); } to { transform: translateX(230%); } }
 .pick-toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
-.seg-filter { display: inline-flex; gap: 3px; padding: 3px; border: 1px solid var(--line); border-radius: 9px; background: var(--surface); }
-.seg-item { display: inline-flex; align-items: center; gap: 6px; height: 31px; padding: 0 13px; border: 0; border-radius: 7px; background: transparent; color: var(--ink-soft); font-size: 13.5px; transition: background .15s, color .15s; }
+.seg-filter { display: inline-flex; gap: 4px; padding: 4px; border: 1.5px solid #e9e5f1; border-radius: 13px; background: #fff; }
+.seg-item { display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 13px; border: 0; border-radius: 10px; background: transparent; color: var(--ink-soft); font-size: 13.5px; font-weight: 600; white-space: nowrap; transition: background .15s, color .15s; }
 .seg-item:hover { color: var(--ink); }
-.seg-item.active { background: var(--brand-soft); color: var(--brand-deep); font-weight: 500; }
+.seg-item.active { background: #eee8ff; color: #694fc1; font-weight: 700; }
 .seg-count { color: var(--muted); font-size: 11.5px; }
 .seg-item.active .seg-count { color: var(--brand); }
 .toolbar-right { display: flex; align-items: center; gap: 9px; }
@@ -674,30 +846,36 @@ button:focus-visible, a:focus-visible, summary:focus-visible { outline: 2px soli
 .login-hint, .page-error { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; margin: 0 0 18px; color: var(--muted); font-size: 13px; }
 .login-hint a { color: var(--brand); }.page-error { color: var(--danger); }
 .scene-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(275px, 1fr)); gap: 14px; align-content: start; }
-.scene-card { display: flex; flex-direction: column; padding: 15px 16px 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); text-align: left; transition: border-color .18s, transform .18s, box-shadow .18s; animation: card-in .38s cubic-bezier(.22, .8, .32, 1) both; }
-.scene-card:hover:not(:disabled) { border-color: #d8daea; transform: translateY(-2px); box-shadow: 0 6px 18px rgba(34, 37, 59, .06); }
-.scene-card:active:not(:disabled) { transform: translateY(0); }
-.scene-card:disabled { opacity: .6; }
+.scene-card { display: flex; flex-direction: column; padding: 0; overflow: visible; border: 1.5px solid #ebe7f5; border-bottom: 4px solid #e5def1; border-radius: 19px; background: #fff; text-align: left; transition: border-color .18s, transform .18s, box-shadow .18s; animation: card-in .38s cubic-bezier(.22, .8, .32, 1) backwards; }
+.scene-card:hover:not(.busy) { border-color: #cfc1f1; border-bottom-color: #d9cdef; transform: translateY(-3px); box-shadow: 0 8px 18px #51408412; }
+.scene-card:active:not(.busy) { transform: translateY(0); }
+.scene-card:focus-visible { outline: 2px solid var(--brand); outline-offset: 3px; }
+.scene-card.busy { opacity: .6; pointer-events: none; }
+/* 整卡 hover 也让封面右上角标浮出（角标在子组件内，需穿透） */
+.scene-card:hover :deep(.scene-cover-mark), .scene-card:focus-visible :deep(.scene-cover-mark) { opacity: 1; transform: translate(0, 0); }
+/* 卡片正文：与封面对齐的内边距，foot 行贴底保证同排卡片底部齐平 */
+.card-body { display: flex; flex-direction: column; flex: 1; padding: 13px 15px 15px; }
 @keyframes card-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-.card-head { display: flex; align-items: center; gap: 7px; margin-bottom: 11px; }
-.mode-chip { display: inline-flex; align-items: center; gap: 4px; height: 22px; padding: 0 9px; border-radius: 6px; background: var(--brand-soft); color: var(--brand-deep); font-size: 11.5px; font-weight: 500; }
-.diff-chip { display: inline-flex; align-items: center; height: 22px; padding: 0 9px; border-radius: 6px; background: #f1f2f7; color: var(--ink-soft); font-size: 11.5px; font-weight: 500; }
+.card-head { display: flex; align-items: center; gap: 7px; margin-bottom: 9px; }
+.mode-chip { display: inline-flex; align-items: center; gap: 4px; height: 22px; padding: 0 9px; border-radius: 999px; background: var(--brand-soft); color: var(--brand-deep); font-size: 11.5px; font-weight: 600; }
+.diff-chip { display: inline-flex; align-items: center; height: 22px; padding: 0 9px; border-radius: 999px; background: #f1f2f7; color: var(--ink-soft); font-size: 11.5px; font-weight: 600; }
 .diff-chip.entry { background: #e3f2ea; color: #2f7a52; }
 .diff-chip.easy { background: #e0f2ef; color: #257a6b; }
 .diff-chip.normal { background: #e3ecfb; color: #33619f; }
 .diff-chip.hard { background: #fdefe0; color: #b26a24; }
 .diff-chip.expert { background: #fbe7e7; color: #b03a3a; }
-.scene-name { font-size: 15.5px; font-weight: 600; letter-spacing: -.01em; }
-.scene-desc { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; min-height: 42px; margin-top: 6px; color: var(--muted); font-size: 13.5px; line-height: 1.55; text-wrap: pretty; }
-.scene-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 13px; padding-top: 13px; border-top: 1px solid var(--line); }
-.scene-meta { display: flex; flex-wrap: wrap; gap: 4px 10px; }
-.scene-meta span { display: inline-flex; align-items: center; gap: 4px; color: var(--muted); font-size: 11.5px; }
-.scene-go { display: inline-flex; align-items: center; gap: 4px; color: var(--brand); font-size: 12.5px; font-weight: 500; white-space: nowrap; }
-.scenes-empty { grid-column: 1 / -1; display: grid; justify-items: center; padding: 46px 20px; border: 1px dashed var(--line); border-radius: 14px; background: rgba(255, 255, 255, .55); text-align: center; }
-.empty-icon { display: grid; width: 48px; height: 48px; place-items: center; border: 1px solid #e3e4fb; border-radius: 12px; background: var(--brand-soft); color: var(--brand); }
+.scene-desc { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; min-height: 42px; margin: 0; color: #6d6880; font-size: 13.5px; line-height: 1.55; text-wrap: pretty; }
+.scene-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: auto; padding-top: 12px; border-top: 1px solid #efedf5; }
+.scene-meta { display: flex; flex-wrap: wrap; gap: 4px 8px; min-width: 0; }
+.scene-meta span { display: inline-flex; align-items: center; gap: 3px; color: var(--muted); font-size: 11px; white-space: nowrap; }
+.scene-go { display: inline-flex; align-items: center; gap: 4px; flex: 0 0 auto; color: var(--brand); font-size: 12.5px; font-weight: 600; white-space: nowrap; }
+.scenes-empty { grid-column: 1 / -1; display: grid; justify-items: center; padding: 46px 20px; border: 2px dashed #d9d0ef; border-radius: 18px; background: #fff; text-align: center; }
+.empty-icon { display: grid; width: 54px; height: 54px; place-items: center; border: 0; border-radius: 18px; background: #f0eaff; color: #8067d1; }
 .scenes-empty h3 { margin: 14px 0 6px; font-size: 16px; font-weight: 600; }
 .scenes-empty p { margin: 0; max-width: 400px; color: var(--muted); font-size: 13.5px; line-height: 1.65; text-wrap: pretty; }
 .scene-card.skeleton { animation: none; cursor: default; }
+.sk-cover { height: 100px; margin: -1.5px -1.5px 0; border-radius: 17px 17px 0 0; background: linear-gradient(90deg, #f0eef7 25%, #f8f7fc 45%, #f0eef7 65%); background-size: 200% 100%; animation: shimmer 1.3s infinite; }
+.sk-body { padding: 13px 17px 17px; }
 .sk-line { height: 12px; margin-top: 10px; border-radius: 5px; background: linear-gradient(90deg, #eef0f5 25%, #f6f7fa 45%, #eef0f5 65%); background-size: 200% 100%; animation: shimmer 1.3s infinite; }
 .sk-line.w40 { width: 40%; margin-top: 0; }
 .sk-line.w80 { width: 80%; height: 14px; }
@@ -727,34 +905,59 @@ button:focus-visible, a:focus-visible, summary:focus-visible { outline: 2px soli
 .exit-button:hover { background: #fbeef1; } button:disabled { opacity: .5; }
 /* 页面内只滚动消息与辅助栏，输入始终可见。 */
 .chat-page { display: flex; flex-direction: column; flex: 1; min-height: 0; padding: 0 24px 22px; }
-.session-toolbar { display: flex; align-items: center; gap: 12px; flex: 0 0 auto; min-height: 84px; padding: 14px 0; }
+.session-toolbar { display: flex; align-items: center; gap: 12px; flex: 0 0 auto; min-height: 72px; padding: 12px 0; }
 .back-button { display: grid; place-items: center; width: 32px; height: 32px; flex-shrink: 0; background: white; border: 1px solid var(--line); border-radius: 8px; color: var(--muted); }
 .session-heading { min-width: 0; flex: 1; }.session-heading h2 { margin: 0; font-size: 18px; font-weight: 600; line-height: 1.5; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }.session-heading p { margin: 3px 0 0; color: var(--muted); font-size: 12.5px; }.session-heading p span { margin: 0 8px; }
-.session-counter { display: flex; align-items: center; gap: 6px; margin-right: 4px; color: var(--muted); font-size: 12.5px; white-space: nowrap; }
-.chat-layout { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 292px; gap: 18px; }
+.chat-layout { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 264px; gap: 16px; }
 .chat-card { display: flex; flex-direction: column; min-width: 0; min-height: 0; background: white; border: 1px solid var(--line); border-radius: 14px; overflow: hidden; }
 .chat-head { display: flex; align-items: center; gap: 10px; padding: 14px 20px; border-bottom: 1px solid var(--line); flex-shrink: 0; }
 .role-avatar { display: grid; place-items: center; flex: 0 0 36px; width: 36px; height: 36px; border-radius: 12px; background: var(--brand-soft); color: var(--brand); font-size: 14px; font-weight: 600; }
 .role-info { flex: 1; min-width: 0; }.role-info b { display: block; font-size: 14px; font-weight: 600; }.role-status { display: flex; align-items: center; gap: 5px; margin-top: 4px; color: var(--muted); font-size: 12px; }.status-dot { width: 5px; height: 5px; border-radius: 50%; background: #78a993; }.status-dot.busy { background: var(--brand); }
-.text-toggle { display: inline-flex; align-items: center; gap: 5px; border: 0; padding: 6px; background: transparent; color: var(--muted); font-size: 12.5px; }.text-toggle[aria-pressed="true"] { color: var(--brand); }
-.chat-body { flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; padding: 20px 24px 28px; scrollbar-width: thin; }
+.text-toggle { display: inline-flex; align-items: center; gap: 5px; border: 1px solid #e6e7f0; border-radius: 16px; padding: 6px 10px; background: #fafaff; color: var(--muted); font-size: 12px; }.text-toggle[aria-pressed="true"] { color: var(--brand); background: #f1f0ff; border-color: #dedcff; }
+/* 顶部信息条：阶段 / 目标进度 / 场景状态，横向一条读完，不占右栏高度 */
+.progress-rail { display: flex; align-items: center; gap: 9px; flex-shrink: 0; padding: 8px 18px; border-bottom: 1px solid #f1eef8; background: #fbfaff; }
+.rail-stage { display: inline-flex; align-items: center; gap: 6px; min-width: 0; height: 26px; padding: 0 10px; border: 1px solid #e8e3f6; border-radius: 999px; background: #fff; color: #6a56ae; font-size: 12px; }
+.rail-stage small { flex-shrink: 0; color: #9a94b4; font-size: 11px; white-space: nowrap; }
+.rail-stage b { overflow: hidden; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
+.rail-stage em { flex-shrink: 0; padding-left: 8px; border-left: 1px solid #ece8f8; color: #9a94b4; font-size: 11px; font-style: normal; font-variant-numeric: tabular-nums; }
+.rail-stage.is-open { color: #8b85a6; }
+.rail-goal { display: inline-flex; align-items: center; gap: 7px; min-width: 0; margin-left: auto; color: #9a94b4; font-size: 11px; white-space: nowrap; }
+.rail-goal b { color: #6d6590; font-size: 11.5px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.rail-goal progress { width: 60px; height: 5px; border: 0; border-radius: 999px; overflow: hidden; appearance: none; background: #ece9f7; }
+.rail-goal progress::-webkit-progress-bar { background: #ece9f7; }
+.rail-goal progress::-webkit-progress-value { border-radius: 999px; background: #9b8ce0; }
+.rail-goal progress::-moz-progress-bar { border-radius: 999px; background: #9b8ce0; }
+.rail-state { flex-shrink: 0; }
+.rail-state-button { display: inline-flex; align-items: center; gap: 5px; height: 26px; padding: 0 9px; border: 1px solid #e8e3f6; border-radius: 999px; background: #fff; color: #7d779a; font-size: 11.5px; transition: border-color .15s, color .15s; }
+.rail-state-button:hover { border-color: #d5ccef; color: #6a56ae; }
+.rail-state-button svg:last-child { transition: transform .15s; }
+.rail-state-button .flip { transform: rotate(180deg); }
+.rail-pop-backdrop { position: fixed; inset: 0; z-index: 40; }
+.rail-pop { position: fixed; z-index: 41; width: 212px; padding: 12px 14px; border: 1.5px solid #ebe7f5; border-bottom: 3px solid #e5def1; border-radius: 14px; background: #fff; box-shadow: 0 12px 32px rgba(52, 44, 86, .14); }
+.rail-pop p { margin: 0 0 6px; color: var(--muted); font-size: 11px; }
+.rail-pop ul { margin: 0; padding: 0; list-style: none; }
+.rail-pop li { display: flex; justify-content: space-between; gap: 12px; padding: 5px 0; font-size: 12px; }
+.rail-pop li span { color: var(--muted); }
+.rail-pop li b { font-weight: 600; text-align: right; overflow-wrap: anywhere; }
+.chat-body { flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; padding: 20px 24px 28px; scrollbar-width: thin; background: #f8f9fc; }
 .conversation-start { display: flex; align-items: center; justify-content: center; gap: 12px; margin: 0 0 28px; color: var(--faint); }.conversation-start span { height: 1px; flex: 1; max-width: 60px; background: var(--line); }.conversation-start small { font-size: 12px; text-align: center; }
 .msg-row { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 25px; }.msg-row.user { justify-content: flex-end; }.msg-avatar { display: grid; place-items: center; width: 30px; height: 30px; flex: 0 0 30px; margin-top: 21px; border-radius: 10px; background: #f0effa; color: #7771ac; font-size: 12.5px; font-weight: 600; }.msg-avatar.user { background: #e9edf7; color: #6c7a9a; }
 .message-content { display: flex; flex-direction: column; align-items: flex-start; max-width: min(82%, 640px); }.msg-row.user .message-content { align-items: flex-end; }.message-author { margin-bottom: 6px; font-size: 12px; color: var(--muted); }
-.bubble { padding: 13px 17px; background: #f5f6fa; border-radius: 2px 13px 13px 13px; }.msg-row.user .bubble { background: #eeedff; color: #46457c; border-radius: 13px 2px 13px 13px; }.bubble-text { margin: 0; font-size: 15px; line-height: 1.85; white-space: pre-wrap; overflow-wrap: anywhere; }
+.bubble { padding: 11px 15px; background: white; border: 1px solid #ededf3; border-radius: 4px 15px 15px 15px; }.msg-row.user .bubble { background: #e4e2ff; border-color: #dedbfc; color: #37365e; border-radius: 15px 4px 15px 15px; }.bubble-text { margin: 0; font-size: 14px; line-height: 1.75; white-space: pre-wrap; overflow-wrap: anywhere; }
 /* agent 语音气泡：交互结构沿用 1.0（胶囊常驻+进度条+原文面板），外观对齐 2.0——实色品牌紫、扁平无渐变阴影，与发送按钮/麦克风圆钮同色 */
 .bubble-row { display: flex; align-items: center; gap: 10px; }
-.ai-voice-capsule { position: relative; display: flex; align-items: center; gap: 9px; height: 38px; min-width: 120px; padding: 0 15px; border: 0; border-radius: 19px; border-top-left-radius: 3px; background: var(--brand); color: #fff; overflow: hidden; transition: background .15s, transform .15s; }
-.ai-voice-capsule:hover:not(:disabled) { background: var(--brand-deep); transform: scale(1.02); }
+.ai-voice-capsule { position: relative; display: flex; align-items: center; gap: 5px; height: 40px; min-width: 120px; max-width: 100%; padding: 0 12px; border: 1px solid #e8e7f0; border-radius: 4px 16px 16px 16px; background: white; color: var(--brand-deep); overflow: hidden; transition: width .2s ease, background .15s, transform .15s; }
+.ai-voice-capsule:hover:not(:disabled) { background: #f0efff; transform: scale(1.02); }
 .ai-voice-capsule:active:not(:disabled) { transform: scale(.98); }
 .ai-voice-capsule:disabled { opacity: .7; cursor: wait; }
-.ai-voice-capsule.playing { background: var(--brand-deep); }
-.capsule-progress { position: absolute; left: 0; bottom: 0; height: 3px; background: rgba(255, 255, 255, .45); transition: width .12s linear; }
-.capsule-duration { font-size: 12.5px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.ai-voice-capsule.playing { background: white; }
+.capsule-progress { position: absolute; left: 0; bottom: 0; height: 3px; background: #aaa3ef; transition: width .12s linear; }
+.capsule-duration { font-size: 12.5px; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.voice-wave-icon { flex: 0 0 auto; }
 .spin { animation: spin 1s linear infinite; }
-.original-toggle { display: inline-flex; align-items: center; gap: 4px; padding: 4px 2px; border: 0; background: transparent; color: var(--brand); font-size: 12.5px; transition: color .15s; }
-.original-toggle:hover { color: var(--brand-deep); }
-.original-panel { max-width: 76%; margin-top: 8px; padding: 12px 15px; border-radius: 2px 13px 13px 13px; background: #f5f6fa; }
+.original-toggle { display: inline-flex; align-items: center; gap: 4px; padding: 5px 9px; border: 1px solid #e8e8f0; border-radius: 14px; background: #fff; color: #77758d; font-size: 12px; transition: color .15s; white-space: nowrap; }
+.original-toggle:hover { color: var(--brand-deep); border-color: #d2cff1; }
+.original-panel { max-width: 100%; margin-top: 7px; padding: 11px 15px; border: 1px solid #ededf3; border-radius: 4px 15px 15px 15px; background: #fff; }
 .panel-enter-active, .panel-leave-active { transition: opacity .18s ease, transform .18s ease; }
 .panel-enter-from, .panel-leave-to { opacity: 0; transform: translateY(-4px); }
 .thinking-message { display: flex; align-items: center; gap: 10px; margin-bottom: 20px; }.thinking-message .msg-avatar { margin-top: 0; }.thinking-message small { color: var(--muted); font-size: 12.5px; }.thinking-dots { display: flex; gap: 4px; padding: 12px; border-radius: 10px; background: var(--bg); }.thinking-dots i { width: 4px; height: 4px; border-radius: 50%; background: var(--brand); }
@@ -762,22 +965,67 @@ button:focus-visible, a:focus-visible, summary:focus-visible { outline: 2px soli
 .composer-area { flex-shrink: 0; margin: 0 20px; padding: 13px 0 12px; border-top: 1px solid var(--line); }
 .composer { display: flex; align-items: flex-end; gap: 10px; padding: 10px; border: 1px solid #e6e6f0; border-radius: 11px; background: #fcfcfe; transition: border-color .15s; }.composer:focus-within { border-color: #a9a7e9; }.composer-input { display: block; flex: 1; min-width: 0; min-height: 42px; max-height: 132px; padding: 0 3px; outline: none; border: 0; resize: none; background: transparent; font: inherit; font-size: 14.5px; line-height: 1.7; color: var(--ink); }.composer-input::placeholder { color: var(--faint); }.send-button { display: flex; align-items: center; justify-content: center; gap: 4px; height: 34px; padding: 0 14px; border: 0; border-radius: 8px; color: white; background: var(--brand); font-size: 13px; }.send-button:hover:not(:disabled) { background: var(--brand-deep); }
 .composer-foot { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 7px; margin-top: 9px; color: var(--faint); font-size: 11.5px; }.recording-note { display: flex; align-items: center; gap: 4px; }.keyboard-hint { display: flex; align-items: center; gap: 5px; }.keyboard-hint>span { margin: 0 3px; }kbd { font-family: inherit; font-size: 10.5px; }.chat-error { display: flex; align-items: center; gap: 5px; margin: 0 0 10px; color: var(--danger); font-size: 13px; }
-.chat-side { display: flex; flex-direction: column; gap: 14px; min-height: 0; overflow: auto; scrollbar-width: thin; }.companion-card, .support-card { flex-shrink: 0; border: 1px solid var(--line); background: white; border-radius: 14px; overflow: hidden; }.companion-card { padding: 14px; }.side-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }h3 { margin: 0; font-size: 13.5px; font-weight: 600; }.side-link { color: var(--muted); display: flex; padding: 3px; }
-.companion-card :deep(.stage) { width: 100% !important; aspect-ratio: 1.4; border-radius: 10px; border: 0; background: #f4f2fa; }.companion-card :deep(.stage-top) { top: 12px; left: 12px; right: 12px; }.companion-card :deep(.edition), .companion-card :deep(.stage-bottom), .companion-card :deep(.spark) { display: none; }.companion-card :deep(.character) { left: 18%; width: 64%; height: 90%; }.companion-card :deep(.halo) { width: 62%; left: 19%; top: 17%; }.companion-identity { display: flex; align-items: center; gap: 7px; margin: 12px 0; }.companion-identity b { font-size: 14px; font-weight: 600; }.companion-identity span { font-size: 12px; color: var(--muted); }
+/* 右栏：伙伴卡吃剩余高度、目标卡按内容收住，整列不再出现滚动条 */
+.chat-side { display: flex; flex-direction: column; gap: 12px; min-height: 0; overflow: hidden; }
+.companion-card, .support-card { border: 1px solid var(--line); background: white; border-radius: 14px; overflow: hidden; }
+.companion-card { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; padding: 12px; }
+.side-head { display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; margin-bottom: 9px; }
+h3 { margin: 0; font-size: 13.5px; font-weight: 600; }
+.side-link { color: var(--muted); display: flex; padding: 3px; }
+.companion-stage { display: flex; flex: 1 1 auto; min-height: 104px; }
+.companion-card :deep(.stage) { width: 100% !important; height: 100%; aspect-ratio: auto; border-radius: 12px; border: 0; background: #f4f2fa; }
+.companion-card :deep(.stage-top) { top: 10px; left: 10px; right: 10px; }
+.companion-card :deep(.edition), .companion-card :deep(.stage-bottom), .companion-card :deep(.spark) { display: none; }
+.companion-card :deep(.character) { left: 17%; width: 66%; height: 93%; }
+.companion-card :deep(.halo) { width: 64%; left: 18%; top: 15%; }
+.companion-identity { display: flex; align-items: baseline; gap: 7px; flex-shrink: 0; margin: 10px 0 9px; }
+.companion-identity b { font-size: 13.5px; font-weight: 650; }
+.companion-identity span { overflow: hidden; color: var(--muted); font-size: 11.5px; text-overflow: ellipsis; white-space: nowrap; }
+.companion-meta { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-shrink: 0; padding-top: 8px; border-top: 1px solid #f1eef8; }
+.companion-meta .autoplay-control { display: inline-flex; align-items: center; gap: 5px; margin: 0; color: var(--muted); font-size: 11.5px; white-space: nowrap; }
+.companion-meta .autoplay-control input { width: 13px; height: 13px; }
+.voice-summary { display: inline-flex; align-items: center; gap: 4px; min-width: 0; overflow: hidden; color: var(--muted); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
 .voice-settings { border-top: 1px solid var(--line); padding-top: 10px; }summary { cursor: pointer; list-style: none; }summary::-webkit-details-marker { display: none; }.voice-settings summary { display: flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--ink-soft); }.voice-settings summary span { margin-left: auto; font-size: 11.5px; }.voice-controls { display: grid; gap: 8px; padding: 12px 0 1px; }.voice-controls label { color: var(--muted); font-size: 11.5px; }.voice-select { min-width: 0; width: 100%; height: 32px; border: 1px solid var(--line); border-radius: 6px; color: var(--ink-soft); background: white; font-size: 12.5px; }.voice-rate { width: 100%; accent-color: var(--brand); }
-.support-tabs { display: flex; gap: 4px; padding: 0 14px; border-bottom: 1px solid var(--line); }.support-tabs button { flex: 1; height: 44px; border: 0; border-bottom: 2px solid transparent; background: transparent; color: var(--muted); font-size: 13.5px; }.support-tabs button.active { color: var(--brand); border-bottom-color: var(--brand); font-weight: 500; }.support-content { height: 320px; overflow-y: auto; scrollbar-width: thin; padding: 17px 16px; }.task-heading { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }.task-heading span { color: var(--brand); font-size: 12px; font-variant-numeric: tabular-nums; }.goal-progress { display: block; width: 100%; height: 4px; border: 0; appearance: none; background: #f0eff7; border-radius: 4px; overflow: hidden; accent-color: var(--brand); }.goal-progress::-webkit-progress-bar { background: #f0eff7; }.goal-progress::-webkit-progress-value { background: #8985df; border-radius: 4px; }.goal-progress::-moz-progress-bar { background: #8985df; }
-.current-stage { margin-top: 16px; padding: 10px 12px; border-left: 2px solid #b2adea; background: #f8f7fd; }.current-stage small { display: block; font-size: 10.5px; color: var(--muted); margin-bottom: 5px; }.current-stage b { font-size: 12.5px; font-weight: 500; }.current-stage p { margin: 6px 0 0; color: var(--muted); font-size: 11.5px; line-height: 1.8; }.goal-list { list-style: none; padding: 0; margin: 15px 0 0; }.goal-list li { display: flex; gap: 9px; align-items: flex-start; padding: 8px 0; color: var(--ink-soft); font-size: 12.5px; line-height: 1.7; }.goal-number { display: grid; place-items: center; width: 20px; height: 20px; flex: 0 0 20px; border: 1px solid var(--line); border-radius: 50%; color: var(--muted); font-size: 10.5px; }.done .goal-number { color: #4c8a6a; border-color: #dceee1; background: #eff8f2; }.done>span:last-child { color: var(--muted); }
-/* 场景状态：右栏底部独立折叠卡（对齐桌面稿）。 */
-.state-card { flex-shrink: 0; }
-.state-details { margin: 0; padding: 0; border: 0; }
-.state-details summary { display: flex; align-items: center; justify-content: space-between; padding: 13px 16px; color: var(--ink); font-size: 13px; font-weight: 600; }
-.state-details[open] summary { border-bottom: 1px solid var(--line); }
-.state-details .state-list, .state-details .support-empty { margin: 0; padding: 12px 16px 14px; }
-.state-list { list-style: none; }.state-list li { display: flex; justify-content: space-between; gap: 12px; margin-top: 8px; font-size: 12px; }.state-list span { color: var(--muted); }.state-list b { font-weight: 500; text-align: right; overflow-wrap: anywhere; }.support-description, .support-empty { margin: 10px 0 0; color: var(--muted); font-size: 12.5px; line-height: 1.9; }.support-symbol { display: inline-flex; color: var(--brand); margin-bottom: 14px; }.reference-link { display: flex; align-items: center; justify-content: space-between; margin-top: 18px; color: var(--brand); text-decoration: none; font-size: 12.5px; }
+.support-card { display: flex; flex: 0 0 auto; flex-direction: column; }
+.support-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 12px 14px 9px; }
+.support-head span { color: var(--brand); font-size: 11.5px; font-variant-numeric: tabular-nums; }
+.goal-progress { display: block; width: calc(100% - 28px); height: 4px; margin: 0 14px; border: 0; appearance: none; background: #f0eff7; border-radius: 4px; overflow: hidden; accent-color: var(--brand); }.goal-progress::-webkit-progress-bar { background: #f0eff7; }.goal-progress::-webkit-progress-value { background: #8985df; border-radius: 4px; }.goal-progress::-moz-progress-bar { background: #8985df; }
+.goal-list { list-style: none; padding: 3px 14px 0; margin: 0; }.goal-list li { display: flex; gap: 9px; align-items: flex-start; padding: 6px 0; color: var(--ink-soft); font-size: 12.5px; line-height: 1.65; }.goal-number { display: grid; place-items: center; width: 19px; height: 19px; flex: 0 0 19px; border: 1px solid var(--line); border-radius: 50%; color: var(--muted); font-size: 10.5px; }.done .goal-number { color: #4c8a6a; border-color: #dceee1; background: #eff8f2; }.done>span:last-child { color: var(--muted); }
+.goal-list small { display: block; color: var(--muted); font-size: 10.5px; line-height: 1.6; }
+.support-foot { display: flex; align-items: center; gap: 5px; margin: 6px 0 0; padding: 8px 14px 10px; border-top: 1px solid #f5f2fb; color: #a8a3bb; font-size: 10.5px; }
+.support-empty { margin: 8px 14px 12px; color: var(--muted); font-size: 12px; line-height: 1.8; }
+.reference-link { display: flex; align-items: center; justify-content: space-between; margin-top: 18px; color: var(--brand); text-decoration: none; font-size: 12.5px; }
 /* 场景知识点（参考 Tab，迁移自 1.0 知识抽屉） */
-@media (min-width: 1550px) { .chat-page { padding: 0 36px 28px; }.chat-layout { grid-template-columns: minmax(0, 1fr) 320px; gap: 22px; }.chat-body { padding: 24px 36px; } }
-@media (max-width: 1100px) { .chat-page { padding: 0 16px 16px; }.chat-layout { grid-template-columns: minmax(0, 1fr) 252px; gap: 12px; }.session-counter { display: none; }.chat-head { padding: 12px 14px; }.chat-body { padding: 16px 14px; }.composer-area { margin: 0 14px; }.role-info b { font-size: 13px; } }
+@media (min-width: 1550px) { .chat-page { padding: 0 36px 28px; }.chat-layout { grid-template-columns: minmax(0, 1fr) 288px; gap: 22px; }.chat-body { padding: 24px 36px; } }
+@media (max-width: 1100px) { .chat-page { padding: 0 16px 16px; }.chat-layout { grid-template-columns: minmax(0, 1fr) 236px; gap: 12px; }.chat-head { padding: 12px 14px; }.progress-rail { gap: 7px; padding: 7px 14px; }.rail-stage, .rail-state-button { padding: 0 8px; }.rail-stage small { display: none; }.rail-goal progress { width: 40px; }.chat-body { padding: 16px 14px; }.composer-area { margin: 0 14px; }.role-info b { font-size: 13px; } }
+/* 矮窗口：再收一档头像高度与目标行距，保证右栏一屏装下 */
+@media (max-height: 720px) { .session-toolbar { min-height: 64px; padding: 10px 0; }.companion-stage { min-height: 92px; }.companion-identity { margin: 8px 0 7px; }.goal-list li { padding: 5px 0; } }
 @media (max-width: 760px) { .chat-page { overflow: auto; }.chat-layout { display: flex; flex-direction: column; flex: 1 0 auto; }.chat-card { min-height: 520px; height: calc(100dvh - 170px); }.chat-side { display: grid; grid-template-columns: 1fr 1fr; overflow: visible; min-height: auto; }.session-toolbar { flex-wrap: wrap; gap: 8px; padding: 12px 0; }.session-heading h2 { font-size: 14px; }.session-heading { flex-basis: calc(100% - 45px); }.reference-button { margin-left: 40px; }.session-toolbar .exit-button { margin-left: auto; }.page-scroll { padding: 24px 18px; }.keyboard-hint { display: none; } }
 @media (max-width: 480px) { .chat-side { grid-template-columns: 1fr; }.message-content { max-width: 82%; }.bubble { padding: 10px 12px; }.bubble-text { font-size: 14px; }.text-toggle { max-width: 80px; }.role-info b { max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } }
 @media (prefers-reduced-motion: no-preference) { .thinking-dots i { animation: breathe 1.2s ease-in-out infinite; }.thinking-dots i:nth-child(2) { animation-delay: .15s; }.thinking-dots i:nth-child(3) { animation-delay: .3s; }@keyframes breathe { 50% { opacity: .25; transform: translateY(-2px); } } }
+/* 对话页与练习场景统一：更清楚的任务卡片与轻柔聊天底色。 */
+.page-scroll { padding: 24px clamp(18px, 2.4vw, 34px) 30px; background: #faf9ff; }
+.pick-toolbar { margin-bottom: 18px; }
+.chat-page { padding: 0 clamp(16px, 2vw, 30px) 24px; background: #faf9ff; }
+.session-toolbar { min-height: 74px; }
+.session-heading h2 { color: #393451; font-weight: 750; }
+.chat-card, .companion-card, .support-card { border: 1.5px solid #ebe7f5; border-bottom: 4px solid #e5def1; border-radius: 18px; }
+.chat-head { background: #fff; }
+.chat-body { background: #faf9fd; }
+.chat-side { gap: 14px; }
+.companion-card, .support-card { background: #fff; }
+.msg-avatar { border-radius: 12px; background: #eee9ff; color: #7059c0; }
+.msg-avatar.user { background: #e8f3ee; color: #568b72; }
+.bubble { border: 1.5px solid #eae6f2; border-bottom: 3px solid #e4dfec; border-radius: 5px 17px 17px 17px; background: #fff; }
+.msg-row.user .bubble { border-color: #d9d0f8; border-bottom-color: #c8bbef; border-radius: 17px 5px 17px 17px; background: #eee9ff; color: #393451; }
+.ai-voice-capsule { border: 1.5px solid #eae6f2; border-bottom: 3px solid #e4dfec; border-radius: 5px 16px 16px 16px; }
+.ai-voice-capsule:hover:not(:disabled) { background: #f6f2ff; }
+.original-toggle, .text-toggle { border-radius: 999px; }
+.composer { border: 1.5px solid #eae6f2; border-bottom-width: 3px; border-radius: 16px; background: #fff; }
+.composer:focus-within { border-color: #b5a4e9; }
+.primary-button.slim, .ghost-button, .confirm-button, .exit-button { min-height: 38px; border-radius: 12px; font-weight: 650; }
+.confirm-button { border-bottom: 4px solid #6951b8; background: #8b73dd; }
+.modal-card { border: 1.5px solid #ebe7f5; border-bottom: 5px solid #e5def1; border-radius: 20px; }
+.modal-icon { border-radius: 14px; background: #f0eaff; color: #7158c4; }
+
 </style>

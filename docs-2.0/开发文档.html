@@ -1,0 +1,1009 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EchoTalk 2.0 开发文档</title>
+<style>
+  :root {
+    --primary: #6265E8;
+    --primary-soft: rgba(98, 101, 232, 0.08);
+    --primary-softer: rgba(98, 101, 232, 0.05);
+    --bg: #ffffff;
+    --bg-page: #fbfbfd;
+    --bg-sidebar: #fcfcfe;
+    --bg-code: #f5f5fa;
+    --bg-inline-code: #f0f0f6;
+    --text: #1c1e26;
+    --text-2: #4b4e5c;
+    --text-3: #83869a;
+    --border: #e7e8f0;
+    --border-strong: #d9dae6;
+    --warn-bg: #fff8e9;
+    --warn-border: #f0c36d;
+    --warn-icon: #b07b12;
+    --info-bg: #f2f3fe;
+    --info-border: #b9bbf3;
+    --info-icon: #4a4dc9;
+    --ok: #1a9a6c;
+    --mono: "SF Mono", ui-monospace, "JetBrains Mono", Menlo, Consolas, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Segoe UI", sans-serif;
+    --sidebar-w: 272px;
+    --radius: 8px;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    font-family: var(--sans);
+    color: var(--text);
+    background: var(--bg-page);
+    font-size: 15.5px;
+    line-height: 1.75;
+    -webkit-font-smoothing: antialiased;
+  }
+  a { color: var(--primary); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  ::selection { background: rgba(98,101,232,.18); }
+
+  /* ===== Top bar ===== */
+  .topbar {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 50;
+    height: 56px;
+    background: rgba(255,255,255,.86);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 14px;
+    padding: 0 20px;
+  }
+  .menu-btn {
+    display: none;
+    border: 1px solid var(--border); background: var(--bg);
+    border-radius: 6px; width: 32px; height: 32px; cursor: pointer;
+    color: var(--text-2); font-size: 15px; line-height: 1;
+  }
+  .brand { display: flex; align-items: center; gap: 10px; font-weight: 600; font-size: 15px; }
+  .brand-mark {
+    width: 26px; height: 26px; border-radius: 7px;
+    background: linear-gradient(135deg, #6265E8 0%, #8a5cf0 100%);
+    display: grid; place-items: center; color: #fff; font-size: 13px; font-weight: 700;
+  }
+  .brand .doc-type { color: var(--text-3); font-weight: 500; }
+  .ver-badge {
+    font-family: var(--mono); font-size: 11.5px; color: var(--primary);
+    background: var(--primary-soft); border: 1px solid rgba(98,101,232,.25);
+    padding: 1px 8px; border-radius: 99px; font-weight: 600;
+  }
+  .topbar-links { margin-left: auto; display: flex; align-items: center; gap: 16px; font-size: 13.5px; color: var(--text-3); }
+  .topbar-links a { color: var(--text-2); font-weight: 500; }
+  .search-wrap { position: relative; width: 220px; }
+  .search-wrap svg { position: absolute; left: 9px; top: 50%; transform: translateY(-50%); width: 14px; height: 14px; color: var(--text-3); }
+  #search {
+    width: 100%; height: 32px; border: 1px solid var(--border); border-radius: 7px;
+    background: var(--bg-page); padding: 0 10px 0 28px; font-size: 13px; font-family: var(--sans);
+    color: var(--text); outline: none; transition: border-color .15s, box-shadow .15s;
+  }
+  #search:focus { border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-soft); }
+
+  /* ===== Layout ===== */
+  .layout { display: flex; padding-top: 56px; min-height: 100vh; }
+
+  /* ===== Sidebar ===== */
+  .sidebar {
+    width: var(--sidebar-w); flex-shrink: 0;
+    position: sticky; top: 56px;
+    height: calc(100vh - 56px);
+    overflow-y: auto;
+    background: var(--bg-sidebar);
+    border-right: 1px solid var(--border);
+    padding: 22px 14px 40px;
+  }
+  .sidebar::-webkit-scrollbar { width: 6px; }
+  .sidebar::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 3px; }
+  .nav-group { margin-bottom: 22px; }
+  .nav-group-title {
+    font-size: 11px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase;
+    color: var(--text-3); padding: 0 10px; margin-bottom: 6px;
+  }
+  .nav-link {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 5px 10px; margin: 1px 0;
+    border-radius: 6px; font-size: 13.8px; color: var(--text-2); font-weight: 450;
+    transition: background .12s, color .12s;
+  }
+  .nav-link:hover { background: var(--primary-softer); color: var(--text); text-decoration: none; }
+  .nav-link.active { background: var(--primary-soft); color: var(--primary); font-weight: 600; }
+  .nav-link .num { font-family: var(--mono); font-size: 11px; color: var(--text-3); font-weight: 500; }
+  .nav-link.active .num { color: var(--primary); }
+  .nav-sub { padding-left: 16px; }
+  .nav-sub .nav-link { font-size: 13.2px; }
+  .no-match { display: none !important; }
+
+  /* ===== Content ===== */
+  .content {
+    flex: 1; min-width: 0;
+    background: var(--bg);
+    margin: 20px 24px 60px 0;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 48px 56px 64px;
+    max-width: 980px;
+  }
+  .doc-hero { border-bottom: 1px solid var(--border); padding-bottom: 28px; margin-bottom: 40px; }
+  .doc-hero h1 { font-size: 30px; font-weight: 700; letter-spacing: -0.02em; line-height: 1.3; }
+  .doc-hero .lede { color: var(--text-2); margin-top: 10px; font-size: 15.5px; max-width: 640px; }
+  .doc-hero .meta-row { display: flex; gap: 10px; margin-top: 16px; flex-wrap: wrap; }
+  .chip {
+    font-size: 12px; font-weight: 600; padding: 3px 10px; border-radius: 99px;
+    border: 1px solid var(--border-strong); color: var(--text-2); background: var(--bg-page);
+  }
+  .chip.primary { color: var(--primary); border-color: rgba(98,101,232,.3); background: var(--primary-soft); }
+
+  section { margin-bottom: 52px; scroll-margin-top: 76px; }
+  h2 {
+    font-size: 22px; font-weight: 700; letter-spacing: -0.01em;
+    padding-bottom: 12px; border-bottom: 1px solid var(--border); margin-bottom: 22px;
+    display: flex; align-items: baseline; gap: 10px;
+  }
+  h2 .sec-num { font-family: var(--mono); font-size: 14px; color: var(--primary); font-weight: 600; }
+  h3 { font-size: 16.5px; font-weight: 650; margin: 30px 0 12px; scroll-margin-top: 76px; }
+  h3 .sub-num { font-family: var(--mono); font-size: 13px; color: var(--text-3); font-weight: 600; margin-right: 6px; }
+  p { margin: 10px 0; color: var(--text-2); }
+  strong { color: var(--text); font-weight: 600; }
+  ul.plain, ol.plain { margin: 10px 0 10px 2px; list-style: none; }
+  ul.plain li, ol.plain li { padding-left: 18px; position: relative; color: var(--text-2); margin: 6px 0; }
+  ul.plain li::before {
+    content: ""; position: absolute; left: 2px; top: .72em;
+    width: 5px; height: 5px; border-radius: 50%; background: var(--primary);
+  }
+  ol.plain { counter-reset: oli; }
+  ol.plain li::before {
+    counter-increment: oli; content: counter(oli) ".";
+    position: absolute; left: 0; font-family: var(--mono); font-size: 12.5px; color: var(--text-3); top: .1em;
+  }
+  code.inline {
+    font-family: var(--mono); font-size: 12.8px;
+    background: var(--bg-inline-code); border: 1px solid var(--border);
+    padding: 1px 6px; border-radius: 5px; color: #4749b3; white-space: nowrap;
+  }
+
+  /* ===== Tables ===== */
+  .table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: var(--radius); margin: 16px 0; }
+  table { width: 100%; border-collapse: collapse; font-size: 13.8px; background: var(--bg); }
+  thead th {
+    text-align: left; font-weight: 600; font-size: 12.5px; letter-spacing: .02em;
+    color: var(--text-3); background: var(--bg-page);
+    padding: 9px 14px; border-bottom: 1px solid var(--border); white-space: nowrap;
+  }
+  tbody td { padding: 9px 14px; border-bottom: 1px solid var(--border); color: var(--text-2); vertical-align: top; }
+  tbody tr:last-child td { border-bottom: none; }
+  tbody tr:hover td { background: var(--bg-page); }
+  td code.inline, th code.inline { white-space: normal; }
+  .req-yes { color: var(--ok); font-weight: 700; }
+  .req-no { color: var(--text-3); }
+
+  /* ===== Code blocks ===== */
+  .code-block {
+    margin: 14px 0; border: 1px solid var(--border); border-radius: var(--radius);
+    background: var(--bg-code); overflow: hidden;
+  }
+  .code-head {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 6px 12px; border-bottom: 1px solid var(--border);
+    background: var(--bg);
+  }
+  .code-lang { font-family: var(--mono); font-size: 11px; color: var(--text-3); letter-spacing: .06em; text-transform: uppercase; font-weight: 600; }
+  .copy-btn {
+    border: 1px solid var(--border); background: var(--bg); border-radius: 5px;
+    font-size: 11.5px; color: var(--text-3); padding: 2px 9px; cursor: pointer;
+    font-family: var(--sans); transition: all .12s;
+  }
+  .copy-btn:hover { color: var(--primary); border-color: var(--primary); }
+  .copy-btn.ok { color: var(--ok); border-color: var(--ok); }
+  .code-block pre {
+    padding: 14px 16px; overflow-x: auto;
+    font-family: var(--mono); font-size: 12.9px; line-height: 1.65; color: #33344a;
+  }
+  .code-block pre::-webkit-scrollbar { height: 6px; }
+  .code-block pre::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 3px; }
+  .tok-cmt { color: #9a9cb0; font-style: italic; }
+  .tok-str { color: #1a7f56; }
+  .tok-kw { color: #7c3aed; font-weight: 600; }
+  .tok-key { color: #4749b3; }
+  .tok-dir { color: #b45309; font-weight: 600; }
+
+  /* ===== Callouts ===== */
+  .callout {
+    display: flex; gap: 12px; padding: 13px 16px; border-radius: var(--radius);
+    font-size: 14px; margin: 16px 0; line-height: 1.65;
+  }
+  .callout .ico { flex-shrink: 0; font-weight: 800; font-size: 14px; line-height: 1.6; }
+  .callout.note { background: var(--info-bg); border: 1px solid var(--info-border); }
+  .callout.note .ico { color: var(--info-icon); }
+  .callout.warn { background: var(--warn-bg); border: 1px solid var(--warn-border); }
+  .callout.warn .ico { color: var(--warn-icon); }
+  .callout p { margin: 0; color: var(--text-2); }
+
+  /* ===== Two-col workflow grid ===== */
+  .flow-grid { display: grid; grid-template-columns: 1fr; gap: 0; border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; margin: 16px 0; }
+  .flow-row { display: grid; grid-template-columns: 190px 1fr; }
+  .flow-row + .flow-row { border-top: 1px solid var(--border); }
+  .flow-row .k { padding: 12px 16px; background: var(--bg-page); font-weight: 600; font-size: 13.5px; color: var(--text); border-right: 1px solid var(--border); }
+  .flow-row .v { padding: 12px 16px; font-size: 13.8px; color: var(--text-2); }
+
+  /* ===== Commit map ===== */
+  .commit-tag {
+    font-family: var(--mono); font-size: 11.5px; font-weight: 600;
+    background: var(--primary-soft); color: var(--primary);
+    border: 1px solid rgba(98,101,232,.25); border-radius: 5px; padding: 1px 7px;
+  }
+
+  /* ===== HTTP method badges ===== */
+  .method {
+    font-family: var(--mono); font-size: 11px; font-weight: 700; letter-spacing: .02em;
+    padding: 1px 8px; border-radius: 5px; display: inline-block; white-space: nowrap;
+  }
+  .m-get    { background: #e7f0fb; color: #2464a4; }
+  .m-post   { background: #e8f7ee; color: #1a7f4b; }
+  .m-put    { background: #fff4e0; color: #a26a08; }
+  .m-patch  { background: #f3e9fd; color: #7b3fb3; }
+  .m-delete { background: #fdeaea; color: #b23333; }
+  .auth-y { color: var(--text-2); white-space: nowrap; }
+  .auth-n { color: var(--text-3); white-space: nowrap; }
+  .ep-path { font-family: var(--mono); font-size: 12.3px; color: #4749b3; }
+  .ep-group td { background: var(--bg-page); font-weight: 650; font-size: 12.5px; color: var(--text); letter-spacing: .03em; }
+
+  /* ===== TOC on-page footer nav ===== */
+  .page-nav { display: flex; justify-content: space-between; gap: 12px; margin-top: 56px; padding-top: 20px; border-top: 1px solid var(--border); }
+  .page-nav a {
+    flex: 1; border: 1px solid var(--border); border-radius: 10px; padding: 12px 16px;
+    transition: border-color .15s, box-shadow .15s;
+  }
+  .page-nav a:hover { border-color: var(--primary); text-decoration: none; box-shadow: 0 0 0 3px var(--primary-soft); }
+  .page-nav .dir { font-size: 11.5px; color: var(--text-3); display: block; }
+  .page-nav .ttl { font-size: 14px; font-weight: 600; color: var(--text); }
+  .page-nav a.next { text-align: right; }
+
+  .footer-note { color: var(--text-3); font-size: 12.5px; margin-top: 40px; text-align: center; }
+
+  /* ===== Responsive ===== */
+  @media (max-width: 1024px) {
+    .content { padding: 34px 28px 48px; margin: 16px 16px 40px; }
+    .search-wrap { display: none; }
+  }
+  @media (max-width: 820px) {
+    .menu-btn { display: block; }
+    .sidebar {
+      position: fixed; left: 0; top: 56px; z-index: 40;
+      transform: translateX(-100%); transition: transform .22s ease;
+      box-shadow: 8px 0 24px rgba(20,20,40,.06);
+    }
+    .sidebar.open { transform: translateX(0); }
+    .content { margin: 12px 12px 32px; padding: 26px 18px 40px; }
+    .doc-hero h1 { font-size: 24px; }
+    .flow-row { grid-template-columns: 1fr; }
+    .flow-row .k { border-right: none; border-bottom: 1px dashed var(--border); }
+    .topbar-links .hide-sm { display: none; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+    * { transition: none !important; }
+  }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <button class="menu-btn" id="menuBtn" aria-label="打开导航">☰</button>
+  <div class="brand">
+    <span class="brand-mark">E</span>
+    <span>EchoTalk <span class="doc-type">开发文档</span></span>
+  </div>
+  <span class="ver-badge">v2.0.0</span>
+  <div class="search-wrap">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+    <input id="search" type="text" placeholder="搜索章节…" autocomplete="off">
+  </div>
+  <div class="topbar-links">
+    <a class="hide-sm" href="技术文档.md">技术文档</a>
+    <a class="hide-sm" href="../README.md">README</a>
+  </div>
+</header>
+
+<div class="layout">
+
+<!-- ======================= SIDEBAR ======================= -->
+<nav class="sidebar" id="sidebar">
+  <div class="nav-group" data-group>
+    <div class="nav-group-title">开始</div>
+    <a class="nav-link" href="#s1">环境要求<span class="num">01</span></a>
+    <a class="nav-link" href="#s2">快速开始<span class="num">02</span></a>
+    <div class="nav-sub">
+      <a class="nav-link" href="#s2-1">数据库<span class="num">2.1</span></a>
+      <a class="nav-link" href="#s2-2">后端<span class="num">2.2</span></a>
+      <a class="nav-link" href="#s2-3">前端 · 浏览器<span class="num">2.3</span></a>
+      <a class="nav-link" href="#s2-4">前端 · Electron<span class="num">2.4</span></a>
+    </div>
+    <a class="nav-link" href="#s3">配置说明<span class="num">03</span></a>
+  </div>
+
+  <div class="nav-group" data-group>
+    <div class="nav-group-title">开发</div>
+    <a class="nav-link" href="#s4">项目结构<span class="num">04</span></a>
+    <a class="nav-link" href="#s5">日常开发工作流<span class="num">05</span></a>
+    <a class="nav-link" href="#s6">编码与协作约定<span class="num">06</span></a>
+  </div>
+
+  <div class="nav-group" data-group>
+    <div class="nav-group-title">场景包</div>
+    <a class="nav-link" href="#s7">scene.yaml 开发指南<span class="num">07</span></a>
+    <div class="nav-sub">
+      <a class="nav-link" href="#s7-1">字段速查<span class="num">7.1</span></a>
+      <a class="nav-link" href="#s7-2">表达式语法<span class="num">7.2</span></a>
+      <a class="nav-link" href="#s7-3">种子与版本<span class="num">7.3</span></a>
+    </div>
+  </div>
+
+  <div class="nav-group" data-group>
+    <div class="nav-group-title">参考</div>
+    <a class="nav-link" href="#s8">API 接口契约<span class="num">08</span></a>
+    <div class="nav-sub">
+      <a class="nav-link" href="#s8-1">通用约定<span class="num">8.1</span></a>
+      <a class="nav-link" href="#s8-2">错误码<span class="num">8.2</span></a>
+      <a class="nav-link" href="#s8-3">接口总表<span class="num">8.3</span></a>
+      <a class="nav-link" href="#s8-4">请求与响应示例<span class="num">8.4</span></a>
+    </div>
+    <a class="nav-link" href="#s9">数据库模型<span class="num">09</span></a>
+    <div class="nav-sub">
+      <a class="nav-link" href="#s9-1">表关系<span class="num">9.1</span></a>
+      <a class="nav-link" href="#s9-2">表清单<span class="num">9.2</span></a>
+      <a class="nav-link" href="#s9-3">关键决策<span class="num">9.3</span></a>
+    </div>
+  </div>
+
+  <div class="nav-group" data-group>
+    <div class="nav-group-title">质量与交付</div>
+    <a class="nav-link" href="#s10">测试与冒烟<span class="num">10</span></a>
+    <a class="nav-link" href="#s11">构建与部署<span class="num">11</span></a>
+    <a class="nav-link" href="#s12">常见问题排查<span class="num">12</span></a>
+    <a class="nav-link" href="#s13">模块地图<span class="num">13</span></a>
+  </div>
+</nav>
+
+<!-- ======================= CONTENT ======================= -->
+<main class="content" id="content">
+
+  <div class="doc-hero">
+    <h1>EchoTalk 2.0 开发文档</h1>
+    <p class="lede">面向参与开发的工程师：环境搭建、日常工作流、编码约定、场景包开发指南、API 接口契约、数据库模型、测试与排错。</p>
+    <div class="meta-row">
+      <span class="chip primary">v2.0.0</span>
+      <span class="chip">更新 2026-09-28</span>
+      <span class="chip">FastAPI + MySQL + Vue 3 + Electron</span>
+      <a class="chip" href="技术文档.md" style="cursor:pointer">架构与接口契约 → 技术文档</a>
+    </div>
+  </div>
+
+  <!-- ============ 1 环境要求 ============ -->
+  <section id="s1">
+    <h2><span class="sec-num">01</span>环境要求</h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>依赖</th><th>版本</th><th>用途</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Node.js</strong></td><td><code class="inline">≥ 18</code></td><td>前端构建与 Electron</td></tr>
+          <tr><td><strong>Python</strong></td><td><code class="inline">3.12</code>（<code class="inline">&gt;=3.12,&lt;3.13</code>）</td><td>后端运行时</td></tr>
+          <tr><td><strong>uv</strong></td><td>最新</td><td>Python 依赖管理（锁文件 <code class="inline">uv.lock</code>）</td></tr>
+          <tr><td><strong>MySQL 8</strong></td><td>utf8mb4</td><td>业务数据库，本地约定端口 <code class="inline">3307</code></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="callout warn">
+      <span class="ico">!</span>
+      <p>仓库根目录的 <code class="inline">.venv/</code> 是 1.0 旧环境，<strong>不要激活</strong>；2.0 后端环境固定在 <code class="inline">backend/.venv</code>（由 uv 创建）。</p>
+    </div>
+  </section>
+
+  <!-- ============ 2 快速开始 ============ -->
+  <section id="s2">
+    <h2><span class="sec-num">02</span>快速开始</h2>
+
+    <h3 id="s2-1"><span class="sub-num">2.1</span>数据库</h3>
+    <div class="code-block" data-lang="sql">
+      <div class="code-head"><span class="code-lang">SQL</span><button class="copy-btn">复制</button></div>
+      <pre><code>CREATE DATABASE echotalk CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci;
+CREATE USER 'echotalk_app'@'%' IDENTIFIED BY '你的密码';
+GRANT ALL PRIVILEGES ON echotalk.* TO 'echotalk_app'@'%';
+FLUSH PRIVILEGES;</code></pre>
+    </div>
+    <p>云数据库同理：在服务商控制台建库授权即可，后端不负责创建 MySQL 实例本身。</p>
+
+    <h3 id="s2-2"><span class="sub-num">2.2</span>后端</h3>
+    <div class="code-block" data-lang="bash">
+      <div class="code-head"><span class="code-lang">Bash</span><button class="copy-btn">复制</button></div>
+      <pre><code>cd backend
+cp .env.example .env          <span class="tok-cmt"># 填写 ECHOTALK_DB_PASSWORD（必填，缺失直接拒绝启动）</span>
+uv sync --locked --cache-dir .uv-cache
+uv run --cache-dir .uv-cache python init_db.py    <span class="tok-cmt"># 显式建表 + 同步 4 个内置场景种子</span>
+uv run --cache-dir .uv-cache python main.py       <span class="tok-cmt"># http://127.0.0.1:8000</span></code></pre>
+    </div>
+    <ul class="plain">
+      <li><code class="inline">init_db.py</code> 是<strong>显式</strong>建表步骤：API 启动不会自动执行 DDL；表未建时启动只告警（内置种子同步跳过）。</li>
+      <li>验证：<code class="inline">curl http://127.0.0.1:8000/api/ready</code> → <code class="inline">{"status":"ready"}</code>。</li>
+    </ul>
+
+    <h3 id="s2-3"><span class="sub-num">2.3</span>前端（浏览器开发）</h3>
+    <div class="code-block" data-lang="bash">
+      <div class="code-head"><span class="code-lang">Bash</span><button class="copy-btn">复制</button></div>
+      <pre><code>cd frontend
+cp .env.example .env.local    <span class="tok-cmt"># 本地开发默认指向 127.0.0.1:8000，可不改</span>
+npm ci
+npm run dev                   <span class="tok-cmt"># http://127.0.0.1:5173</span></code></pre>
+    </div>
+
+    <h3 id="s2-4"><span class="sub-num">2.4</span>前端（Electron 桌面开发）</h3>
+    <div class="code-block" data-lang="bash">
+      <div class="code-head"><span class="code-lang">Bash</span><button class="copy-btn">复制</button></div>
+      <pre><code>cd frontend
+npm run electron:dev          <span class="tok-cmt"># concurrently 拉起 Vite + wait-on 后启动 Electron</span></code></pre>
+    </div>
+    <p>桌面端开发时后端仍需单独终端启动。生产打包见 <a href="#s11">§11 构建与部署</a>。</p>
+  </section>
+
+  <!-- ============ 3 配置说明 ============ -->
+  <section id="s3">
+    <h2><span class="sec-num">03</span>配置说明</h2>
+
+    <h3 id="s3-1"><span class="sub-num">3.1</span>backend/.env</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>变量</th><th>默认</th><th>说明</th></tr></thead>
+        <tbody>
+          <tr><td><code class="inline">ECHOTALK_DB_HOST</code></td><td>127.0.0.1</td><td>MySQL 主机</td></tr>
+          <tr><td><code class="inline">ECHOTALK_DB_PORT</code></td><td>3307</td><td>MySQL 端口</td></tr>
+          <tr><td><code class="inline">ECHOTALK_DB_NAME</code></td><td>echotalk</td><td>库名</td></tr>
+          <tr><td><code class="inline">ECHOTALK_DB_USER</code></td><td>echotalk_app</td><td>连接账号</td></tr>
+          <tr><td><code class="inline">ECHOTALK_DB_PASSWORD</code></td><td><strong>必填</strong></td><td>密码；为空启动直接 RuntimeError</td></tr>
+          <tr><td><code class="inline">ECHOTALK_API_HOST</code> / <code class="inline">ECHOTALK_API_PORT</code></td><td>127.0.0.1 / 8000</td><td>监听地址；云端部署设 0.0.0.0 并走 HTTPS 反代</td></tr>
+          <tr><td><code class="inline">ECHOTALK_CORS_ORIGINS</code></td><td>localhost:5173 两项</td><td>逗号分隔来源；Electron <code class="inline">file://</code> 需包含 <code class="inline">null</code></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>规则：真实环境变量 &gt; <code class="inline">.env</code> &gt; 默认值；<code class="inline">.env</code> 已在 <code class="inline">.gitignore</code>，只提交 <code class="inline">.env.example</code>（占位值）。</p>
+
+    <h3 id="s3-2"><span class="sub-num">3.2</span>frontend/.env.local（及 .env.production.local）</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>变量</th><th>说明</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><code class="inline">VITE_API_BASE_URL</code></td>
+            <td>后端地址。开发默认 <code class="inline">http://127.0.0.1:8000</code>；<strong>生产构建必填且必须 HTTPS</strong>（<code class="inline">npm run build</code> 会校验，否则失败）</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <p>CSP 的 <code class="inline">img-src / connect-src</code> 由 Vite 插件按该变量替换占位符，改地址不需要动 <code class="inline">index.html</code>。</p>
+  </section>
+
+  <!-- ============ 4 项目结构 ============ -->
+  <section id="s4">
+    <h2><span class="sec-num">04</span>项目结构</h2>
+    <div class="code-block" data-lang="tree">
+      <div class="code-head"><span class="code-lang">目录树</span><button class="copy-btn">复制</button></div>
+      <pre><code>EchoTalk/
+├── backend/
+│   ├── main.py                  <span class="tok-cmt"># uvicorn 入口（读 ECHOTALK_API_HOST/PORT）</span>
+│   ├── init_db.py               <span class="tok-cmt"># 显式建表 + 种子同步</span>
+│   ├── pyproject.toml / uv.lock
+│   ├── .env.example
+│   ├── app/
+│   │   ├── main.py              <span class="tok-cmt"># FastAPI 装配：中间件/CORS/异常/探针/路由</span>
+│   │   ├── models.py            <span class="tok-cmt"># 7 张表（users/auth_sessions/scenes/documents/chunks/scene_stats/scene_user_stats）</span>
+│   │   ├── schemas.py           <span class="tok-cmt"># 账户接口请求/响应</span>
+│   │   ├── api/
+│   │   │   ├── deps.py          <span class="tok-cmt"># get_db / get_current_user / get_optional_user</span>
+│   │   │   └── endpoints/
+│   │   │       ├── auth.py      <span class="tok-cmt"># /api/auth/*</span>
+│   │   │       └── scenes.py    <span class="tok-cmt"># /api/scenes/*（控制器层，无业务逻辑）</span>
+│   │   ├── core/
+│   │   │   ├── config.py        <span class="tok-cmt"># env 配置 + 快速失败</span>
+│   │   │   ├── database.py      <span class="tok-cmt"># 引擎（pool_pre_ping）+ 请求级会话</span>
+│   │   │   ├── errors.py        <span class="tok-cmt"># AppError 体系 + 全局处理器</span>
+│   │   │   ├── expr.py          <span class="tok-cmt"># 场景包条件表达式（白名单 ast）</span>
+│   │   │   └── timeutil.py
+│   │   ├── services/
+│   │   │   ├── auth_service.py  <span class="tok-cmt"># 注册/登录/会话</span>
+│   │   │   └── scene_service.py <span class="tok-cmt"># 场景包编排（权限/生命周期/社区）</span>
+│   │   ├── scenes/              <span class="tok-cmt"># 场景包子系统</span>
+│   │   │   ├── schema.py        <span class="tok-cmt"># ScenePackage 模型 + 全量校验</span>
+│   │   │   ├── registry.py      <span class="tok-cmt"># 种子同步/缓存/summary</span>
+│   │   │   ├── packaging.py     <span class="tok-cmt"># v2 ZIP 导入导出</span>
+│   │   │   ├── knowledge.py     <span class="tok-cmt"># 资料源文件/分块/封面</span>
+│   │   │   ├── social.py        <span class="tok-cmt"># 发布/点赞/收藏/下载</span>
+│   │   │   └── errors.py        <span class="tok-cmt"># 场景错误码</span>
+│   │   └── content/scenes/      <span class="tok-cmt"># 4 个内置场景种子（YAML）</span>
+│   ├── scripts/smoke_scenes.py  <span class="tok-cmt"># 37 项冒烟（TestClient）</span>
+│   └── storage/                 <span class="tok-cmt"># 运行时文件（gitignore）：scenes/{id}/knowledge|cover.*</span>
+├── frontend/
+│   ├── index.html               <span class="tok-cmt"># CSP 占位符模板</span>
+│   ├── vite.config.js           <span class="tok-cmt"># CSP 插件 + 生产 HTTPS 校验 + 127.0.0.1:5173</span>
+│   ├── electron/main.js / preload.js
+│   └── src/
+│       ├── main.js / App.vue / router/index.js
+│       ├── layouts/AppShell.vue <span class="tok-cmt"># 侧边栏布局（:key=route.fullPath 修复路由复用）</span>
+│       ├── auth/session.js      <span class="tok-cmt"># token 持久化 + 响应式用户</span>
+│       ├── api/http.js          <span class="tok-cmt"># axios：Bearer/错误规范化/GET 重试</span>
+│       ├── api/scenes.js        <span class="tok-cmt"># 场景 API 客户端</span>
+│       ├── views/               <span class="tok-cmt"># Login / Workspace / Scenes / SceneEditor / ModulePlaceholder</span>
+│       └── assets/styles.css    <span class="tok-cmt"># 设计令牌</span>
+├── docs-2.0/                    <span class="tok-cmt"># 本文档与《技术文档》</span>
+├── EchoTalk-2.0-Design-Package/ <span class="tok-cmt"># 产品/界面设计稿 + 场景包设计方案</span>
+├── backend-1.0/ frontend-1.0/   <span class="tok-cmt"># 旧版参考代码（不由 2.0 启动）</span>
+└── README.md</code></pre>
+    </div>
+  </section>
+
+  <!-- ============ 5 日常开发工作流 ============ -->
+  <section id="s5">
+    <h2><span class="sec-num">05</span>日常开发工作流</h2>
+    <div class="flow-grid">
+      <div class="flow-row"><div class="k">改后端代码</div><div class="v">uvicorn 带 <code class="inline">--reload</code>，保存自动重启；若行为异常，kill 端口进程重启（见 <a href="#s12">§12 排错</a>）</div></div>
+      <div class="flow-row"><div class="k">数据库结构变更</div><div class="v">改 <code class="inline">app/models.py</code> 后：开发期可 drop 相关表重跑 <code class="inline">init_db.py</code>（注意会清数据）；正式迁移脚本体系后续引入，改表前先备份</div></div>
+      <div class="flow-row"><div class="k">改前端</div><div class="v">Vite HMR 实时生效；构建检查用 <code class="inline">npm run build</code></div></div>
+      <div class="flow-row"><div class="k">新增场景 API</div><div class="v">按「endpoints（解析/响应）→ services（业务）→ scenes|models（数据）」分层；接口清单见 <a href="#s8-3">§8.3 接口总表</a>。静态路由注册在 <code class="inline">/{scene_id}</code> <strong>之前</strong>（scenes.py 内有注释说明顺序约束）</div></div>
+      <div class="flow-row"><div class="k">改 package_json 结构</div><div class="v">必须同步改 <code class="inline">scenes/schema.py</code> 校验 + <code class="inline">registry.apply_package</code> 冗余列 + <code class="inline">registry.summary</code> 摘要，并跑 <a href="#s10">§10</a> 冒烟</div></div>
+      <div class="flow-row"><div class="k">新增错误</div><div class="v">继承 <code class="inline">AppError</code>（或直接 <code class="inline">AppError(msg, code=..., status_code=...)</code>）；错误码全大写下划线，加入技术文档错误码表</div></div>
+    </div>
+  </section>
+
+  <!-- ============ 6 编码与协作约定 ============ -->
+  <section id="s6">
+    <h2><span class="sec-num">06</span>编码与协作约定</h2>
+
+    <h3>后端</h3>
+    <ul class="plain">
+      <li>分层红线：控制器不写业务；服务层不 import fastapi（HTTP 类型只在 endpoints/deps）。</li>
+      <li>注释与 docstring：<strong>中文、同行简洁</strong>；类保留一行 docstring，字段用行尾 <code class="inline"># 说明</code>。</li>
+      <li>所有可预期错误走 <code class="inline">AppError</code>；响应只有 <code class="inline">{"error": {code, message, details?}}</code> 与 2xx 业务体两种形态。</li>
+      <li>时间一律 UTC（<code class="inline">core/timeutil.utcnow</code>），序列化输出 ISO 字符串。</li>
+      <li>写操作（创建/更新/删除/导入/发布）必须调用 <code class="inline">registry.invalidate_cache()</code>；提交前 <code class="inline">db.flush()</code> 依赖唯一约束兜底冲突。</li>
+      <li>涉及 <code class="inline">scene_user_stats</code>/<code class="inline">scene_stats</code> 的计数变更放在同一事务提交，计数下限保护 <code class="inline">max(0, n-1)</code>。</li>
+    </ul>
+
+    <h3>前端</h3>
+    <ul class="plain">
+      <li>API 只经 <code class="inline">src/api/*.js</code> 封装，组件不直接 import axios；错误直接展示 <code class="inline">err.message</code>，需要分支判断时用 <code class="inline">err.code</code>（如 <code class="inline">SCENE_ID_CONFLICT</code>）。</li>
+      <li>列表过滤/排序/分页用 <code class="inline">computed</code> 链（参考 <code class="inline">Scenes.vue</code> 的 <code class="inline">filteredItems → sortedItems → pagedItems</code>），不手动维护中间数组。</li>
+      <li>新页面放入 AppShell 子路由 + <code class="inline">ModulePlaceholder</code> 占位先行；标题/描述写路由 <code class="inline">meta</code>。</li>
+      <li>视觉令牌（主色 #6265E8、间距/圆角三档）统一走 <code class="inline">assets/styles.css</code>，不要在组件里散落硬编码色值。</li>
+      <li>交互验收：UI 改动用浏览器实测（Electron 与 Web 双端），重点检查窄屏与游客态。</li>
+    </ul>
+
+    <h3>Git</h3>
+    <ul class="plain">
+      <li>提交信息：中文，首行一句话概述 + 空行 + 分模块要点列表（参考 <span class="commit-tag">4e81702</span> 的格式）。</li>
+      <li>不提交：<code class="inline">backend/.env</code>、<code class="inline">frontend/.env*</code>（example 除外）、<code class="inline">backend/storage/</code>、<code class="inline">.uv-cache</code>、<code class="inline">dist*</code>。</li>
+    </ul>
+  </section>
+
+  <!-- ============ 7 场景包开发指南 ============ -->
+  <section id="s7">
+    <h2><span class="sec-num">07</span>场景包开发指南（scene.yaml）</h2>
+
+    <h3 id="s7-1"><span class="sub-num">7.1</span>字段速查</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>区块</th><th>必填</th><th>说明</th></tr></thead>
+        <tbody>
+          <tr><td><code class="inline">meta</code></td><td class="req-yes">✅</td><td><code class="inline">id</code>（<code class="inline">^[a-z][a-z0-9_]{1,49}$</code>，创建后不可改）、name、description、category（daily/business/career/academic/custom）、difficulty（entry/easy/normal/hard/expert）、mode（conversation/interview/debate）、version（种子刷新依据）、compat.min_app、tags</td></tr>
+          <tr><td><code class="inline">roles</code></td><td class="req-yes">✅</td><td>1–4 个：id、display_name、title、personality、voice/avatar（推荐值）、backstage（幕后角色如 Evaluator）</td></tr>
+          <tr><td><code class="inline">prompt</code></td><td class="req-yes">✅</td><td>system（模板，支持 <code class="inline">{param}</code> 与 <code class="inline">{roles.&lt;id&gt;.&lt;字段&gt;}</code>）、greeting、params（≤16，key/type/default/editable/tip）</td></tr>
+          <tr><td><code class="inline">objectives</code></td><td class="req-no">—</td><td>≤8：id、label、skill（技能图节点）、check（表达式）</td></tr>
+          <tr><td><code class="inline">state</code></td><td class="req-yes">✅</td><td>初始任务状态（自由 JSON），根键将被目标/结束表达式引用</td></tr>
+          <tr><td><code class="inline">tools</code></td><td class="req-yes">✅</td><td>allowed ⊆ 9 个注册工具；config 键 ⊆ allowed</td></tr>
+          <tr><td><code class="inline">coordination</code></td><td class="req-no">—</td><td><code class="inline">{order: [role_id]}</code> 多角色协调（interview/debate 用）</td></tr>
+          <tr><td><code class="inline">stages</code></td><td class="req-no">—</td><td>≤8：id、name、guidance、exit_when</td></tr>
+          <tr><td><code class="inline">finish</code></td><td class="req-yes">✅</td><td>when（表达式）、max_turns（2–200，默认 30）、on_finish（当前仅 request_feedback）</td></tr>
+          <tr><td><code class="inline">knowledge</code></td><td class="req-no">—</td><td>files（≤20：path/visibility/sections）、retrieval.default_top_k</td></tr>
+          <tr><td><code class="inline">evaluation</code></td><td class="req-no">—</td><td>dimensions（≤6：id/label/weight/source=state|llm/hints）、notes</td></tr>
+          <tr><td><code class="inline">guardrails</code></td><td class="req-no">—</td><td>language、min_words、keyword_tips（match/tip）、off_topic（domain_keywords/action）、max_warnings_per_turn</td></tr>
+          <tr><td><code class="inline">avatar</code></td><td class="req-no">—</td><td>preferred、rate（0.5–2.0）</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>完整示例见 <code class="inline">backend/app/content/scenes/cafe_ordering.yaml</code>；四步创建向导生成的即是同一结构。</p>
+
+    <h3 id="s7-2"><span class="sub-num">7.2</span>表达式可用语法</h3>
+    <div class="code-block" data-lang="text">
+      <div class="code-head"><span class="code-lang">表达式 DSL</span><button class="copy-btn">复制</button></div>
+      <pre><code><span class="tok-key">逻辑</span>：a and b / a or b / not a
+<span class="tok-key">比较</span>：==  !=  &gt;=  &lt;=  &gt;  &lt;  in
+<span class="tok-key">引用</span>：state.order        <span class="tok-cmt"># 包内声明的 state 根键</span>
+     state.order[0].size <span class="tok-cmt"># 支持 . 与 [n]</span>
+     stage / stage_turns / turn_count   <span class="tok-cmt"># 运行时保留键（不要在 state 里声明）</span>
+<span class="tok-key">函数</span>：tool_called('modify_order')       <span class="tok-cmt"># 本轮是否调用过该工具</span>
+     state_changed('state.confirmed')  <span class="tok-cmt"># 本轮该路径是否变化</span>
+     goals_done()                      <span class="tok-cmt"># 全部带 check 的目标是否达成</span>
+<span class="tok-key">字面量</span>：true / false / null / 数字 / '字符串'</code></pre>
+    </div>
+    <div class="callout warn">
+      <span class="ico">!</span>
+      <p><strong>不支持</strong>：算术、属性访问、任意函数、关键字参数——校验期（<code class="inline">POST /api/scenes/validate</code>）就会报 <code class="inline">SCENE_INVALID_EXPRESSION</code>，并检查引用的 state 根键是否已声明。</p>
+    </div>
+
+    <h3 id="s7-3"><span class="sub-num">7.3</span>内置种子与版本</h3>
+    <ul class="plain">
+      <li>种子文件放 <code class="inline">backend/app/content/scenes/*.yaml</code>，启动（startup 钩子）与 <code class="inline">init_db.py</code> 各同步一次。</li>
+      <li>同步规则：不存在则插入（source=builtin）；已存在且 <code class="inline">meta.version</code> 更大则刷新——<strong>改内置种子必须 bump version</strong>。</li>
+      <li>内置场景运行期只读（409），验证修改效果请「复制为自定义」或在创建向导里从模板创建。</li>
+      <li>历史难度值（CEFR/中文）由 <code class="inline">_migrate_difficulties</code> 幂等迁移，无需手工处理旧数据。</li>
+    </ul>
+  </section>
+
+  <!-- ============ 8 API 接口契约 ============ -->
+  <section id="s8">
+    <h2><span class="sec-num">08</span>API 接口契约</h2>
+
+    <h3 id="s8-1"><span class="sub-num">8.1</span>通用约定</h3>
+    <ul class="plain">
+      <li>Base URL：开发 <code class="inline">http://127.0.0.1:8000</code>，所有业务接口统一挂 <code class="inline">/api</code> 前缀；云端部署走 HTTPS 反代。</li>
+      <li>鉴权：登录类接口返回 <code class="inline">access_token</code>，后续请求带 <code class="inline">Authorization: Bearer &lt;token&gt;</code>；令牌 30 天有效，仅当前端撤销。</li>
+      <li>幂等性：每个请求由中间件分配/透传 <code class="inline">X-Request-ID</code>（12 位 hex）并在响应头回传，排障时按此对日志。</li>
+      <li>响应只有两种形态：<strong>2xx 直接返回业务体</strong>，或 <strong>统一错误信封</strong>（见 8.2）；无第三种混合形态。</li>
+      <li>前端超时 15s（导入/导出/资料上传 60s、封面 30s）；仅幂等 GET 在网络错误或 5xx 时重试，最多 3 次、退避 0.5s/1s/1.5s；4xx 一律不重试。</li>
+    </ul>
+    <div class="code-block" data-lang="text">
+      <div class="code-head"><span class="code-lang">响应形态</span><button class="copy-btn">复制</button></div>
+      <pre><code><span class="tok-cmt"># 成功（2xx）：业务体直接返回</span>
+{ "access_token": "…", "user": { … } }
+
+<span class="tok-cmt"># 失败：统一错误信封（details 为可选的字段级错误列表）</span>
+{ "error": { "code": "SCENE_ID_CONFLICT", "message": "…",
+             "details": [ { "field": "…", "message": "…" } ] } }</code></pre>
+    </div>
+
+    <h3 id="s8-2"><span class="sub-num">8.2</span>错误码</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>错误码</th><th>HTTP</th><th>场景</th></tr></thead>
+        <tbody>
+          <tr><td><code class="inline">unauthorized</code></td><td><span class="method m-delete">401</span></td><td>未登录 / 会话失效</td></tr>
+          <tr><td><code class="inline">conflict</code></td><td><span class="method m-delete">409</span></td><td>用户名已被注册</td></tr>
+          <tr><td><code class="inline">SCENE_NOT_FOUND</code></td><td><span class="method m-delete">404</span></td><td>场景不存在（他人私有场景同样按 404 返回，不泄露存在性）</td></tr>
+          <tr><td><code class="inline">SCENE_ID_CONFLICT</code></td><td><span class="method m-delete">409</span></td><td>创建/导入 ID 冲突（提示 overwrite / rename）</td></tr>
+          <tr><td><code class="inline">SCENE_BUILTIN_READONLY</code></td><td><span class="method m-delete">409</span></td><td>修改/删除/发布内置场景</td></tr>
+          <tr><td><code class="inline">SCENE_INVALID_PACKAGE</code></td><td><span class="method m-delete">422</span></td><td>包校验失败，details 字段级</td></tr>
+          <tr><td><code class="inline">SCENE_INVALID_EXPRESSION</code></td><td><span class="method m-delete">422</span></td><td>表达式解析失败</td></tr>
+          <tr><td><code class="inline">SCENE_UNSUPPORTED_FILE</code></td><td><span class="method m-delete">400</span></td><td>资料/封面类型不支持或超限</td></tr>
+          <tr><td><code class="inline">SCENE_PACKAGE_INCOMPATIBLE</code></td><td><span class="method m-delete">422</span></td><td><code class="inline">min_app</code> 高于当前应用</td></tr>
+          <tr><td><code class="inline">SCENE_ID_IMMUTABLE</code></td><td><span class="method m-delete">400</span></td><td>编辑时试图修改场景 ID</td></tr>
+          <tr><td><code class="inline">SCENE_FORBIDDEN</code></td><td><span class="method m-delete">403</span></td><td>操作他人场景</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3 id="s8-3"><span class="sub-num">8.3</span>接口总表</h3>
+    <p>鉴权列：🔒 必须登录 / 🔓 游客可访问（携带有效令牌则增强返回）。共 27 个端点。</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th style="width:46%">方法与路径</th><th>鉴权</th><th>说明</th></tr></thead>
+        <tbody>
+          <tr class="ep-group"><td colspan="3">系统与探针</td></tr>
+          <tr><td><span class="method m-get">GET</span> <span class="ep-path">/api/health</span></td><td class="auth-n">🔓</td><td>存活探针（不查依赖）</td></tr>
+          <tr><td><span class="method m-get">GET</span> <span class="ep-path">/api/ready</span></td><td class="auth-n">🔓</td><td>就绪探针（SELECT 1 验库，失败 503）</td></tr>
+          <tr class="ep-group"><td colspan="3">账户（/api/auth）</td></tr>
+          <tr><td><span class="method m-post">POST</span> <span class="ep-path">/api/auth/register</span></td><td class="auth-n">🔓</td><td>201，返回 <code class="inline">{access_token, user}</code></td></tr>
+          <tr><td><span class="method m-post">POST</span> <span class="ep-path">/api/auth/login</span></td><td class="auth-n">🔓</td><td>返回 <code class="inline">{access_token, user}</code></td></tr>
+          <tr><td><span class="method m-post">POST</span> <span class="ep-path">/api/auth/logout</span></td><td class="auth-y">🔒</td><td>204，仅撤销当前令牌</td></tr>
+          <tr><td><span class="method m-get">GET</span> <span class="ep-path">/api/auth/me</span></td><td class="auth-y">🔒</td><td>当前用户</td></tr>
+          <tr class="ep-group"><td colspan="3">场景生命周期（/api/scenes）</td></tr>
+          <tr><td><span class="method m-get">GET</span> <span class="ep-path">/api/scenes</span></td><td class="auth-n">🔓</td><td>可见场景列表 + 统计（游客仅 builtin）</td></tr>
+          <tr><td><span class="method m-get">GET</span> <span class="ep-path">/api/scenes/templates</span></td><td class="auth-n">🔓</td><td>内置模板摘要</td></tr>
+          <tr><td><span class="method m-post">POST</span> <span class="ep-path">/api/scenes/validate</span></td><td class="auth-n">🔓</td><td>干跑校验，422 返回字段级 details</td></tr>
+          <tr><td><span class="method m-post">POST</span> <span class="ep-path">/api/scenes/import?resolve=overwrite|rename</span></td><td class="auth-y">🔒</td><td>导入 v2 ZIP；返回 <code class="inline">{scene, action: created/overwritten/renamed}</code></td></tr>
+          <tr><td><span class="method m-post">POST</span> <span class="ep-path">/api/scenes/from-template</span></td><td class="auth-y">🔒</td><td><code class="inline">{template_id, new_id?}</code> 复制内置为自定义</td></tr>
+          <tr><td><span class="method m-post">POST</span> <span class="ep-path">/api/scenes</span></td><td class="auth-y">🔒</td><td>创建（body=完整包），默认私有</td></tr>
+          <tr><td><span class="method m-get">GET</span> <span class="ep-path">/api/scenes/{id}</span></td><td class="auth-n">🔓</td><td>详情：摘要 + 完整包 + 资料元数据 + 统计（ai_only 分节内容不下发）</td></tr>
+          <tr><td><span class="method m-put">PUT</span> <span class="ep-path">/api/scenes/{id}</span></td><td class="auth-y">🔒</td><td>更新（builtin 409；ID 不可变）</td></tr>
+          <tr><td><span class="method m-post">POST</span> <span class="ep-path">/api/scenes/{id}/duplicate</span></td><td class="auth-y">🔒</td><td>复制为自定义私有副本（含资料与封面）</td></tr>
+          <tr><td><span class="method m-delete">DELETE</span> <span class="ep-path">/api/scenes/{id}</span></td><td class="auth-y">🔒</td><td>删除（源文件、documents/chunks、封面一并清除）</td></tr>
+          <tr><td><span class="method m-get">GET</span> <span class="ep-path">/api/scenes/{id}/export</span></td><td class="auth-n">🔓</td><td>导出 ZIP；非作者计入下载量</td></tr>
+          <tr class="ep-group"><td colspan="3">封面</td></tr>
+          <tr><td><span class="method m-post">POST</span> <span class="ep-path">/api/scenes/{id}/cover</span></td><td class="auth-y">🔒</td><td>上传封面（仅作者）</td></tr>
+          <tr><td><span class="method m-get">GET</span> <span class="ep-path">/api/scenes/{id}/cover</span></td><td class="auth-n">🔓</td><td>封面图直链（未设置 404 SCENE_NO_COVER）</td></tr>
+          <tr><td><span class="method m-delete">DELETE</span> <span class="ep-path">/api/scenes/{id}/cover</span></td><td class="auth-y">🔒</td><td>移除封面</td></tr>
+          <tr class="ep-group"><td colspan="3">发布与社区</td></tr>
+          <tr><td><span class="method m-post">POST</span> <span class="ep-path">/api/scenes/{id}/publish</span> / <span class="ep-path">unpublish</span></td><td class="auth-y">🔒</td><td>发布 / 撤回（builtin 409）</td></tr>
+          <tr><td><span class="method m-post">POST</span> <span class="ep-path">/api/scenes/{id}/like</span> / <span class="ep-path">favorite</span></td><td class="auth-y">🔒</td><td>点赞 / 收藏切换（一人一票）</td></tr>
+          <tr class="ep-group"><td colspan="3">知识资料</td></tr>
+          <tr><td><span class="method m-post">POST</span> <span class="ep-path">/api/scenes/{id}/knowledge?visibility=user|ai_only</span></td><td class="auth-y">🔒</td><td>上传资料（解析→分块→入库）</td></tr>
+          <tr><td><span class="method m-get">GET</span> <span class="ep-path">/api/scenes/{id}/knowledge</span></td><td class="auth-n">🔓</td><td>学习者可见分节（对话页参考面板）</td></tr>
+          <tr><td><span class="method m-get">GET</span> <span class="ep-path">/api/scenes/{id}/knowledge/sections</span></td><td class="auth-n">🔓</td><td>全分节概览（含 ai_only）</td></tr>
+          <tr><td><span class="method m-patch">PATCH</span> <span class="ep-path">/api/scenes/{id}/knowledge/sections/{name}</span></td><td class="auth-y">🔒</td><td>修改分节可见性</td></tr>
+          <tr><td><span class="method m-delete">DELETE</span> <span class="ep-path">/api/scenes/{id}/knowledge/{document_id}</span></td><td class="auth-y">🔒</td><td>删除单个资料（1.0 只能全清）</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3 id="s8-4"><span class="sub-num">8.4</span>请求与响应示例</h3>
+    <p><strong>注册 / 登录</strong>（响应体一致，注册为 201）：</p>
+    <div class="code-block" data-lang="bash">
+      <div class="code-head"><span class="code-lang">Bash</span><button class="copy-btn">复制</button></div>
+      <pre><code>curl -X POST http://127.0.0.1:8000/api/auth/register \
+  -H 'Content-Type: application/json' \
+  -d '{"username": "designer", "password": "password123"}'</code></pre>
+    </div>
+    <div class="code-block" data-lang="json">
+      <div class="code-head"><span class="code-lang">JSON · 201</span><button class="copy-btn">复制</button></div>
+      <pre><code>{
+  <span class="tok-key">"access_token"</span>: "…",
+  <span class="tok-key">"user"</span>: { "id": 1, "username": "designer" }
+}</code></pre>
+    </div>
+    <p><strong>创建场景</strong>（body 为完整 scene.yaml 同构 JSON，默认私有；校验失败 422 带 details）：</p>
+    <div class="code-block" data-lang="bash">
+      <div class="code-head"><span class="code-lang">Bash</span><button class="copy-btn">复制</button></div>
+      <pre><code>curl -X POST http://127.0.0.1:8000/api/scenes \
+  -H 'Authorization: Bearer &lt;token&gt;' -H 'Content-Type: application/json' \
+  -d @scene.json</code></pre>
+    </div>
+    <div class="code-block" data-lang="json">
+      <div class="code-head"><span class="code-lang">JSON · 422 校验失败</span><button class="copy-btn">复制</button></div>
+      <pre><code>{
+  <span class="tok-key">"error"</span>: {
+    <span class="tok-key">"code"</span>: "SCENE_INVALID_PACKAGE",
+    <span class="tok-key">"message"</span>: "包校验失败",
+    <span class="tok-key">"details"</span>: [ { "field": "finish.when", "message": "引用了未声明的 state 根键 'order'" } ]
+  }
+}</code></pre>
+    </div>
+    <p><strong>导入 ZIP 冲突</strong>（409 后由用户选择，携带 <code class="inline">resolve</code> 重发）：</p>
+    <div class="code-block" data-lang="bash">
+      <div class="code-head"><span class="code-lang">Bash</span><button class="copy-btn">复制</button></div>
+      <pre><code><span class="tok-cmt"># 首次导入：ID 已存在 → 409 SCENE_ID_CONFLICT（前端弹覆盖/改名选择）</span>
+curl -X POST http://127.0.0.1:8000/api/scenes/import -H 'Authorization: Bearer &lt;token&gt;' -F 'file=@pkg.zip'
+
+<span class="tok-cmt"># 用户选择「改名」后重发：</span>
+curl -X POST 'http://127.0.0.1:8000/api/scenes/import?resolve=rename' \
+  -H 'Authorization: Bearer &lt;token&gt;' -F 'file=@pkg.zip'
+<span class="tok-cmt"># → 201 { "scene": {…}, "action": "renamed" }（ID 自动变为 {id}_2、{id}_3…）</span></code></pre>
+    </div>
+    <div class="callout note">
+      <span class="ico">i</span>
+      <p>示例中的字段为契约要点示意；完整字段以 <code class="inline">app/schemas.py</code>、<code class="inline">scenes/schema.py</code> 模型为准。可用 <code class="inline">POST /api/scenes/validate</code> 在不落库的情况下调试包结构。</p>
+    </div>
+  </section>
+
+  <!-- ============ 9 数据库模型 ============ -->
+  <section id="s9">
+    <h2><span class="sec-num">09</span>数据库模型</h2>
+    <p>MySQL 8（utf8mb4），共 7 张业务表；ORM 为 SQLAlchemy 2.x，引擎带 <code class="inline">pool_pre_ping</code> + <code class="inline">pool_recycle=1800</code> 防空闲断连；会话为请求级事务会话（finally 关闭）。</p>
+
+    <h3 id="s9-1"><span class="sub-num">9.1</span>表关系</h3>
+    <div class="code-block" data-lang="text">
+      <div class="code-head"><span class="code-lang">ER 关系</span><button class="copy-btn">复制</button></div>
+      <pre><code>users ──1:N── auth_sessions
+  │
+  └─1:N── scenes（author_id，builtin 为 NULL）──1:N── documents ──1:N── chunks
+                │            │
+                │            └──1:1── scene_stats（likes/downloads/favorites 计数）
+                │            └──1:N── scene_user_stats（scene_id+user_id 唯一，一人一票）</code></pre>
+    </div>
+
+    <h3 id="s9-2"><span class="sub-num">9.2</span>表清单</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>表</th><th>关键列</th><th>说明</th></tr></thead>
+        <tbody>
+          <tr><td><code class="inline">users</code></td><td>username(唯一)、password_hash</td><td>账户</td></tr>
+          <tr><td><code class="inline">auth_sessions</code></td><td>token_hash(唯一)、expires_at、revoked_at</td><td>服务端会话；库中只存令牌 SHA-256 摘要</td></tr>
+          <tr><td><code class="inline">scenes</code></td><td><strong>id=meta.id</strong>（字符串主键）、package_json(完整包)、source(builtin/custom/imported)、status(private/published)、difficulty、cover_path、greeting_text、domain_keywords</td><td>场景包；标量列为查询/展示冗余，<code class="inline">package_json</code> 是唯一事实来源</td></tr>
+          <tr><td><code class="inline">documents</code></td><td>scene_id(CASCADE)、filename、chunk_count、visibility(user/ai_only)</td><td>资料元数据；源文件在 <code class="inline">storage/</code></td></tr>
+          <tr><td><code class="inline">chunks</code></td><td>document_id(CASCADE)、scene_id(冗余索引)、section、visibility、ordinal、text</td><td>解析分块；向量索引为运行时产物（阶段 3）</td></tr>
+          <tr><td><code class="inline">scene_stats</code></td><td>scene_id(主键)、likes、downloads、favorites</td><td>聚合计数，惰性创建（首次互动才建行）</td></tr>
+          <tr><td><code class="inline">scene_user_stats</code></td><td>(scene_id,user_id) 唯一约束、liked、favorited</td><td>用户互动态，一人一票</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>文件存储（<code class="inline">backend/storage/scenes/{scene_id}/</code>，gitignore）：资料源文件在 <code class="inline">knowledge/</code>（.md/.markdown/.txt/.pdf，≤10MB），封面为 <code class="inline">cover.*</code>（.jpg/.png/.webp，≤5MB）。分块目标 700 字符、上限 1100，超长按空行段落二次切分。</p>
+
+    <h3 id="s9-3"><span class="sub-num">9.3</span>关键决策</h3>
+    <ul class="plain">
+      <li><strong><code class="inline">package_json</code> 存校验后模型的完整 dump</strong>（v1.6 修复）：此前存原始请求 dict，Pydantic 默认值（category/mode/version）不落库，导致编辑回显下拉为空、导出包不完整；现改为 <code class="inline">model_dump()</code> 完整落库，读写两端结构一致。</li>
+      <li><strong>难度五级英文枚举</strong> <code class="inline">entry/easy/normal/hard/expert</code>（前后端契约）：校验器强制小写；种子同步时执行幂等迁移 <code class="inline">_migrate_difficulties</code>（历史 CEFR 按首字母 A→easy / B→normal / C→hard，中文三档直接映射，未知归 normal），冗余列与 <code class="inline">package_json.meta.difficulty</code> 同步刷新。</li>
+      <li>变更 <code class="inline">package_json</code> 结构时必须同步三处（见 <a href="#s5">§5 工作流</a>）；改表开发期可 drop 重跑 <code class="inline">init_db.py</code>（注意清数据）。</li>
+    </ul>
+  </section>
+
+  <!-- ============ 10 测试与冒烟 ============ -->
+  <section id="s10">
+    <h2><span class="sec-num">10</span>测试与冒烟</h2>
+    <div class="code-block" data-lang="bash">
+      <div class="code-head"><span class="code-lang">Bash</span><button class="copy-btn">复制</button></div>
+      <pre><code>cd backend
+uv run --cache-dir .uv-cache python scripts/smoke_scenes.py</code></pre>
+    </div>
+    <ul class="plain">
+      <li>依赖运行中的 MySQL（会 <strong>drop 并重建</strong> scenes/documents/chunks/scene_stats/scene_user_stats 五张表，用户表保留，可重复执行）。</li>
+      <li>覆盖 37 项：游客列表 → 注册/登录 → 列表可见性 → 创建（校验失败/成功）→ validate → 导出 → 导入回环（覆盖/改名/1.0 旧包拒绝）→ 资料上传与分节可见性 → 发布/点赞/收藏/下载 → 权限（builtin 只读、他人私有 404）。</li>
+      <li>前端暂无自动化测试；UI 验收以浏览器实测为主（Chrome 5173 + Electron）。</li>
+    </ul>
+    <p><code class="inline">POST /api/scenes/validate</code> 可单独调试包结构：</p>
+    <div class="code-block" data-lang="bash">
+      <div class="code-head"><span class="code-lang">Bash</span><button class="copy-btn">复制</button></div>
+      <pre><code>curl -X POST http://127.0.0.1:8000/api/scenes/validate -H 'Content-Type: application/json' -d @scene.json</code></pre>
+    </div>
+  </section>
+
+  <!-- ============ 11 构建与部署 ============ -->
+  <section id="s11">
+    <h2><span class="sec-num">11</span>构建与部署</h2>
+
+    <h3 id="s11-1"><span class="sub-num">11.1</span>桌面打包</h3>
+    <div class="code-block" data-lang="bash">
+      <div class="code-head"><span class="code-lang">Bash</span><button class="copy-btn">复制</button></div>
+      <pre><code>cd frontend
+<span class="tok-cmt"># 创建 .env.production.local：VITE_API_BASE_URL=https://api.example.com （必须 HTTPS）</span>
+npm run pack      <span class="tok-cmt"># vite build + electron-builder，产物在 dist_electron/</span></code></pre>
+    </div>
+    <p>构建强制校验：未配置或非 HTTPS 的 <code class="inline">VITE_API_BASE_URL</code> 会直接构建失败。同时把云端 API 域名加入后端 <code class="inline">ECHOTALK_CORS_ORIGINS</code>。</p>
+
+    <h3 id="s11-2"><span class="sub-num">11.2</span>后端部署</h3>
+    <div class="code-block" data-lang="bash">
+      <div class="code-head"><span class="code-lang">Bash</span><button class="copy-btn">复制</button></div>
+      <pre><code>cd backend &amp;&amp; uv sync --locked --cache-dir .uv-cache &amp;&amp; uv run python init_db.py
+ECHOTALK_API_HOST=0.0.0.0 uv run python main.py   <span class="tok-cmt"># 仅通过 HTTPS 反代暴露，勿裸露 uvicorn 端口</span></code></pre>
+    </div>
+    <ul class="plain">
+      <li>健康检查接 <code class="inline">/api/health</code>（存活）与 <code class="inline">/api/ready</code>（验库，503 表示数据库不可用）。</li>
+      <li><code class="inline">storage/</code> 目录需要持久化卷（资料源文件与封面）；迁对象存储时只改 <code class="inline">scenes/knowledge.py</code> 的读写实现。</li>
+    </ul>
+  </section>
+
+  <!-- ============ 12 常见问题排查 ============ -->
+  <section id="s12">
+    <h2><span class="sec-num">12</span>常见问题排查</h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th style="width:34%">症状</th><th>原因与处理</th></tr></thead>
+        <tbody>
+          <tr><td>启动即 <code class="inline">RuntimeError: 未配置数据库密码</code></td><td><code class="inline">backend/.env</code> 缺 <code class="inline">ECHOTALK_DB_PASSWORD</code>；config.py 快速失败，属预期行为</td></tr>
+          <tr><td><code class="inline">Can't connect to MySQL</code></td><td>确认 MySQL 在 3307 端口运行、账号已授权；远程库需配置 SSL CA</td></tr>
+          <tr><td>端口 8000 被占用 / 旧进程残留</td><td><code class="inline">lsof -ti:8000 | xargs kill</code> 后重启；带 <code class="inline">--reload</code> 的进程曾出现孤儿对，注意清理</td></tr>
+          <tr><td>前端 5173 启动报端口占用</td><td>Vite 配置 <code class="inline">strictPort: true</code>，不自动换端口（与 Electron 约定），先释放端口</td></tr>
+          <tr><td>Electron 白屏</td><td>Electron 等 Vite 就绪后再加载；确认用 <code class="inline">npm run electron:dev</code> 而非手动分开启动</td></tr>
+          <tr><td>场景封面不显示</td><td>检查 CSP <code class="inline">img-src</code> 是否包含 API 源（由 <code class="inline">VITE_API_BASE_URL</code> 注入）；封面 GET 免登录，确认 URL 拼接用了 <code class="inline">coverUrl()</code></td></tr>
+          <tr><td>编辑场景时下拉为空 / 导出包缺字段</td><td>已由 v1.6 修复（package_json 存完整 dump）；若复现，检查是否绕过 <code class="inline">registry.apply_package</code> 直接写行</td></tr>
+          <tr><td>场景编辑器表单为空</td><td>已由 v1.6 修复（AppShell 路由视图加 <code class="inline">:key="route.fullPath"</code>）；新增复用组件的兄弟路由时记得同样处理</td></tr>
+          <tr><td>导入 ZIP 报「1.0 旧格式」</td><td>旧包含 <code class="inline">scene_config.json</code>/<code class="inline">.index</code>，2.0 不兼容；改用 2.0 导出的包或从内置模板重建</td></tr>
+          <tr><td>点赞/收藏计数不涨</td><td>确认是切换语义（再次调用即取消）；builtin 场景统计行惰性创建，首次互动才有记录</td></tr>
+          <tr><td>401 频繁跳登录</td><td>令牌 30 天过期或已在其他操作中撤销；<code class="inline">/me</code> 失败即清会话，属预期</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ============ 13 模块地图 ============ -->
+  <section id="s13">
+    <h2><span class="sec-num">13</span>模块地图（与提交对应）</h2>
+    <div class="flow-grid">
+      <div class="flow-row"><div class="k"><span class="commit-tag">0c9cac7</span></div><div class="v"><code class="inline">app/core/*</code>、<code class="inline">api/endpoints/auth.py</code>、<code class="inline">services/auth_service.py</code>、models 的 users/auth_sessions、前端 AppShell/路由/会话/http 客户端、Electron 壳</div></div>
+      <div class="flow-row"><div class="k"><span class="commit-tag">ff21f72</span></div><div class="v"><code class="inline">app/scenes/*</code>、<code class="inline">core/expr.py</code>、<code class="inline">endpoints/scenes.py</code>、<code class="inline">services/scene_service.py</code>、models 的场景五表、<code class="inline">content/scenes/*.yaml</code>、<code class="inline">scripts/smoke_scenes.py</code>、前端 Scenes/SceneEditor/场景 API、CSP 插件</div></div>
+      <div class="flow-row"><div class="k"><span class="commit-tag">4e81702</span></div><div class="v"><code class="inline">registry.apply_package</code> 完整 dump 修复、AppShell <code class="inline">:key</code> 修复、Scenes/SceneEditor 交互打磨、错误文案去 Pydantic 前缀</div></div>
+    </div>
+
+    <div class="page-nav">
+      <a href="#s1" class="next"><span class="dir">回到顶部</span><span class="ttl">环境要求</span></a>
+      <a href="技术文档.md" class="next"><span class="dir">延伸阅读</span><span class="ttl">技术文档 →</span></a>
+    </div>
+
+    <p class="footer-note">EchoTalk 2.0 开发文档 · v2.0.0 · 2026-09-28 · 与 Markdown 源文件同步维护</p>
+  </section>
+
+</main>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  /* ---------- Mobile sidebar ---------- */
+  var sidebar = document.getElementById('sidebar');
+  var menuBtn = document.getElementById('menuBtn');
+  menuBtn.addEventListener('click', function () { sidebar.classList.toggle('open'); });
+  document.addEventListener('click', function (e) {
+    if (window.innerWidth <= 820 && sidebar.classList.contains('open') &&
+        !sidebar.contains(e.target) && e.target !== menuBtn && !menuBtn.contains(e.target)) {
+      sidebar.classList.remove('open');
+    }
+  });
+
+  /* ---------- Copy buttons ---------- */
+  document.querySelectorAll('.code-block').forEach(function (block) {
+    var btn = block.querySelector('.copy-btn');
+    var pre = block.querySelector('pre');
+    btn.addEventListener('click', function () {
+      var text = pre.innerText;
+      var done = function () {
+        btn.textContent = '已复制 ✓';
+        btn.classList.add('ok');
+        setTimeout(function () { btn.textContent = '复制'; btn.classList.remove('ok'); }, 1600);
+      };
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(done, function () { fallback(); });
+      } else { fallback(); }
+      function fallback() {
+        var ta = document.createElement('textarea');
+        ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+        document.body.appendChild(ta); ta.select();
+        try { document.execCommand('copy'); done(); } catch (e) {}
+        document.body.removeChild(ta);
+      }
+    });
+  });
+
+  /* ---------- Scrollspy ---------- */
+  var links = Array.prototype.slice.call(document.querySelectorAll('.nav-link[href^="#"]'));
+  var map = {};
+  links.forEach(function (l) { map[l.getAttribute('href').slice(1)] = l; });
+  var sections = Array.prototype.slice.call(document.querySelectorAll('section[id]'));
+  var current = null;
+  function setActive(id) {
+    if (current === id) return;
+    current = id;
+    links.forEach(function (l) { l.classList.remove('active'); });
+    var link = map[id];
+    if (link) {
+      link.classList.add('active');
+      var group = link.closest('.nav-group');
+      if (group) group.classList.remove('no-match');
+      /* keep the active link visible in sidebar scroll */
+      var r = link.getBoundingClientRect();
+      var sr = sidebar.getBoundingClientRect();
+      if (r.top < sr.top + 60 || r.bottom > sr.bottom - 20) {
+        sidebar.scrollTop += (r.top - sr.top) - 80;
+      }
+    }
+  }
+  function onScroll() {
+    var pos = window.scrollY + 96, best = null;
+    sections.forEach(function (s) { if (s.offsetTop <= pos) best = s.id; });
+    if (best) setActive(best);
+  }
+  window.addEventListener('scroll', onScroll, { passive: true });
+  onScroll();
+
+  /* ---------- Search filter ---------- */
+  var search = document.getElementById('search');
+  search.addEventListener('input', function () {
+    var q = search.value.trim().toLowerCase();
+    document.querySelectorAll('.nav-group').forEach(function (group) {
+      var any = false;
+      group.querySelectorAll('.nav-link').forEach(function (l) {
+        var hit = !q || l.textContent.toLowerCase().indexOf(q) !== -1;
+        l.classList.toggle('no-match', !hit);
+        if (hit) any = true;
+      });
+      group.classList.toggle('no-match', q && !any);
+    });
+  });
+
+  /* ---------- Simple code tokenization for blocks without pre-marked spans ---------- */
+  document.querySelectorAll('.code-block').forEach(function (block) {
+    var lang = (block.getAttribute('data-lang') || '').toLowerCase();
+    if (lang !== 'sql') return; /* bash/tree blocks already carry markup where useful */
+    block.querySelectorAll('pre code').forEach(function (code) {
+      var html = code.innerHTML;
+      html = html.replace(/('[^']*')/g, '<span class="tok-str">$1</span>');
+      var kws = ['CREATE','DATABASE','USER','IDENTIFIED','BY','GRANT','ALL','PRIVILEGES','ON','TO','FLUSH','SELECT','INSERT','UPDATE','DELETE','DROP','TABLE','FROM','WHERE'];
+      kws.forEach(function (kw) {
+        html = html.replace(new RegExp('\\b' + kw + '\\b', 'g'), '<span class="tok-kw">' + kw + '</span>');
+      });
+      code.innerHTML = html;
+    });
+  });
+})();
+</script>
+</body>
+</html>

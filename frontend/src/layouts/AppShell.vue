@@ -16,7 +16,7 @@
           </button>
         </div>
         <div class="brand-lockup">
-          <span class="brand-mark"><AppIcon name="logo" :size="17" /></span>
+          <span class="brand-mark"><img :src="brandImage" alt="" /></span>
           <div class="brand-text"><b>EchoTalk</b><small>2.0</small></div>
           <button
             v-if="!isMac && !sidebarHidden"
@@ -110,6 +110,7 @@
 import { onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import AppIcon from '../components/AppIcon.vue'
+import brandImage from '../assets/echotalk-brand.png'
 import { logout } from '../api/auth'
 import { clearSession, session } from '../auth/session'
 

@@ -14,6 +14,7 @@ import {
 } from '../api/avatar'
 import { listScenes } from '../api/scenes'
 import { session } from '../auth/session'
+import { usePageLoading } from '../app/loading'
 
 const AVATARS = FALLBACK_AVATARS // 初版写死前端的固定形象清单
 const DEFAULTS = { avatarId: 'mira_2d', voiceStyle: 'emma', sceneId: '', speechRate: 1, lipSyncEnabled: true }
@@ -213,9 +214,9 @@ watch(() => session.user?.id, () => {
   loadScenes()
 })
 
-load()
-loadScenes()
-probeVoices()
+// 首屏三件事并行：场景清单、场景档偏好、声音渠道探测；全部结束（含失败）后撤全局遮罩
+const finishLoading = usePageLoading()
+Promise.allSettled([load(), loadScenes(), probeVoices()]).then(finishLoading)
 onBeforeUnmount(() => { clearTimeout(toastTimer); stopPreview() })
 
 const states = [
@@ -387,4 +388,26 @@ button:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
   .preview-card :deep(.stage) { flex: 0 0 auto; width: 100% !important; }
   .settings { height: auto; grid-template-rows: none; }
 }
+
+/* EchoTalk 圆润卡片语言：突出形象预览，选中组合清晰但不抢内容。 */
+.avatar-page { padding: 24px clamp(18px, 2.4vw, 34px) 30px; background: #faf9ff; }
+.av-toolbar { margin-bottom: 18px; }
+.preview-card, .settings-card { border: 2px solid #ebe7f5; border-bottom: 5px solid #e5def1; border-radius: 19px; background: #fff; }
+.preview-card { padding: 18px; }
+.settings { gap: 16px; }
+.settings-card { padding: 17px 18px; }
+.card-heading h2 { font-size: 15px; font-weight: 750; color: #393451; }
+.card-no { display: grid; width: 28px; height: 28px; place-items: center; border-radius: 10px; background: #f2edff; color: #8069c7; font-weight: 700; }
+.state-section { border-color: #efedf5; }
+.state-buttons { gap: 8px; }
+.state-buttons button { min-height: 38px; border: 1.5px solid #e9e5f1; border-bottom-width: 3px; border-radius: 12px; font-weight: 600; }
+.state-buttons button.active { border-color: #9b83e5; border-bottom-color: #8067d1; background: #f0eaff; color: #654ab8; }
+.avatar-chip { min-height: 62px; border: 1.5px solid #ece8f4; border-bottom-width: 3px; border-radius: 14px; background: #fff; }
+.avatar-chip:hover { border-color: #cfc1f1; background: #fcfaff; }
+.avatar-chip.active { border-color: #a58ee9; border-bottom-color: #8067d1; background: #f3efff; }
+.chip-thumb { border-radius: 11px; }
+.character-description { border-radius: 12px; background: #f7f5fc; }
+.ghost-button, .primary-button.slim { min-height: 38px; border-radius: 12px; font-weight: 650; }
+.ghost-button { border: 1.5px solid #e9e5f1; border-bottom-width: 3px; }
+.primary-button.slim { border: 1.5px solid #8067d1; border-bottom: 4px solid #6951b8; background: #8b73dd; }
 </style>

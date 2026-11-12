@@ -1,11 +1,22 @@
 // 练习会话 API 客户端：创建会话、恢复会话、提交对话轮次。
 import { http } from './http'
 
+// 历史记录：分页返回本人有实际轮次的会话，含最后一轮预览与全局统计
+export const listSessions = (params = {}) => http.get('/sessions', { params })
+
 // 创建练习会话：返回 { id, scene_id, greeting, state, version }
 export const createSession = (sceneId) => http.post('/sessions', { scene_id: sceneId })
 
 // 恢复会话：公开字段 + 按轮次排序的公开对话记录（turns）
 export const getSession = (id) => http.get(`/sessions/${id}`)
+export const getLatestSession = (sceneId) => http.get('/sessions/latest', { params: { scene_id: sceneId } })
+
+export const getTurnAudio = async (sessionId, turnId, voiceStyle, speechRate = 1) => {
+  const { data } = await http.get(`/sessions/${sessionId}/turns/${turnId}/audio`, {
+    params: { voice_style: voiceStyle, speech_rate: speechRate }, responseType: 'blob', timeout: 30000,
+  })
+  return data
+}
 
 // 问候音频由后端持久化并复用，用户身份仍通过请求头校验。
 export const getGreetingAudio = async (id, voiceStyle, speechRate = 1) => {

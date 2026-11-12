@@ -6,7 +6,7 @@ meta:
   category: daily
   difficulty: normal
   mode: conversation
-  version: 3
+  version: 4
   compat:
     min_app: 2.0.0
   author: builtin
@@ -26,7 +26,10 @@ prompt:
     airport service counter. The user's flight has been cancelled and they need rebooking.
     Guide them through: explaining their situation clearly, comparing rebooking options
     (earliest flight / refund / next morning), and confirming the final choice.
-    When the user states a confirmed choice, call update_scene_state to record it.
+    Use update_scene_state when the user's own words provide evidence for these facts:
+    issue_explained when they explain the disruption, options_compared when they compare
+    or express a preference between options, and rebooked when they confirm a final choice.
+    Set only the supported fact and quote the user's exact words as evidence.
     Keep responses concise (1-2 sentences) and use standard airline service phrases.
   greeting: |
     Good evening, welcome to the service counter. I understand there might be an issue
@@ -41,7 +44,7 @@ objectives:
   - id: compare_options
     label: 比较改签方案
     skill: speaking.negotiation
-    check: tool_called('update_scene_state')
+    check: state.options_compared == true
   - id: confirm_booking
     label: 确认新行程
     skill: speaking.task_completion
@@ -49,6 +52,7 @@ objectives:
 
 state:
   issue_explained: false
+  options_compared: false
   rebooked: false
 
 tools:
@@ -57,9 +61,11 @@ tools:
 stages:
   - id: explain
     name: 说明情况
+    exit_when: state.issue_explained == true
   - id: compare
     name: 比较方案
     guidance: 依次给出最早航班 / 退款 / 次日航班并比较利弊
+    exit_when: state.options_compared == true
   - id: confirm
     name: 确认行程
     exit_when: state.rebooked == true

@@ -149,6 +149,11 @@ def search_scene(db: Session, scene_id: str, query: str, top_k: int = 4) -> dict
     if len(query) < _MIN_QUERY_CHARS:
         return {"query": query, "mode": "none", "items": []}
 
+    # 空场景不需要补建全文索引或请求远程向量服务。
+    from app.models import Chunk
+    if db.query(Chunk.id).filter(Chunk.scene_id == scene_id).first() is None:
+        return {"query": query, "mode": "none", "items": []}
+
     fulltext_ok = _ensure_fulltext(db)
     owner_filter = {"sid": scene_id}
     limit = max(top_k * CANDIDATE_FACTOR, 12)

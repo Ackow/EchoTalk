@@ -7,6 +7,9 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user, get_db
 from app.models import User
+from app.models import PracticeTurn
+from sqlalchemy import select
+from app.core.errors import AppError
 from app.schemas.session import CreateSession, SubmitTurn
 from app.schemas.tts import VoiceOptions
 from app.services import session_service
@@ -19,6 +22,24 @@ router = APIRouter(prefix="/sessions", tags=["对话练习"])
 def create_session(payload: CreateSession, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     """为当前用户创建练习会话，返回开场白和初始任务状态。"""
     return session_service.create_session(db, user, payload.scene_id)
+
+
+@router.get("")
+def list_sessions(
+    scene_id: str | None = Query(default=None, min_length=2, max_length=50),
+    status: str | None = Query(default=None, pattern="^(active|finished)$"),
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=12, ge=1, le=50),
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """分页读取当前用户的历史练习记录，附带全局统计。"""
+    return session_service.list_sessions(db, user.id, scene_id=scene_id, status=status, page=page, page_size=page_size)
+
+
+@router.get("/latest")
+def latest_session(scene_id: str = Query(min_length=2, max_length=50), user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    return {"session": session_service.latest_session(db, user, scene_id)}
 
 
 @router.get("/{session_id}")
@@ -46,3 +67,18 @@ async def greeting_audio(
     db.rollback()  # 音频合成期间不持有身份查询与会话读取事务。
     path = await greeting_audio_service.get_audio(text, options.voice_style, options.speech_rate)
     return FileResponse(path, media_type="audio/mpeg", headers={"Cache-Control": "private, max-age=86400"})
+
+
+@router.get("/{session_id}/turns/{turn_id}/audio")
+async def turn_audio(session_id: str, turn_id: str, options: Annotated[VoiceOptions, Query()], user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """只按已保存的回复生成音频，且先验证会话和轮次归属。"""
+    session_service.owned_session(db, session_id, user.id)
+    turn = db.scalar(select(PracticeTurn).where(PracticeTurn.id == turn_id, PracticeTurn.session_id == session_id))
+    if turn is None:
+        raise AppError("对话记录不存在", code="TURN_NOT_FOUND", status_code=404)
+    text = turn.response_json["text"]
+    owner_id = user.id
+    db.rollback()
+    from app.services import practice_audio_service
+    path = await practice_audio_service.get_audio(owner_id, session_id, turn_id, text, options.voice_style, options.speech_rate)
+    return FileResponse(path, media_type="audio/mpeg", headers={"Cache-Control": "private, no-store"})

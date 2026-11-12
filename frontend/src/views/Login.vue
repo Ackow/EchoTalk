@@ -2,20 +2,16 @@
   <main class="auth-page">
     <section class="auth-brand-panel">
       <div class="auth-brand-lockup">
-        <span class="auth-brand-mark"><AppIcon name="logo" :size="18" /></span>
+        <span class="auth-brand-mark"><img :src="brandImage" alt="" /></span>
         <span>EchoTalk <small>2.0</small></span>
       </div>
 
-      <div class="brand-art" aria-hidden="true">
-        <div class="brand-orbit orbit-one"></div>
-        <div class="brand-orbit orbit-two"></div>
-        <div class="brand-disc"><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div>
-      </div>
+      <div class="brand-art" aria-hidden="true"><img :src="welcomeArt" alt="" /></div>
 
       <div class="auth-brand-copy">
-        <p class="eyebrow">YOUR PERSONAL SPEAKING SPACE</p>
-        <h1>让表达<br />更有自信。</h1>
-        <p>在自己的节奏里，练习每一次开口。</p>
+        <p class="eyebrow">你的英语交流空间</p>
+        <h1>开口聊聊，<br />慢慢变自信。</h1>
+        <p>在喜欢的场景里，找到自己的表达节奏。</p>
       </div>
       <div class="brand-footer"><span class="status-light"></span> 你的 EchoTalk 个人工作区</div>
     </section>
@@ -28,7 +24,7 @@
         <span class="secure-label">个人工作区</span>
       </div>
       <div class="auth-form-wrap">
-        <p class="auth-kicker">ECHOTALK ACCOUNT</p>
+        <p class="auth-kicker">你好，欢迎来到 EchoTalk</p>
         <h2>{{ registering ? '创建你的账户' : '欢迎回来' }}</h2>
         <p class="description">{{ registering ? '建立账户，开启专属练习空间。' : '登录后继续使用你的 EchoTalk 工作区。' }}</p>
 
@@ -61,6 +57,8 @@
 import { onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import AppIcon from '../components/AppIcon.vue'
+import brandImage from '../assets/echotalk-brand.png'
+import welcomeArt from '../assets/today-conversation-cartoon.png'
 import { login, register } from '../api/auth'
 import { saveSession, session } from '../auth/session'
 

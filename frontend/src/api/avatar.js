@@ -7,8 +7,8 @@ import { http } from './http'
 export const FALLBACK_AVATARS = [
   { id: 'mira_2d', display_name: 'Mira · 米拉', kind: '2d', theme: 'violet', tagline: '温柔、有耐心，对每个想法充满好奇。', description: '短发 · 轻耳麦 · 紫色针织衫', greeting: 'Hey! 今天想聊点什么？' },
   { id: 'vera_2d', display_name: 'Vera · 薇拉', kind: '2d', theme: 'teal', tagline: '干练直率，喜欢把问题聊透。', description: '高马尾 · 金色耳环 · 白衬衫与绿色马甲', greeting: 'Hi! 我们来一起梳理你的想法。' },
-  { id: 'nora_2d', display_name: 'Nora · 诺拉', kind: '2d', theme: 'blue', tagline: '沉稳专注，善于安静地倾听。', description: '长直发 · 圆框眼镜 · 奶白高领与藏蓝外套', greeting: 'Hello. 慢慢说，我会认真听。' },
-  { id: 'iris_2d', display_name: 'Iris · 艾瑞丝', kind: '2d', theme: 'amber', tagline: '活泼开朗，总能带动谈话气氛。', description: '双丸子卷发 · 小雀斑 · 黄色连帽衫与斜挎带', greeting: 'Hey there! 分享一件今天的趣事吧。' },
+  { id: 'nora_2d', display_name: 'Noah · 诺亚', kind: '2d', theme: 'blue', tagline: '沉稳专注，善于安静地倾听。', description: '深色短发 · 方框眼镜 · 藏蓝西装', greeting: 'Hello. 慢慢说，我会认真听。' },
+  { id: 'iris_2d', display_name: 'Leo · 利奥', kind: '2d', theme: 'amber', tagline: '活泼开朗，总能带动谈话气氛。', description: '棕色卷发 · 小雀斑 · 黄色连帽衫', greeting: 'Hey there! 分享一件今天的趣事吧。' },
 ]
 
 // 缺省声音表：voice_style（声音名小写）→ 渠道 voice，覆盖美/英/澳口音；
