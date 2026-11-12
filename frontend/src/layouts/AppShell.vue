@@ -53,7 +53,7 @@
             @click="menuOpen = !menuOpen"
           > <!-- 点击账户卡片弹出上方浮层菜单 -->
             <template v-if="session.user">
-              <div class="avatar">{{ session.user?.username?.slice(0, 1)?.toUpperCase() }}</div> <!-- 头像取用户名首字母大写 -->
+              <UserAvatar :user="session.user" /> <!-- 有自定义头像显示图片，否则用户名首字母 -->
               <div class="account-name"><b>{{ session.user?.username }}</b></div>
             </template>
             <template v-else>
@@ -65,9 +65,8 @@
           <transition name="pop">
             <div v-if="menuOpen" class="account-popover" role="menu">
               <template v-if="session.user">
-                <button class="popover-item" type="button" disabled>
+                <button class="popover-item" type="button" role="menuitem" @click="openSettings">
                   <AppIcon name="settings" :size="14" />设置
-                  <small class="nav-tag">待开发</small>
                 </button>
                 <div class="popover-divider" aria-hidden="true"></div>
                 <button class="popover-item danger" type="button" role="menuitem" @click="handleLogout">
@@ -103,6 +102,8 @@
       <!-- fullPath 作 key：创建/编辑共用 SceneEditor，路由切换时强制重新挂载以重新加载数据 -->
       <router-view :key="route.fullPath" />
     </section>
+
+    <SettingsDialog v-if="settingsOpen" @close="settingsOpen = false" />
   </main>
 </template>
 
@@ -110,9 +111,12 @@
 import { onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import AppIcon from '../components/AppIcon.vue'
+import UserAvatar from '../components/UserAvatar.vue'
+import SettingsDialog from '../components/settings/SettingsDialog.vue'
 import brandImage from '../assets/echotalk-brand.png'
 import { logout } from '../api/auth'
 import { clearSession, session } from '../auth/session'
+import { sidebarHidden } from '../app/prefs'
 
 // 导航结构对齐设计稿 14.2：三大类 + 模块子项；未接入模块路由到统一的规划中占位页。
 const navGroups = [
@@ -151,13 +155,11 @@ const router = useRouter()
 const isMac = window.electronAPI?.platform === 'darwin' // macOS 保留红绿灯顶行，其余平台折叠按钮并入品牌行
 const error = ref('') // 退出失败时的错误提示
 const menuOpen = ref(false) // 账户浮层菜单开关
-const SIDEBAR_PREF_KEY = 'echotalk:sidebar-collapsed' // localStorage 偏好键
-const sidebarHidden = ref(localStorage.getItem(SIDEBAR_PREF_KEY) === '1') // 初始状态沿用上次偏好
+const settingsOpen = ref(false) // 设置弹窗开关
 
 function toggleSidebar() {
-  // 显示/隐藏整个侧边栏，并记住用户偏好。
+  // 显示/隐藏整个侧边栏：偏好由 app/prefs 统一持久化，设置弹窗里改同一份状态。
   sidebarHidden.value = !sidebarHidden.value
-  localStorage.setItem(SIDEBAR_PREF_KEY, sidebarHidden.value ? '1' : '0')
 }
 
 function handleShortcut(event) {
@@ -177,6 +179,12 @@ function goLogin() {
   router.push({ name: 'login' })
 }
 
+function openSettings() {
+  // 账户菜单 → 设置弹窗（遮罩 + 左侧分类）。
+  menuOpen.value = false
+  settingsOpen.value = true
+}
+
 async function handleLogout() {
   // 后端先撤销令牌；成功后回到登录页切换或重新登录。
   menuOpen.value = false
@@ -184,7 +192,7 @@ async function handleLogout() {
   try {
     await logout() // 令牌由 http.js 自动附加
   } catch (requestError) {
-    error.value = requestError.message || '退出服务暂不可用，请检查后端连接后重试。' // 撤销失败保留登录态，让用户重试
+    error.value = requestError.message || '暂时无法退出，请检查网络后重试。' // 撤销失败保留登录态，让用户重试
     return
   }
   clearSession() // 清空内存与 localStorage

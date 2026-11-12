@@ -15,9 +15,17 @@ class UserResponse(BaseModel):
 
     id: int  # 用户 ID
     username: str  # 用户名
+    avatar_path: str | None = None  # 头像相对路径；为空时前端用用户名首字母兜底
     created_at: datetime  # 注册时间（UTC）
 
     model_config = {"from_attributes": True}  # 允许直接从 ORM 对象读取同名字段
+
+
+class PasswordChange(BaseModel):
+    """修改密码请求体：新密码规则与注册一致（8~128 字符）。"""
+
+    current_password: str = Field(min_length=1, max_length=128)  # 当前密码：仅校验，不复用注册的长度下限（历史账户可能更短）
+    new_password: str = Field(min_length=8, max_length=128)  # 新密码：8~128 字符
 
 
 class AuthResponse(BaseModel):

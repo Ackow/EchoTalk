@@ -224,7 +224,7 @@ async function load() {
     stats.value = data.stats || stats.value
     if (page.value > totalPages.value) page.value = totalPages.value // 删除/筛选后页码越界时回退
   } catch (err) {
-    error.value = err.message || '请检查后端服务后重试。'
+    error.value = err.message || '加载失败，请稍后重试。'
     items.value = []
   } finally {
     loading.value = false

@@ -186,6 +186,8 @@ html[data-platform="darwin"] .sidebar-hidden .content-header { padding-left: 80p
 .account-trigger { border: 1px solid #ece8f5; border-bottom: 3px solid #e7e1f2; border-radius: 14px; background: #f9f7fe; }
 .account-trigger:hover { background: #f1edfb; }
 .account-trigger .avatar { background: #fff; color: #775dc9; }
+/* 账户卡头像（UserAvatar 组件）：尺寸交给样式表，随窗口高度两档压缩 */
+.account-trigger .user-avatar { width: 32px; height: 32px; flex-basis: 32px; font-size: 13.5px; }
 .collapse-toggle { border-radius: 9px; color: #918ba6; }
 .collapse-toggle:hover { background: #f2eefb; color: #6d57bb; }
 .content-header { background: #fff; border-bottom-color: #efedf5; }
@@ -271,6 +273,7 @@ html[data-platform="darwin"] .sidebar-hidden .content-header { padding-left: 80p
   .account-wrap { margin-top: 6px; }
   .account-trigger { padding: 5px 9px; gap: 8px; }
   .account-trigger .avatar { width: 24px; height: 24px; flex-basis: 24px; font-size: 12px; }
+  .account-trigger .user-avatar { width: 24px; height: 24px; flex-basis: 24px; font-size: 12px; }
   .account-name { font-size: 12.5px; }
   .sidebar-inner { padding-bottom: 8px; }
 }

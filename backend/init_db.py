@@ -41,9 +41,26 @@ def migrate_avatar_preferences() -> None:
         print("avatar_preferences 已迁移：主键扩为 (user_id, scene_id)，支持按场景档存偏好。")
 
 
+def migrate_user_avatar() -> None:
+    """用户表迁移：新增 avatar_path（头像相对路径），NULL 表示未设置。幂等。"""
+    from sqlalchemy import text
+
+    with engine.connect() as conn:
+        exists = conn.execute(text(
+            "SELECT COUNT(*) FROM information_schema.COLUMNS "
+            "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users' AND COLUMN_NAME = 'avatar_path'"
+        )).scalar()
+        if exists:
+            return  # 已迁移
+        conn.execute(text("ALTER TABLE users ADD COLUMN avatar_path VARCHAR(128) NULL AFTER password_hash"))
+        conn.commit()
+        print("users 已迁移：新增 avatar_path，支持用户头像。")
+
+
 if __name__ == "__main__":
     Base.metadata.create_all(bind=engine)
     migrate_avatar_preferences()
+    migrate_user_avatar()
 
     from app.scenes.registry import sync_seeds
 

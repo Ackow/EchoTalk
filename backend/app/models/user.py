@@ -13,6 +13,7 @@ class User(Base):
     id = Column(Integer, primary_key=True)  # 主键：用户唯一 ID，自增
     username = Column(String(50), unique=True, nullable=False, index=True)  # 用户名：3~50 字符，唯一、必填、有索引
     password_hash = Column(String(256), nullable=False)  # 密码摘要：PBKDF2-SHA256 的 salt$digest，必填
+    avatar_path = Column(String(128))  # 头像相对路径：users/{id}/avatar-<随机串>.<ext>，NULL 表示未设置（用首字母兜底）
     created_at = Column(DateTime, default=utcnow, nullable=False)  # 注册时间：UTC，插入时自动填充
 
 

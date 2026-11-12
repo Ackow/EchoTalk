@@ -20,7 +20,7 @@ http.interceptors.request.use((config) => {
 // 把各类失败统一转换为带可读 message 的 Error，组件里直接展示 err.message。
 async function toFriendlyError(error) {
   if (!error.response) {
-    return new Error('无法连接服务器，请检查网络或后端是否启动。') // 网络层失败：离线提示
+    return new Error('无法连接服务器，请检查网络后重试。') // 网络层失败：离线提示
   }
   let body = error.response.data || {}
   // 音频接口使用 responseType=blob，失败时后端 JSON 也会被包装为 Blob。
