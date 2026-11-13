@@ -2,18 +2,11 @@
   <section class="practice-page">
     <div v-if="phase === 'select' && !resuming" class="page-scroll">
       <div class="pick-toolbar">
-        <div class="seg-filter" role="tablist" aria-label="场景分类筛选">
-          <button
-            v-for="cat in pickCategories" :key="cat.key"
-            type="button" role="tab"
-            class="seg-item"
-            :class="{ active: pickCategory === cat.key }"
-            :aria-selected="pickCategory === cat.key"
-            @click="pickCategory = cat.key"
-          >
-            {{ cat.label }}<span class="seg-count">{{ countFor(cat.key) }}</span>
-          </button>
-        </div>
+        <AppTabs
+          v-model="pickCategory"
+          :options="pickCategories.map((c) => ({ value: c.key, label: c.label, count: countFor(c.key) }))"
+          aria-label="场景分类筛选"
+        />
         <div class="toolbar-right">
           <label class="search-box">
             <AppIcon name="search" :size="14" />
@@ -119,11 +112,6 @@
             <span v-else class="rail-stage is-open">
               <AppIcon name="chart-line" :size="12" /><small>阶段</small><b>开放交流</b>
             </span>
-            <span v-if="stateInfo.goals?.length" class="rail-goal">
-              <small>目标</small>
-              <progress :value="completedGoals" :max="stateInfo.goals.length" aria-label="训练目标完成进度"></progress>
-              <b>{{ completedGoals }} / {{ stateInfo.goals.length }}</b>
-            </span>
             <div v-if="stateRows.length" class="rail-state">
               <button ref="stateButton" class="rail-state-button" type="button" title="场景状态" :aria-expanded="stateOpen" @click="toggleStatePop">
                 <AppIcon name="eye" :size="12" />状态<AppIcon name="chevron-down" :size="12" :class="{ flip: stateOpen }" />
@@ -185,12 +173,25 @@
                 </div>
                 <button class="icon-button" type="button" :disabled="voiceStatus === 'transcribing'" title="取消录音" @click="cancelRecording"><AppIcon name="x" :size="15" /></button>
               </div>
-              <!-- 待机：纯居中构图，模式切换下沉到 foot 行 -->
+              <!-- 待机：录音区合并为单一整块触发按钮，右侧独立放置文字模式切换 -->
               <div v-else class="composer voice-bar idle">
-                <button class="mic-orb" type="button" :disabled="sending || finished || asrAvailable === false || !recordingSupported" :title="voiceCtaText" aria-label="开始语音输入" @click="startRecording"><AppIcon name="mic" :size="17" /><i class="orb-ring" aria-hidden="true"></i></button>
-                <button class="voice-bar-info" type="button" :disabled="sending || finished || asrAvailable === false || !recordingSupported" @click="startRecording"><b>{{ voiceCtaText }}</b></button>
+                <button
+                  class="voice-trigger"
+                  type="button"
+                  :disabled="sending || finished || asrAvailable === false || !recordingSupported"
+                  :title="voiceCtaText"
+                  aria-label="开始语音输入"
+                  @click="startRecording"
+                >
+                  <span class="mic-orb" aria-hidden="true"><AppIcon name="mic" :size="17" /><i class="orb-ring"></i></span>
+                  <span class="voice-bar-info">
+                    <b>{{ voiceCtaText }}</b>
+                    <span>{{ voiceHintText }}</span>
+                  </span>
+                </button>
+                <button class="foot-toggle in-bar" type="button" :disabled="voiceBusy" @click="toggleInputMode"><AppIcon name="pencil" :size="13" />文字输入</button>
               </div>
-              <div class="composer-foot">
+              <div v-if="voiceBusy || transcribedText" class="composer-foot">
                 <span>{{ voiceHintText }}</span>
                 <button class="foot-toggle" type="button" :disabled="voiceBusy" @click="toggleInputMode"><AppIcon name="pencil" :size="12" />改用文字输入</button>
               </div>
@@ -217,7 +218,21 @@
             <div class="companion-identity"><b>{{ activeRole?.display_name || '交流伙伴' }}</b><span>{{ activeRole?.title || '英语练习伙伴' }}</span></div>
             <div class="companion-meta">
               <label class="autoplay-control"><input v-model="autoPlayReplies" type="checkbox" @change="saveAutoPlayPreference" />自动播放</label>
-              <span class="voice-summary" :title="`${selectedVoiceLabel} · ${speechRate.toFixed(2)}×`"><AppIcon name="volume" :size="12" />{{ selectedVoiceLabel }} · {{ speechRate.toFixed(2) }}×</span>
+              <span class="voice-summary" :title="selectedVoiceLabel"><AppIcon name="volume" :size="12" />{{ selectedVoiceLabel }}</span>
+            </div>
+            <div class="companion-rate">
+              <span class="rate-label">语速</span>
+              <input
+                v-model.number="speechRate"
+                type="range"
+                min="0.75"
+                max="1.25"
+                step="0.05"
+                class="rate-slider"
+                aria-label="语速调节"
+                @change="saveSpeechRatePreference"
+              />
+              <span class="rate-value">{{ speechRate.toFixed(2) }}×</span>
             </div>
           </section>
 
@@ -283,9 +298,10 @@
 </template>
 
 <script setup>
-import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import AppIcon from '../components/AppIcon.vue'
+import AppTabs from '../components/AppTabs.vue'
 import AvatarStage from '../components/avatar/AvatarStage.vue'
 import PracticeKnowledge from '../components/practice/PracticeKnowledge.vue'
 import SceneCover from '../components/scene/SceneCover.vue'
@@ -294,7 +310,8 @@ import { createSession, getSession, getLatestSession, getGreetingAudio, getTurnA
 import { loadingVisible, usePageLoading } from '../app/loading'
 import { getSpeechStatus } from '../api/speech'
 import { useVoiceInput } from '../composables/useVoiceInput'
-import { FALLBACK_AVATARS, FALLBACK_VOICES, getAvatarPreference, VOICE_STYLE_ALIASES } from '../api/avatar'
+import { FALLBACK_AVATARS, FALLBACK_VOICES, getAvatarPreference, listAvatars, saveAvatarPreference, VOICE_STYLE_ALIASES } from '../api/avatar'
+import { resolveRoleVoiceStyle } from '../components/avatar/avatarAppearance'
 import { session } from '../auth/session'
 
 const CATEGORY_LABELS = { daily: '日常', interview: '面试', career: '职业', academic: '学术', custom: '自定义', travel: '旅行', business: '商务', campus: '校园', debate: '辩论' }
@@ -387,6 +404,25 @@ function saveAutoPlayPreference() {
   if (!autoPlayReplies.value) stopAudio()
 }
 
+async function saveSpeechRatePreference() {
+  const rate = Math.min(1.25, Math.max(0.75, Number(speechRate.value) || 1))
+  speechRate.value = rate
+  if (currentAudio) currentAudio.playbackRate = rate
+  if (!session.token) return
+  try {
+    await saveAvatarPreference({
+      scene_id: sessionInfo.value?.scene_id || undefined,
+      avatar_id: companionAvatarId.value || undefined,
+      voice_style: voiceStyle.value || undefined,
+      speech_rate: rate,
+    })
+  } catch { /* 离线或未授权时仅保留当前会话语速 */ }
+}
+
+watch(speechRate, (rate) => {
+  if (currentAudio) currentAudio.playbackRate = rate
+})
+
 const stateInfo = computed(() => sessionInfo.value?.state || {})
 const finished = computed(() => stateInfo.value.status === 'finished')
 const finishText = computed(() => FINISH_REASONS[stateInfo.value.finish_reason] || '本次练习已结束。')
@@ -434,10 +470,15 @@ const stateRows = computed(() =>
     .filter(([key, value]) => STATE_LABELS[key] && ['string', 'number', 'boolean'].includes(typeof value))
     .map(([key, value]) => ({ key: STATE_LABELS[key], value: typeof value === 'boolean' ? (value ? '已确认' : '待确认') : String(value) }))
 )
-// 伙伴形象：优先用户场景档偏好，其次缺省清单首个
+const avatarsList = ref([...FALLBACK_AVATARS])
+// 伙伴形象：优先用户场景档偏好，其次当前场景角色推荐（含自定义外观），最后缺省清单首个
 const companionAvatar = computed(() => {
-  const id = companionAvatarId.value
-  return FALLBACK_AVATARS.find((a) => a.id === id) || FALLBACK_AVATARS[0]
+  const id = companionAvatarId.value || activeRole.value?.avatar
+  const base = avatarsList.value.find((a) => a.id === id) || avatarsList.value[0] || FALLBACK_AVATARS[0]
+  if (!companionAvatarId.value && activeRole.value?.appearance) {
+    return { ...base, appearance: activeRole.value.appearance }
+  }
+  return base
 })
 const companionAvatarId = ref(null)
 
@@ -498,7 +539,15 @@ async function scrollToBottom() {
 
 // ---- 场景选择与会话创建 -----------------------------------------------------
 
+async function loadCustomAvatars() {
+  try {
+    const list = await listAvatars()
+    if (Array.isArray(list) && list.length) avatarsList.value = list
+  } catch { /* 回退本地清单 */ }
+}
+
 onMounted(async () => {
+  void loadCustomAvatars()
   getSpeechStatus().then(({ data }) => { asrAvailable.value = data.configured }).catch(() => {})
   // 历史记录入口：会话详情与场景列表并行拉取，过渡态不必串行等两次往返
   const resumeId = route.query.session
@@ -569,8 +618,8 @@ async function startScene(scene, existingId = null) {
       getAvatarPreference(scene.id),
     ])
     if (generation !== sessionGeneration) return
-    applyVoicePreference(preference)
     sceneMeta.value = { ...detailRes.data, package: sessionRes.data.scene_display || detailRes.data.package }
+    applyVoicePreference(preference, activeRole.value?.voice)
     sessionInfo.value = sessionRes.data
     messages.value = []
     const greetingMessage = sessionRes.data.greeting ? pushMessage('agent', sessionRes.data.greeting) : null
@@ -600,8 +649,8 @@ function confirmStart() {
   if (confirmScene.value) startScene(confirmScene.value)
 }
 
-function applyVoicePreference(pref) {
-  voiceStyle.value = 'emma'
+function applyVoicePreference(pref, roleVoice) {
+  voiceStyle.value = resolveRoleVoiceStyle(roleVoice, FALLBACK_VOICES.map((v) => v.style))
   speechRate.value = 1
   companionAvatarId.value = pref?.avatar_id || null
   const style = VOICE_STYLE_ALIASES[pref?.voice_style] || pref?.voice_style
@@ -718,18 +767,20 @@ async function playMessage(msg, { automatic = false } = {}) {
   const generation = playbackGeneration
   ttsBusyKey.value = msg.key
   try {
-    const cacheKey = JSON.stringify([msg.key, voiceStyle.value, speechRate.value])
+    const cacheKey = JSON.stringify([msg.key, voiceStyle.value])
     let blob = audioCache.get(cacheKey)
     if (!blob) {
       blob = msg.greetingSessionId
-        ? await getGreetingAudio(msg.greetingSessionId, voiceStyle.value, speechRate.value)
-        : await getTurnAudio(msg.sessionId, msg.turnId, voiceStyle.value, speechRate.value)
+        ? await getGreetingAudio(msg.greetingSessionId, voiceStyle.value, 1)
+        : await getTurnAudio(msg.sessionId, msg.turnId, voiceStyle.value, 1)
       if (generation !== playbackGeneration) return
       audioCache.set(cacheKey, blob)
     }
     if (generation !== playbackGeneration) return
     const url = URL.createObjectURL(blob)
     currentAudio = new Audio(url)
+    currentAudio.preservesPitch = true
+    currentAudio.playbackRate = speechRate.value
     currentAudio.ontimeupdate = () => { playbackTime.value = currentAudio?.currentTime || 0 }
     currentAudio.onloadedmetadata = () => {
       playbackDuration.value = Number.isFinite(currentAudio?.duration) ? currentAudio.duration : 0
@@ -777,16 +828,22 @@ onBeforeUnmount(() => { sessionGeneration += 1; stopAudio(); clearAudioCache() }
 .mic-input-button { display: none; } /* 已被语音优先布局取代，保留类名防止外部引用报错 */
 /* 语音优先：单行紧凑条（42px 圆形麦克风 + 信息列 + 右侧操作） */
 .voice-bar { position: relative; align-items: center; gap: 12px; min-height: 62px; }
-/* 待机态：麦克风按钮组水平居中（模式切换已下沉到 foot 行） */
-.voice-bar.idle { justify-content: center; }
-.voice-bar.idle .voice-bar-info { flex: 0 1 auto; } /* 取消 flex:1 拉伸，居中才有可分配空隙 */
+/* 待机态：左整块语音触发按钮，右文字模式切换，布局更饱满 */
+.voice-bar.idle { justify-content: space-between; padding: 8px 12px 8px 8px; }
+.voice-trigger { display: flex; align-items: center; gap: 12px; flex: 1; min-width: 0; padding: 4px 10px 4px 4px; border: 0; border-radius: 13px; background: transparent; text-align: left; transition: background .15s; }
+.voice-trigger:hover:not(:disabled) { background: #f6f2ff; }
+.voice-trigger:hover:not(:disabled) .mic-orb { background: #7d64d1; transform: translateY(-1px) scale(1.03); }
+.voice-trigger:active:not(:disabled) .mic-orb { transform: translateY(1px) scale(.97); border-bottom-width: 2px; }
+.voice-trigger:hover:not(:disabled) .voice-bar-info b { color: #5b43b0; }
+.voice-trigger:disabled { opacity: .65; cursor: not-allowed; }
+.voice-trigger:disabled .mic-orb { background: #c9cbea; border-color: #b8badc; border-bottom-color: #a6a9cd; }
 .voice-bar.live { border-color: #e0d8f5; background: #faf8ff; }
-.mic-orb { position: relative; display: grid; place-items: center; width: 42px; height: 42px; flex: 0 0 42px; border: 0; border-radius: 50%; background: var(--brand); color: #fff; transition: background .15s, transform .15s; }
-.mic-orb:hover:not(:disabled) { background: var(--brand-deep); transform: scale(1.04); }
-.mic-orb:active:not(:disabled) { transform: scale(.95); }
-.mic-orb:disabled { background: #c9cbea; cursor: not-allowed; }
-.mic-orb.stop { background: var(--danger); }
-.mic-orb.static { background: #e3e2f4; color: var(--brand-deep); animation: spin 1s linear infinite; }
+.mic-orb { position: relative; display: grid; place-items: center; width: 44px; height: 44px; flex: 0 0 44px; border: 2px solid #7358c8; border-bottom: 4px solid #593ea8; border-radius: 50%; background: #8b73dd; color: #fff; box-shadow: inset 0 2px 0 rgba(255, 255, 255, .25); transition: background .15s, transform .12s; }
+.mic-orb:hover:not(:disabled) { background: #7d64d1; transform: translateY(-1px) scale(1.03); }
+.mic-orb:active:not(:disabled) { transform: translateY(1px) scale(.97); border-bottom-width: 2px; }
+.mic-orb:disabled { background: #c9cbea; border-color: #b8badc; border-bottom-color: #a6a9cd; cursor: not-allowed; }
+.mic-orb.stop { background: var(--danger); border-color: #a13a4b; border-bottom-color: #842b3a; }
+.mic-orb.static { background: #e3e2f4; border: 0; color: var(--brand-deep); animation: spin 1s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 .orb-ring { position: absolute; inset: -5px; border: 1.5px solid rgba(98, 101, 232, .3); border-radius: 50%; animation: orb-breathe 2.2s ease-in-out infinite; }
 @keyframes orb-breathe { 50% { transform: scale(1.14); opacity: .35; } }
@@ -803,10 +860,12 @@ button.voice-bar-info:disabled { opacity: .65; cursor: not-allowed; }
 .icon-button { display: grid; place-items: center; width: 32px; height: 32px; flex: 0 0 32px; border: 0; border-radius: 8px; background: transparent; color: var(--muted); transition: background .15s, color .15s; }
 .icon-button:hover:not(:disabled) { background: #f0f1f6; color: var(--ink); }
 .icon-button:disabled { opacity: .45; }
-/* foot 行右侧的模式切换小按钮（语音条本体保持纯居中，不再放图标钮） */
-.foot-toggle { display: inline-flex; align-items: center; gap: 4px; padding: 2px 4px; border: 0; background: transparent; color: var(--muted); font-size: 11.5px; transition: color .15s; }
+/* foot 行右侧的模式切换小按钮 */
+.foot-toggle { display: inline-flex; align-items: center; gap: 5px; padding: 2px 4px; border: 0; background: transparent; color: #7c7693; font-size: 12px; font-weight: 600; transition: color .15s, background .15s, border-color .15s; }
 .foot-toggle:hover:not(:disabled) { color: var(--ink); }
 .foot-toggle:disabled { opacity: .5; }
+.foot-toggle.in-bar { height: 34px; padding: 0 12px; border: 1.5px solid #e7e1f5; border-bottom: 3px solid #dcd3f0; border-radius: 11px; background: #faf8ff; color: #694ec0; font-weight: 700; white-space: nowrap; }
+.foot-toggle.in-bar:hover:not(:disabled) { border-color: #c9bdf0; background: #f2ecff; color: #583eb0; }
 /* 转写结果确认：绿色浅底，文本限三行，操作右对齐 */
 .voice-result { flex-direction: column; align-items: stretch; gap: 8px; border-color: #d9e8de; background: #f4faf6; }
 .voice-result-text { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; margin: 0; color: var(--ink); font-size: 14.5px; line-height: 1.7; white-space: pre-wrap; overflow-wrap: anywhere; }
@@ -894,42 +953,44 @@ button:focus-visible, a:focus-visible, summary:focus-visible { outline: 2px soli
 .modal-facts span { color: var(--muted); }
 .modal-facts b { font-weight: 500; }
 .modal-actions { display: flex; justify-content: flex-end; gap: 8px; }
-.confirm-button { display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 15px; border: 0; border-radius: 8px; background: var(--brand); color: #fff; font-size: 13.5px; font-weight: 500; transition: background .15s; }
-.confirm-button:hover:not(:disabled) { background: var(--brand-deep); }
+.confirm-button { display: inline-flex; align-items: center; gap: 6px; height: 38px; padding: 0 16px; border: 1.5px solid #7960cc; border-bottom: 4px solid #6349b4; border-radius: 12px; background: #8b73dd; color: #fff; font-size: 13.5px; font-weight: 700; transition: background .15s, transform .12s; }
+.confirm-button:hover:not(:disabled) { background: #7d64d1; transform: translateY(-1px); }
+.confirm-button:active:not(:disabled) { transform: translateY(1px); border-bottom-width: 2px; }
 .confirm-button:disabled { opacity: .6; }
 @keyframes fade-in { from { opacity: 0; } }
 @keyframes pop-in { from { opacity: 0; transform: translateY(8px) scale(.97); } }
-.ghost-button, .exit-button { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; gap: 7px; min-height: 34px; padding: 0 12px; border: 1px solid var(--line); border-radius: 8px; background: white; color: var(--ink-soft); font-size: 13px; text-decoration: none; }
-.ghost-button:hover { border-color: #c9cbea; color: var(--brand-deep); }
-.exit-button { color: #9d5865; background: #fff8f8; border-color: #f0dfe3; }
-.exit-button:hover { background: #fbeef1; } button:disabled { opacity: .5; }
+.ghost-button, .exit-button { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; gap: 7px; min-height: 36px; padding: 0 13px; border: 1.5px solid #e7e1f5; border-bottom: 3px solid #dcd3f0; border-radius: 12px; background: white; color: #5b5572; font-size: 13px; font-weight: 650; text-decoration: none; transition: border-color .15s, background .15s, color .15s, transform .12s; }
+.ghost-button:hover { border-color: #c9bdf0; background: #f8f5ff; color: #5b43b0; }
+.exit-button { color: #a14959; background: #fff7f8; border-color: #f0dfe3; border-bottom-color: #e5ccd2; }
+.exit-button:hover { background: #fdeff1; border-color: #e5c3cb; } button:disabled { opacity: .5; }
 /* 页面内只滚动消息与辅助栏，输入始终可见。 */
 .chat-page { display: flex; flex-direction: column; flex: 1; min-height: 0; padding: 0 24px 22px; }
 .session-toolbar { display: flex; align-items: center; gap: 12px; flex: 0 0 auto; min-height: 72px; padding: 12px 0; }
-.back-button { display: grid; place-items: center; width: 32px; height: 32px; flex-shrink: 0; background: white; border: 1px solid var(--line); border-radius: 8px; color: var(--muted); }
-.session-heading { min-width: 0; flex: 1; }.session-heading h2 { margin: 0; font-size: 18px; font-weight: 600; line-height: 1.5; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }.session-heading p { margin: 3px 0 0; color: var(--muted); font-size: 12.5px; }.session-heading p span { margin: 0 8px; }
+.back-button { display: grid; place-items: center; width: 36px; height: 36px; flex-shrink: 0; background: white; border: 1.5px solid #e7e1f5; border-bottom: 3px solid #dcd3f0; border-radius: 11px; color: #6e6886; transition: border-color .15s, background .15s, color .15s, transform .12s; }
+.back-button:hover { border-color: #c9bdf0; background: #f8f5ff; color: #5b43b0; }
+.session-heading { min-width: 0; flex: 1; }.session-heading h2 { margin: 0; color: #2d294b; font-size: 18px; font-weight: 800; line-height: 1.5; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }.session-heading p { margin: 3px 0 0; color: #7c7693; font-size: 12.5px; }.session-heading p span { margin: 0 8px; }
 .chat-layout { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 264px; gap: 16px; }
 .chat-card { display: flex; flex-direction: column; min-width: 0; min-height: 0; background: white; border: 1px solid var(--line); border-radius: 14px; overflow: hidden; }
 .chat-head { display: flex; align-items: center; gap: 10px; padding: 14px 20px; border-bottom: 1px solid var(--line); flex-shrink: 0; }
-.role-avatar { display: grid; place-items: center; flex: 0 0 36px; width: 36px; height: 36px; border-radius: 12px; background: var(--brand-soft); color: var(--brand); font-size: 14px; font-weight: 600; }
-.role-info { flex: 1; min-width: 0; }.role-info b { display: block; font-size: 14px; font-weight: 600; }.role-status { display: flex; align-items: center; gap: 5px; margin-top: 4px; color: var(--muted); font-size: 12px; }.status-dot { width: 5px; height: 5px; border-radius: 50%; background: #78a993; }.status-dot.busy { background: var(--brand); }
-.text-toggle { display: inline-flex; align-items: center; gap: 5px; border: 1px solid #e6e7f0; border-radius: 16px; padding: 6px 10px; background: #fafaff; color: var(--muted); font-size: 12px; }.text-toggle[aria-pressed="true"] { color: var(--brand); background: #f1f0ff; border-color: #dedcff; }
-/* 顶部信息条：阶段 / 目标进度 / 场景状态，横向一条读完，不占右栏高度 */
+.role-avatar { display: grid; place-items: center; flex: 0 0 36px; width: 36px; height: 36px; border-radius: 12px; background: #eee9ff; color: #694ec0; font-size: 14px; font-weight: 750; }
+.role-info { flex: 1; min-width: 0; }.role-info b { display: block; color: #2d294b; font-size: 14px; font-weight: 750; }.role-status { display: flex; align-items: center; gap: 5px; margin-top: 4px; color: #7c7693; font-size: 12px; }.status-dot { width: 6px; height: 6px; border-radius: 50%; background: #48b884; }.status-dot.busy { background: #8b73dd; }
+.text-toggle { display: inline-flex; align-items: center; gap: 5px; border: 1.5px solid #e6e3f2; border-bottom: 3px solid #dad4ec; border-radius: 999px; padding: 6px 11px; background: #faf9ff; color: #6b6485; font-size: 12px; font-weight: 650; transition: border-color .15s, background .15s, color .15s; }.text-toggle:hover { border-color: #c9bdf0; color: #5b43b0; }.text-toggle[aria-pressed="true"] { color: #694ec0; background: #eee9ff; border-color: #cfc1f1; border-bottom-color: #bfb0ea; }
+/* 顶部信息条：阶段 / 场景状态，横向一条读完，不占右栏高度 */
 .progress-rail { display: flex; align-items: center; gap: 9px; flex-shrink: 0; padding: 8px 18px; border-bottom: 1px solid #f1eef8; background: #fbfaff; }
-.rail-stage { display: inline-flex; align-items: center; gap: 6px; min-width: 0; height: 26px; padding: 0 10px; border: 1px solid #e8e3f6; border-radius: 999px; background: #fff; color: #6a56ae; font-size: 12px; }
-.rail-stage small { flex-shrink: 0; color: #9a94b4; font-size: 11px; white-space: nowrap; }
-.rail-stage b { overflow: hidden; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
-.rail-stage em { flex-shrink: 0; padding-left: 8px; border-left: 1px solid #ece8f8; color: #9a94b4; font-size: 11px; font-style: normal; font-variant-numeric: tabular-nums; }
-.rail-stage.is-open { color: #8b85a6; }
+.rail-stage { display: inline-flex; align-items: center; gap: 6px; min-width: 0; height: 28px; padding: 0 11px; border: 1.5px solid #e7e1f5; border-radius: 999px; background: #fff; color: #5b43b0; font-size: 12px; }
+.rail-stage small { flex-shrink: 0; color: #7c7693; font-size: 11px; white-space: nowrap; }
+.rail-stage b { overflow: hidden; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+.rail-stage em { flex-shrink: 0; padding-left: 8px; border-left: 1px solid #ece8f8; color: #7c7693; font-size: 11px; font-style: normal; font-variant-numeric: tabular-nums; }
+.rail-stage.is-open { color: #7c7693; }
 .rail-goal { display: inline-flex; align-items: center; gap: 7px; min-width: 0; margin-left: auto; color: #9a94b4; font-size: 11px; white-space: nowrap; }
 .rail-goal b { color: #6d6590; font-size: 11.5px; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .rail-goal progress { width: 60px; height: 5px; border: 0; border-radius: 999px; overflow: hidden; appearance: none; background: #ece9f7; }
 .rail-goal progress::-webkit-progress-bar { background: #ece9f7; }
 .rail-goal progress::-webkit-progress-value { border-radius: 999px; background: #9b8ce0; }
 .rail-goal progress::-moz-progress-bar { border-radius: 999px; background: #9b8ce0; }
-.rail-state { flex-shrink: 0; }
-.rail-state-button { display: inline-flex; align-items: center; gap: 5px; height: 26px; padding: 0 9px; border: 1px solid #e8e3f6; border-radius: 999px; background: #fff; color: #7d779a; font-size: 11.5px; transition: border-color .15s, color .15s; }
-.rail-state-button:hover { border-color: #d5ccef; color: #6a56ae; }
+.rail-state { flex-shrink: 0; margin-left: auto; }
+.rail-state-button { display: inline-flex; align-items: center; gap: 5px; height: 28px; padding: 0 11px; border: 1.5px solid #e7e1f5; border-bottom: 3px solid #dcd3f0; border-radius: 999px; background: #fff; color: #6b6485; font-size: 12px; font-weight: 600; transition: border-color .15s, color .15s; }
+.rail-state-button:hover { border-color: #c9bdf0; color: #5b43b0; }
 .rail-state-button svg:last-child { transition: transform .15s; }
 .rail-state-button .flip { transform: rotate(180deg); }
 .rail-pop-backdrop { position: fixed; inset: 0; z-index: 40; }
@@ -940,66 +1001,69 @@ button:focus-visible, a:focus-visible, summary:focus-visible { outline: 2px soli
 .rail-pop li span { color: var(--muted); }
 .rail-pop li b { font-weight: 600; text-align: right; overflow-wrap: anywhere; }
 .chat-body { flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; padding: 20px 24px 28px; scrollbar-width: thin; background: #f8f9fc; }
-.conversation-start { display: flex; align-items: center; justify-content: center; gap: 12px; margin: 0 0 28px; color: var(--faint); }.conversation-start span { height: 1px; flex: 1; max-width: 60px; background: var(--line); }.conversation-start small { font-size: 12px; text-align: center; }
+.conversation-start { display: flex; align-items: center; justify-content: center; gap: 12px; margin: 0 0 28px; color: #7c7693; }.conversation-start span { height: 1px; flex: 1; max-width: 60px; background: #e6e1f2; }.conversation-start small { font-size: 12px; text-align: center; }
 .msg-row { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 25px; }.msg-row.user { justify-content: flex-end; }.msg-avatar { display: grid; place-items: center; width: 30px; height: 30px; flex: 0 0 30px; margin-top: 21px; border-radius: 10px; background: #f0effa; color: #7771ac; font-size: 12.5px; font-weight: 600; }.msg-avatar.user { background: #e9edf7; color: #6c7a9a; }
-.message-content { display: flex; flex-direction: column; align-items: flex-start; max-width: min(82%, 640px); }.msg-row.user .message-content { align-items: flex-end; }.message-author { margin-bottom: 6px; font-size: 12px; color: var(--muted); }
+.message-content { display: flex; flex-direction: column; align-items: flex-start; max-width: min(82%, 640px); }.msg-row.user .message-content { align-items: flex-end; }.message-author { margin-bottom: 6px; font-size: 12px; color: #7c7693; font-weight: 600; }
 .bubble { padding: 11px 15px; background: white; border: 1px solid #ededf3; border-radius: 4px 15px 15px 15px; }.msg-row.user .bubble { background: #e4e2ff; border-color: #dedbfc; color: #37365e; border-radius: 15px 4px 15px 15px; }.bubble-text { margin: 0; font-size: 14px; line-height: 1.75; white-space: pre-wrap; overflow-wrap: anywhere; }
-/* agent 语音气泡：交互结构沿用 1.0（胶囊常驻+进度条+原文面板），外观对齐 2.0——实色品牌紫、扁平无渐变阴影，与发送按钮/麦克风圆钮同色 */
+/* agent 语音气泡：交互结构沿用 1.0（胶囊常驻+进度条+原文面板），外观对齐 2.0 */
 .bubble-row { display: flex; align-items: center; gap: 10px; }
-.ai-voice-capsule { position: relative; display: flex; align-items: center; gap: 5px; height: 40px; min-width: 120px; max-width: 100%; padding: 0 12px; border: 1px solid #e8e7f0; border-radius: 4px 16px 16px 16px; background: white; color: var(--brand-deep); overflow: hidden; transition: width .2s ease, background .15s, transform .15s; }
+.ai-voice-capsule { position: relative; display: flex; align-items: center; gap: 5px; height: 40px; min-width: 120px; max-width: 100%; padding: 0 12px; border: 1px solid #e8e7f0; border-radius: 4px 16px 16px 16px; background: white; color: #694ec0; overflow: hidden; transition: width .2s ease, background .15s, transform .15s; }
 .ai-voice-capsule:hover:not(:disabled) { background: #f0efff; transform: scale(1.02); }
 .ai-voice-capsule:active:not(:disabled) { transform: scale(.98); }
 .ai-voice-capsule:disabled { opacity: .7; cursor: wait; }
 .ai-voice-capsule.playing { background: white; }
-.capsule-progress { position: absolute; left: 0; bottom: 0; height: 3px; background: #aaa3ef; transition: width .12s linear; }
-.capsule-duration { font-size: 12.5px; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.capsule-progress { position: absolute; left: 0; bottom: 0; height: 3px; background: #8b73dd; transition: width .12s linear; }
+.capsule-duration { font-size: 12.5px; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .voice-wave-icon { flex: 0 0 auto; }
 .spin { animation: spin 1s linear infinite; }
-.original-toggle { display: inline-flex; align-items: center; gap: 4px; padding: 5px 9px; border: 1px solid #e8e8f0; border-radius: 14px; background: #fff; color: #77758d; font-size: 12px; transition: color .15s; white-space: nowrap; }
-.original-toggle:hover { color: var(--brand-deep); border-color: #d2cff1; }
+.original-toggle { display: inline-flex; align-items: center; gap: 4px; padding: 5px 10px; border: 1.5px solid #e6e3f2; border-bottom: 3px solid #dad4ec; border-radius: 999px; background: #fff; color: #6b6485; font-size: 12px; font-weight: 650; transition: color .15s, border-color .15s; white-space: nowrap; }
+.original-toggle:hover { color: #5b43b0; border-color: #c9bdf0; }
 .original-panel { max-width: 100%; margin-top: 7px; padding: 11px 15px; border: 1px solid #ededf3; border-radius: 4px 15px 15px 15px; background: #fff; }
 .panel-enter-active, .panel-leave-active { transition: opacity .18s ease, transform .18s ease; }
 .panel-enter-from, .panel-leave-to { opacity: 0; transform: translateY(-4px); }
 .thinking-message { display: flex; align-items: center; gap: 10px; margin-bottom: 20px; }.thinking-message .msg-avatar { margin-top: 0; }.thinking-message small { color: var(--muted); font-size: 12.5px; }.thinking-dots { display: flex; gap: 4px; padding: 12px; border-radius: 10px; background: var(--bg); }.thinking-dots i { width: 4px; height: 4px; border-radius: 50%; background: var(--brand); }
 .finish-banner { display: flex; align-items: center; gap: 8px; padding: 12px; color: #4a7f63; border-radius: 8px; background: #f1f8f3; font-size: 13.5px; }
 .composer-area { flex-shrink: 0; margin: 0 20px; padding: 13px 0 12px; border-top: 1px solid var(--line); }
-.composer { display: flex; align-items: flex-end; gap: 10px; padding: 10px; border: 1px solid #e6e6f0; border-radius: 11px; background: #fcfcfe; transition: border-color .15s; }.composer:focus-within { border-color: #a9a7e9; }.composer-input { display: block; flex: 1; min-width: 0; min-height: 42px; max-height: 132px; padding: 0 3px; outline: none; border: 0; resize: none; background: transparent; font: inherit; font-size: 14.5px; line-height: 1.7; color: var(--ink); }.composer-input::placeholder { color: var(--faint); }.send-button { display: flex; align-items: center; justify-content: center; gap: 4px; height: 34px; padding: 0 14px; border: 0; border-radius: 8px; color: white; background: var(--brand); font-size: 13px; }.send-button:hover:not(:disabled) { background: var(--brand-deep); }
-.composer-foot { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 7px; margin-top: 9px; color: var(--faint); font-size: 11.5px; }.recording-note { display: flex; align-items: center; gap: 4px; }.keyboard-hint { display: flex; align-items: center; gap: 5px; }.keyboard-hint>span { margin: 0 3px; }kbd { font-family: inherit; font-size: 10.5px; }.chat-error { display: flex; align-items: center; gap: 5px; margin: 0 0 10px; color: var(--danger); font-size: 13px; }
-/* 右栏：伙伴卡吃剩余高度、目标卡按内容收住，整列不再出现滚动条 */
-.chat-side { display: flex; flex-direction: column; gap: 12px; min-height: 0; overflow: hidden; }
+.composer { display: flex; align-items: flex-end; gap: 10px; padding: 10px; border: 1px solid #e6e6f0; border-radius: 11px; background: #fcfcfe; transition: border-color .15s; }.composer:focus-within { border-color: #a9a7e9; }.composer-input { display: block; flex: 1; min-width: 0; min-height: 42px; max-height: 132px; padding: 0 3px; outline: none; border: 0; resize: none; background: transparent; font: inherit; font-size: 14.5px; line-height: 1.7; color: #2d294b; }.composer-input::placeholder { color: #9c96b2; }.send-button { display: flex; align-items: center; justify-content: center; gap: 5px; height: 36px; padding: 0 15px; border: 1.5px solid #7960cc; border-bottom: 4px solid #6349b4; border-radius: 11px; color: white; background: #8b73dd; font-size: 13px; font-weight: 700; transition: background .15s, transform .12s; }.send-button:hover:not(:disabled) { background: #7d64d1; transform: translateY(-1px); }.send-button:active:not(:disabled) { transform: translateY(1px); border-bottom-width: 2px; }
+.composer-foot { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 7px; margin-top: 9px; color: #7c7693; font-size: 11.5px; }.recording-note { display: flex; align-items: center; gap: 4px; }.keyboard-hint { display: flex; align-items: center; gap: 5px; }.keyboard-hint>span { margin: 0 3px; }kbd { font-family: inherit; font-size: 10.5px; }.chat-error { display: flex; align-items: center; gap: 5px; margin: 0 0 10px; color: var(--danger); font-size: 13px; }
+/* 右栏：伙伴舞台固定紧凑高度，目标卡紧随其后自然排布，避免人物上下大面积留白 */
+.chat-side { display: flex; flex-direction: column; gap: 12px; min-height: 0; overflow-y: auto; }
 .companion-card, .support-card { border: 1px solid var(--line); background: white; border-radius: 14px; overflow: hidden; }
-.companion-card { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; padding: 12px; }
+.companion-card { display: flex; flex-direction: column; flex: 0 0 auto; padding: 12px; }
 .side-head { display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; margin-bottom: 9px; }
-h3 { margin: 0; font-size: 13.5px; font-weight: 600; }
-.side-link { color: var(--muted); display: flex; padding: 3px; }
-.companion-stage { display: flex; flex: 1 1 auto; min-height: 104px; }
+h3 { margin: 0; color: #2d294b; font-size: 14px; font-weight: 750; }
+.side-link { color: #7c7693; display: flex; padding: 3px; }
+.companion-stage { display: flex; flex: 0 0 auto; height: 196px; }
 .companion-card :deep(.stage) { width: 100% !important; height: 100%; aspect-ratio: auto; border-radius: 12px; border: 0; background: #f4f2fa; }
-.companion-card :deep(.stage-top) { top: 10px; left: 10px; right: 10px; }
-.companion-card :deep(.edition), .companion-card :deep(.stage-bottom), .companion-card :deep(.spark) { display: none; }
+.companion-card :deep(.stage-top), .companion-card :deep(.edition), .companion-card :deep(.stage-bottom), .companion-card :deep(.spark) { display: none; }
 .companion-card :deep(.character) { left: 17%; width: 66%; height: 93%; }
 .companion-card :deep(.halo) { width: 64%; left: 18%; top: 15%; }
 .companion-identity { display: flex; align-items: baseline; gap: 7px; flex-shrink: 0; margin: 10px 0 9px; }
-.companion-identity b { font-size: 13.5px; font-weight: 650; }
-.companion-identity span { overflow: hidden; color: var(--muted); font-size: 11.5px; text-overflow: ellipsis; white-space: nowrap; }
+.companion-identity b { color: #2d294b; font-size: 14px; font-weight: 750; }
+.companion-identity span { overflow: hidden; color: #7c7693; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
 .companion-meta { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-shrink: 0; padding-top: 8px; border-top: 1px solid #f1eef8; }
-.companion-meta .autoplay-control { display: inline-flex; align-items: center; gap: 5px; margin: 0; color: var(--muted); font-size: 11.5px; white-space: nowrap; }
-.companion-meta .autoplay-control input { width: 13px; height: 13px; }
-.voice-summary { display: inline-flex; align-items: center; gap: 4px; min-width: 0; overflow: hidden; color: var(--muted); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.companion-meta .autoplay-control { display: inline-flex; align-items: center; gap: 5px; margin: 0; color: #6e6886; font-size: 12px; font-weight: 600; white-space: nowrap; }
+.companion-meta .autoplay-control input { width: 13px; height: 13px; accent-color: #8b73dd; }
+.voice-summary { display: inline-flex; align-items: center; gap: 4px; min-width: 0; overflow: hidden; color: #7c7693; font-size: 11.5px; text-overflow: ellipsis; white-space: nowrap; }
+.companion-rate { display: flex; align-items: center; gap: 8px; flex-shrink: 0; margin-top: 8px; padding-top: 8px; border-top: 1px dashed #f1eef8; }
+.rate-label { flex: 0 0 auto; font-size: 11.5px; font-weight: 600; color: #6e6886; }
+.rate-slider { flex: 1; min-width: 0; height: 4px; accent-color: #8b73dd; cursor: pointer; }
+.rate-value { flex: 0 0 auto; min-width: 42px; text-align: right; font-size: 11.5px; font-weight: 700; color: #694ec0; font-variant-numeric: tabular-nums; }
 .voice-settings { border-top: 1px solid var(--line); padding-top: 10px; }summary { cursor: pointer; list-style: none; }summary::-webkit-details-marker { display: none; }.voice-settings summary { display: flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--ink-soft); }.voice-settings summary span { margin-left: auto; font-size: 11.5px; }.voice-controls { display: grid; gap: 8px; padding: 12px 0 1px; }.voice-controls label { color: var(--muted); font-size: 11.5px; }.voice-select { min-width: 0; width: 100%; height: 32px; border: 1px solid var(--line); border-radius: 6px; color: var(--ink-soft); background: white; font-size: 12.5px; }.voice-rate { width: 100%; accent-color: var(--brand); }
 .support-card { display: flex; flex: 0 0 auto; flex-direction: column; }
 .support-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 12px 14px 9px; }
-.support-head span { color: var(--brand); font-size: 11.5px; font-variant-numeric: tabular-nums; }
-.goal-progress { display: block; width: calc(100% - 28px); height: 4px; margin: 0 14px; border: 0; appearance: none; background: #f0eff7; border-radius: 4px; overflow: hidden; accent-color: var(--brand); }.goal-progress::-webkit-progress-bar { background: #f0eff7; }.goal-progress::-webkit-progress-value { background: #8985df; border-radius: 4px; }.goal-progress::-moz-progress-bar { background: #8985df; }
-.goal-list { list-style: none; padding: 3px 14px 0; margin: 0; }.goal-list li { display: flex; gap: 9px; align-items: flex-start; padding: 6px 0; color: var(--ink-soft); font-size: 12.5px; line-height: 1.65; }.goal-number { display: grid; place-items: center; width: 19px; height: 19px; flex: 0 0 19px; border: 1px solid var(--line); border-radius: 50%; color: var(--muted); font-size: 10.5px; }.done .goal-number { color: #4c8a6a; border-color: #dceee1; background: #eff8f2; }.done>span:last-child { color: var(--muted); }
-.goal-list small { display: block; color: var(--muted); font-size: 10.5px; line-height: 1.6; }
-.support-foot { display: flex; align-items: center; gap: 5px; margin: 6px 0 0; padding: 8px 14px 10px; border-top: 1px solid #f5f2fb; color: #a8a3bb; font-size: 10.5px; }
+.support-head span { color: #694ec0; font-size: 12px; font-weight: 750; font-variant-numeric: tabular-nums; }
+.goal-progress { display: block; width: calc(100% - 28px); height: 6px; margin: 0 14px; border: 0; appearance: none; background: #f0eff7; border-radius: 999px; overflow: hidden; accent-color: #8b73dd; }.goal-progress::-webkit-progress-bar { background: #eee9fa; }.goal-progress::-webkit-progress-value { background: #8b73dd; border-radius: 999px; }.goal-progress::-moz-progress-bar { background: #8b73dd; }
+.goal-list { list-style: none; padding: 4px 14px 0; margin: 0; }.goal-list li { display: flex; gap: 9px; align-items: flex-start; padding: 6px 0; color: #3d3857; font-size: 12.5px; line-height: 1.65; }.goal-number { display: grid; place-items: center; width: 20px; height: 20px; flex: 0 0 20px; border: 1.5px solid #e2daf5; border-radius: 50%; color: #7c7693; font-size: 11px; font-weight: 700; }.done .goal-number { color: #2c8a5e; border-color: #bde4cf; background: #e8f8f0; }.done>span:last-child { color: #7c7693; }
+.goal-list small { display: block; color: #7c7693; font-size: 11px; line-height: 1.6; }
+.support-foot { display: flex; align-items: center; gap: 5px; margin: 6px 0 0; padding: 8px 14px 10px; border-top: 1px solid #f5f2fb; color: #7c7693; font-size: 11px; }
 .support-empty { margin: 8px 14px 12px; color: var(--muted); font-size: 12px; line-height: 1.8; }
 .reference-link { display: flex; align-items: center; justify-content: space-between; margin-top: 18px; color: var(--brand); text-decoration: none; font-size: 12.5px; }
 /* 场景知识点（参考 Tab，迁移自 1.0 知识抽屉） */
 @media (min-width: 1550px) { .chat-page { padding: 0 36px 28px; }.chat-layout { grid-template-columns: minmax(0, 1fr) 288px; gap: 22px; }.chat-body { padding: 24px 36px; } }
 @media (max-width: 1100px) { .chat-page { padding: 0 16px 16px; }.chat-layout { grid-template-columns: minmax(0, 1fr) 236px; gap: 12px; }.chat-head { padding: 12px 14px; }.progress-rail { gap: 7px; padding: 7px 14px; }.rail-stage, .rail-state-button { padding: 0 8px; }.rail-stage small { display: none; }.rail-goal progress { width: 40px; }.chat-body { padding: 16px 14px; }.composer-area { margin: 0 14px; }.role-info b { font-size: 13px; } }
-/* 矮窗口：再收一档头像高度与目标行距，保证右栏一屏装下 */
-@media (max-height: 720px) { .session-toolbar { min-height: 64px; padding: 10px 0; }.companion-stage { min-height: 92px; }.companion-identity { margin: 8px 0 7px; }.goal-list li { padding: 5px 0; } }
+/* 矮窗口：收紧头像高度，保证右栏一屏装下 */
+@media (max-height: 720px) { .session-toolbar { min-height: 64px; padding: 10px 0; }.companion-stage { height: 158px; }.companion-identity { margin: 8px 0 7px; }.goal-list li { padding: 5px 0; } }
 @media (max-width: 760px) { .chat-page { overflow: auto; }.chat-layout { display: flex; flex-direction: column; flex: 1 0 auto; }.chat-card { min-height: 520px; height: calc(100dvh - 170px); }.chat-side { display: grid; grid-template-columns: 1fr 1fr; overflow: visible; min-height: auto; }.session-toolbar { flex-wrap: wrap; gap: 8px; padding: 12px 0; }.session-heading h2 { font-size: 14px; }.session-heading { flex-basis: calc(100% - 45px); }.reference-button { margin-left: 40px; }.session-toolbar .exit-button { margin-left: auto; }.page-scroll { padding: 24px 18px; }.keyboard-hint { display: none; } }
 @media (max-width: 480px) { .chat-side { grid-template-columns: 1fr; }.message-content { max-width: 82%; }.bubble { padding: 10px 12px; }.bubble-text { font-size: 14px; }.text-toggle { max-width: 80px; }.role-info b { max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } }
 @media (prefers-reduced-motion: no-preference) { .thinking-dots i { animation: breathe 1.2s ease-in-out infinite; }.thinking-dots i:nth-child(2) { animation-delay: .15s; }.thinking-dots i:nth-child(3) { animation-delay: .3s; }@keyframes breathe { 50% { opacity: .25; transform: translateY(-2px); } } }
@@ -1024,6 +1088,11 @@ h3 { margin: 0; font-size: 13.5px; font-weight: 600; }
 .composer { border: 1.5px solid #eae6f2; border-bottom-width: 3px; border-radius: 16px; background: #fff; }
 .composer:focus-within { border-color: #b5a4e9; }
 .primary-button.slim, .ghost-button, .confirm-button, .exit-button { min-height: 38px; border-radius: 12px; font-weight: 650; }
+.back-button { width: 36px; height: 36px; border: 1.5px solid #e7e1f5; border-bottom: 3px solid #dcd3f0; border-radius: 11px; }
+.ghost-button { border: 1.5px solid #e7e1f5; border-bottom: 3px solid #dcd3f0; }
+.exit-button { border: 1.5px solid #f0dfe3; border-bottom: 3px solid #e5ccd2; }
+.text-toggle, .original-toggle { border: 1.5px solid #e6e3f2; border-bottom: 3px solid #dad4ec; }
+.back-button:active, .ghost-button:active, .exit-button:active { transform: translateY(1px); }
 .confirm-button { border-bottom: 4px solid #6951b8; background: #8b73dd; }
 .modal-card { border: 1.5px solid #ebe7f5; border-bottom: 5px solid #e5def1; border-radius: 20px; }
 .modal-icon { border-radius: 14px; background: #f0eaff; color: #7158c4; }

@@ -11,8 +11,8 @@ from .knowledge import PersonalDocument
 from .knowledge import PersonalChunk
 from .knowledge import ChunkEmbedding
 from .knowledge import PersonalChunkEmbedding
-from .avatar import AvatarPreference
+from .avatar import AvatarPreference, AvatarPreset
 from .practice import PracticeSession
 from .practice import PracticeTurn
 
-__all__ = ['User', 'AuthSession', 'Scene', 'SceneStats', 'SceneUserStat', 'Document', 'Chunk', 'PersonalDocument', 'PersonalChunk', 'ChunkEmbedding', 'PersonalChunkEmbedding', 'AvatarPreference', 'PracticeSession', 'PracticeTurn']
+__all__ = ['User', 'AuthSession', 'Scene', 'SceneStats', 'SceneUserStat', 'Document', 'Chunk', 'PersonalDocument', 'PersonalChunk', 'ChunkEmbedding', 'PersonalChunkEmbedding', 'AvatarPreference', 'AvatarPreset', 'PracticeSession', 'PracticeTurn']

@@ -3,21 +3,11 @@
   <section class="scenes-page">
     <!-- 工具行：来源筛选 + 创建/导入 -->
     <div class="scenes-toolbar">
-      <div class="seg-filter" role="tablist" aria-label="场景来源筛选">
-        <button
-          v-for="tab in filters"
-          :key="tab.key"
-          type="button"
-          role="tab"
-          class="seg-item"
-          :class="{ active: filter === tab.key }"
-          :aria-selected="filter === tab.key"
-          @click="filter = tab.key"
-        >
-          {{ tab.label }}
-          <span class="seg-count">{{ countFor(tab.key) }}</span>
-        </button>
-      </div>
+      <AppTabs
+        v-model="filter"
+        :options="filters.map((t) => ({ value: t.key, label: t.label, count: countFor(t.key) }))"
+        aria-label="场景来源筛选"
+      />
       <div class="toolbar-actions">
         <button class="ghost-button" type="button" @click="pickImport">
           <AppIcon name="upload" :size="14" />导入场景包
@@ -334,6 +324,7 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import AppIcon from '../components/AppIcon.vue'
 import AppSelect from '../components/AppSelect.vue'
+import AppTabs from '../components/AppTabs.vue'
 import SceneCover from '../components/scene/SceneCover.vue'
 import { session } from '../auth/session'
 import { usePageLoading } from '../app/loading'

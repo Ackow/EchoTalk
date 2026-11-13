@@ -16,6 +16,7 @@ class UserResponse(BaseModel):
     id: int  # 用户 ID
     username: str  # 用户名
     avatar_path: str | None = None  # 头像相对路径；为空时前端用用户名首字母兜底
+    is_admin: bool = False  # 是否为管理员
     created_at: datetime  # 注册时间（UTC）
 
     model_config = {"from_attributes": True}  # 允许直接从 ORM 对象读取同名字段

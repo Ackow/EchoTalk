@@ -5,10 +5,10 @@ import { http } from './http'
 
 // 固定形象清单：id 决定独立造型，theme 仅用于缩略图底色；声音与场景可自由搭配
 export const FALLBACK_AVATARS = [
-  { id: 'mira_2d', display_name: 'Mira · 米拉', kind: '2d', theme: 'violet', tagline: '温柔、有耐心，对每个想法充满好奇。', description: '短发 · 轻耳麦 · 紫色针织衫', greeting: 'Hey! 今天想聊点什么？' },
-  { id: 'vera_2d', display_name: 'Vera · 薇拉', kind: '2d', theme: 'teal', tagline: '干练直率，喜欢把问题聊透。', description: '高马尾 · 金色耳环 · 白衬衫与绿色马甲', greeting: 'Hi! 我们来一起梳理你的想法。' },
-  { id: 'nora_2d', display_name: 'Noah · 诺亚', kind: '2d', theme: 'blue', tagline: '沉稳专注，善于安静地倾听。', description: '深色短发 · 方框眼镜 · 藏蓝西装', greeting: 'Hello. 慢慢说，我会认真听。' },
-  { id: 'iris_2d', display_name: 'Leo · 利奥', kind: '2d', theme: 'amber', tagline: '活泼开朗，总能带动谈话气氛。', description: '棕色卷发 · 小雀斑 · 黄色连帽衫', greeting: 'Hey there! 分享一件今天的趣事吧。' },
+  { id: 'leo_2d', display_name: 'Leo · 利奥', kind: '2d', theme: 'amber', tagline: '热情忙碌但亲切，在纽约街头咖啡馆等你点单。', description: '浓眉短发 · 紫色围裙 · 咖啡师', greeting: 'Hi there! What can I get started for you today?' },
+  { id: 'emily_2d', display_name: 'Emily · 艾米丽', kind: '2d', theme: 'teal', tagline: '冷静从容、乐于助人，帮你妥善安排改签行程。', description: '低发髻 · 薄荷丝巾 · 机场地勤', greeting: 'Good evening, how can I help with your flight?' },
+  { id: 'david_2d', display_name: 'David · 大卫', kind: '2d', theme: 'blue', tagline: '结果导向且注重协作，推进跨国项目发布节奏。', description: '偏分短发 · 方框眼镜 · 产品经理', greeting: 'Hi team, let’s align on the Q3 launch.' },
+  { id: 'sarah_2d', display_name: 'Sarah · 莎拉', kind: '2d', theme: 'violet', tagline: '专业且略带严格，深入考察你的工程实践与表达。', description: '及肩偏分 · 细框圆镜 · 技术面试官', greeting: 'Hi, I’m Sarah. Whenever you’re ready.' },
 ]
 
 // 缺省声音表：voice_style（声音名小写）→ 渠道 voice，覆盖美/英/澳口音；
@@ -31,9 +31,10 @@ export const VOICE_STYLE_ALIASES = { us_female: 'emma', uk_female: 'sonia', us_m
 
 // 可选交流角色（来自场景包 roles[].avatar 的推荐值演示）
 export const FALLBACK_ROLES = [
-  { id: 'barista', display_name: 'Leo', title: 'Barista', avatar: 'mira_2d', voice: 'en-US-YoungMale' },
-  { id: 'sarah', display_name: 'Sarah', title: '技术面试官', avatar: 'mira_2d', voice: 'en-US-YoungFemale' },
-  { id: 'david', display_name: 'David', title: '产品经理', avatar: 'mira_2d', voice: 'en-US-MatureMale' },
+  { id: 'barista', display_name: 'Leo', title: 'Barista', avatar: 'leo_2d', voice: 'en-US-YoungMale' },
+  { id: 'agent', display_name: 'Emily', title: 'Ground Staff', avatar: 'emily_2d', voice: 'en-US-Female' },
+  { id: 'chair', display_name: 'David', title: 'Product Manager', avatar: 'david_2d', voice: 'en-US-Male' },
+  { id: 'tech', display_name: 'Sarah', title: 'Technical Interviewer', avatar: 'sarah_2d', voice: 'en-US-Female' },
 ]
 
 // 统一解包：后端返回 { data: ... } 或裸对象都兼容
@@ -43,6 +44,19 @@ export const listAvatars = async () => {
   const { data } = await http.get('/avatars')
   return Array.isArray(data) && data.length ? data : FALLBACK_AVATARS
 }
+
+export const listMarketAvatars = async () => {
+  const { data } = await http.get('/avatars/market')
+  return Array.isArray(data) ? data : []
+}
+
+export const createAvatar = async (payload) => unwrap(await http.post('/avatars', payload))
+export const updateAvatar = async (id, payload) => unwrap(await http.put(`/avatars/${encodeURIComponent(id)}`, payload))
+export const publishAvatar = async (id, isPublic = true) =>
+  unwrap(await http.post(`/avatars/${encodeURIComponent(id)}/publish`, null, { params: { is_public: isPublic } }))
+export const cloneMarketAvatar = async (id) => unwrap(await http.post(`/avatars/${encodeURIComponent(id)}/clone`))
+export const uncloneMarketAvatar = async (id) => unwrap(await http.delete(`/avatars/${encodeURIComponent(id)}/clone`))
+export const deleteAvatar = async (id) => unwrap(await http.delete(`/avatars/${encodeURIComponent(id)}`))
 
 export const listVoices = async () => {
   const { data } = await http.get('/voices')

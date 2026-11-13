@@ -4,14 +4,14 @@
   <section class="kw-page">
     <!-- 工具行：资料范围切换 + 上传 -->
     <div class="kw-toolbar">
-      <div class="seg-filter" role="tablist" aria-label="资料范围">
-        <button class="seg-item" :class="{ active: scope === 'scene' }" type="button" role="tab" :aria-selected="scope === 'scene'" @click="scope = 'scene'">
-          场景资料<span class="seg-count">{{ sceneDocTotal }}</span>
-        </button>
-        <button class="seg-item" :class="{ active: scope === 'personal' }" type="button" role="tab" :aria-selected="scope === 'personal'" @click="scope = 'personal'">
-          个人资料<span class="seg-count">{{ personalDocs.length }}</span>
-        </button>
-      </div>
+      <AppTabs
+        v-model="scope"
+        :options="[
+          { value: 'scene', label: '场景资料', count: sceneDocTotal },
+          { value: 'personal', label: '个人资料', count: personalDocs.length },
+        ]"
+        aria-label="资料范围"
+      />
       <div class="toolbar-actions">
         <button
           class="primary-button slim"
@@ -407,6 +407,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import AppIcon from '../components/AppIcon.vue'
 import AppSelect from '../components/AppSelect.vue'
+import AppTabs from '../components/AppTabs.vue'
 import { session } from '../auth/session'
 import { usePageLoading } from '../app/loading'
 import {

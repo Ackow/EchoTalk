@@ -57,10 +57,52 @@ def migrate_user_avatar() -> None:
         print("users 已迁移：新增 avatar_path，支持用户头像。")
 
 
+def migrate_user_admin() -> None:
+    """用户表迁移：新增 is_admin（管理员标识），默认 0。幂等。"""
+    from sqlalchemy import text
+
+    with engine.connect() as conn:
+        exists = conn.execute(text(
+            "SELECT COUNT(*) FROM information_schema.COLUMNS "
+            "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users' AND COLUMN_NAME = 'is_admin'"
+        )).scalar()
+        if exists:
+            return
+        conn.execute(text("ALTER TABLE users ADD COLUMN is_admin TINYINT(1) NOT NULL DEFAULT 0 AFTER avatar_path"))
+        conn.commit()
+        print("users 已迁移：新增 is_admin，支持管理员权限。")
+
+
+def ensure_default_admin() -> None:
+    """若库中尚无管理员账号，则创建默认管理员（可通过环境变量覆盖用户名/密码）。"""
+    import os
+    from app.models import User
+    from app.services.auth_service import hash_password
+
+    username = os.getenv("ECHOTALK_ADMIN_USERNAME", "admin").strip() or "admin"
+    password = os.getenv("ECHOTALK_ADMIN_PASSWORD", "admin123456").strip() or "admin123456"
+    with SessionLocal() as db:
+        has_admin = db.query(User).filter(User.is_admin == 1).first()
+        if has_admin:
+            return
+        existing = db.query(User).filter(User.username == username).first()
+        if existing:
+            existing.is_admin = 1
+            db.commit()
+            print(f"已将现有用户 {username} 提升为管理员。")
+            return
+        admin = User(username=username, password_hash=hash_password(password), is_admin=1)
+        db.add(admin)
+        db.commit()
+        print(f"已创建默认管理员账号：{username}（请登录后及时修改密码）")
+
+
 if __name__ == "__main__":
     Base.metadata.create_all(bind=engine)
     migrate_avatar_preferences()
     migrate_user_avatar()
+    migrate_user_admin()
+    ensure_default_admin()
 
     from app.scenes.registry import sync_seeds
 

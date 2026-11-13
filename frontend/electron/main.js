@@ -15,7 +15,7 @@ function isDevtoolsShortcut(input) {
 function createWindow() {
   const window = new BrowserWindow({
     width: 1280, // 留出品牌区与完整账户工作区
-    height: 820,
+    height: 830,
     minWidth: 900,
     minHeight: 640,
     titleBarStyle: 'hidden', // 隐藏系统标题栏但保留原生窗口能力（边缘缩放、拖拽、双击最大化）

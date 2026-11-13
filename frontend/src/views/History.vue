@@ -32,18 +32,7 @@
 
       <!-- 工具行：状态筛选 + 场景筛选 -->
       <div class="history-toolbar">
-        <div class="seg-filter" role="tablist" aria-label="练习状态筛选">
-          <button
-            v-for="tab in STATUS_TABS"
-            :key="tab.value"
-            type="button"
-            role="tab"
-            class="seg-item"
-            :class="{ active: statusFilter === tab.value }"
-            :aria-selected="statusFilter === tab.value"
-            @click="statusFilter = tab.value"
-          >{{ tab.label }}</button>
-        </div>
+        <AppTabs v-model="statusFilter" :options="STATUS_TABS" aria-label="练习状态筛选" />
         <div class="toolbar-right">
           <AppSelect v-model="sceneFilter" :options="sceneOptions" label="场景" aria-label="按场景筛选" />
           <span class="history-count">共 {{ total }} 条记录</span>
@@ -136,6 +125,7 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import AppIcon from '../components/AppIcon.vue'
 import AppSelect from '../components/AppSelect.vue'
+import AppTabs from '../components/AppTabs.vue'
 import { listSessions } from '../api/sessions'
 import { listScenes } from '../api/scenes'
 import { session } from '../auth/session'

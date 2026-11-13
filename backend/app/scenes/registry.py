@@ -118,6 +118,7 @@ def sync_seeds(db: Session) -> int:
                 mode=package.meta.mode,
                 difficulty=package.meta.difficulty,
                 source="builtin",
+                status="published",
                 pkg_version=package.meta.version,
                 author_id=None,
                 greeting_text=package.prompt.greeting,
@@ -132,9 +133,13 @@ def sync_seeds(db: Session) -> int:
         elif row.source == "builtin" and package.meta.version > (row.pkg_version or 0):
             # 应用升级：按版本号刷新未被删除的内置行
             apply_package(row, package, data)
+            row.status = "published"
             db.add(row)
             _cache[package.meta.id] = package
             synced += 1
+        elif row.source == "builtin" and row.status != "published":
+            row.status = "published"
+            db.add(row)
 
         # 内置场景：把包声明的知识资料物化为文件 + documents/chunks（幂等）
         if row.source == "builtin" and package.knowledge.files:

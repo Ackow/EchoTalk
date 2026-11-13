@@ -8,21 +8,23 @@
       aria-haspopup="listbox"
       :aria-expanded="open"
       :aria-label="ariaLabel"
-      @click="open = !open"
+      @click="toggle"
     >
       <span v-if="label" class="as-label">{{ label }}</span>
       <span class="as-value">{{ currentLabel }}</span>
       <AppIcon class="as-chev" :class="{ flip: open }" name="chevron-down" :size="14" />
     </button>
-    <ul v-if="open" class="as-menu" role="listbox">
-      <li v-for="opt in options" :key="opt.value" role="option" :aria-selected="opt.value === modelValue">
-        <button class="as-option" :class="{ active: opt.value === modelValue }" type="button" @click="choose(opt.value)">
-          <span class="as-opt-name">{{ opt.label }}</span>
-          <span v-if="opt.hint" class="as-opt-hint">{{ opt.hint }}</span>
-          <AppIcon v-if="opt.value === modelValue" class="as-opt-check" name="check" :size="13" />
-        </button>
-      </li>
-    </ul>
+    <transition :name="openUp ? 'as-pop-up' : 'as-pop'">
+      <ul v-if="open" class="as-menu" :class="{ 'is-up': openUp }" :style="{ maxHeight: `${menuMaxHeight}px` }" role="listbox">
+        <li v-for="opt in options" :key="opt.value" role="option" :aria-selected="opt.value === modelValue">
+          <button class="as-option" :class="{ active: opt.value === modelValue }" type="button" @click="choose(opt.value)">
+            <span class="as-opt-name">{{ opt.label }}</span>
+            <span v-if="opt.hint" class="as-opt-hint">{{ opt.hint }}</span>
+            <AppIcon v-if="opt.value === modelValue" class="as-opt-check" name="check" :size="13" />
+          </button>
+        </li>
+      </ul>
+    </transition>
   </div>
 </template>
 
@@ -40,9 +42,23 @@ const props = defineProps({
 const emit = defineEmits(['update:modelValue'])
 
 const open = ref(false)
+const openUp = ref(false)
+const menuMaxHeight = ref(240)
 const wrap = ref(null)
 
 const currentLabel = computed(() => props.options.find((o) => o.value === props.modelValue)?.label || props.placeholder)
+
+function toggle() {
+  if (!open.value && wrap.value) {
+    const rect = wrap.value.getBoundingClientRect()
+    const spaceBelow = window.innerHeight - rect.bottom - 14
+    const spaceAbove = rect.top - 14
+    openUp.value = spaceBelow < 200 && spaceAbove > spaceBelow
+    const available = openUp.value ? spaceAbove : spaceBelow
+    menuMaxHeight.value = Math.min(240, Math.max(120, Math.floor(available)))
+  }
+  open.value = !open.value
+}
 
 function choose(value) {
   emit('update:modelValue', value)
@@ -60,23 +76,35 @@ onBeforeUnmount(() => document.removeEventListener('mousedown', onGlobalMouseDow
 <style scoped>
 .app-select { position: relative; display: inline-block; max-width: 100%; }
 
-/* 触发器：与筛选行 34px 控件同规格 */
-.as-trigger { position: relative; display: inline-flex; align-items: center; gap: 8px; height: 34px; max-width: 100%; padding: 0 30px 0 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); cursor: pointer; font-family: inherit; transition: border-color .15s, box-shadow .15s; }
-.as-trigger:hover { border-color: #d5d7e6; }
-.as-trigger.open, .as-trigger:focus-visible { border-color: var(--brand); box-shadow: 0 0 0 3px var(--brand-soft); outline: none; }
-.as-label { flex: 0 0 auto; font-size: 12.5px; color: var(--muted); }
-.as-value { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink); font-size: 13.5px; font-weight: 500; }
-.as-chev { position: absolute; right: 10px; color: var(--muted); pointer-events: none; transition: transform .18s; }
+/* 触发器：统一 38px 高度与 EchoTalk 2.0 淡紫触感边框 */
+.as-trigger { position: relative; display: inline-flex; align-items: center; gap: 8px; height: 38px; box-sizing: border-box; max-width: 100%; padding: 0 32px 0 13px; border: 1.5px solid #e9e5f1; border-bottom-width: 3px; border-radius: 12px; background: #fff; cursor: pointer; font-family: inherit; transition: border-color .15s, background .15s, box-shadow .15s; }
+.as-trigger:hover { border-color: #cfc1f1; background: #fcfaff; }
+.as-trigger.open, .as-trigger:focus-visible { border-color: #9b83e5; border-bottom-color: #8067d1; box-shadow: 0 0 0 3px #f0eaff; outline: none; }
+.as-label { flex: 0 0 auto; font-size: 12.5px; font-weight: 600; color: #7c7693; }
+.as-value { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #2d294b; font-size: 13.5px; font-weight: 600; }
+.as-chev { position: absolute; right: 11px; color: #7c7693; pointer-events: none; transition: transform .18s, color .15s; }
+.as-trigger.open .as-chev { color: #654ab8; }
 .as-chev.flip { transform: rotate(180deg); }
 
-/* 弹出菜单：自绘列表，选中项品牌色高亮 */
-.as-menu { position: absolute; top: calc(100% + 6px); left: 0; z-index: 60; min-width: 100%; width: max-content; max-width: 380px; max-height: 264px; overflow-y: auto; margin: 0; padding: 5px; list-style: none; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 10px 28px rgba(34, 37, 59, .14); }
-.as-option { display: flex; align-items: center; gap: 8px; width: 100%; padding: 7px 9px; border: 0; border-radius: 7px; background: transparent; color: var(--ink); font-size: 13px; font-family: inherit; text-align: left; cursor: pointer; transition: background .12s; }
-.as-option:hover { background: var(--bg); }
-.as-option.active { background: var(--brand-soft); color: var(--brand-deep, var(--brand)); }
-.as-option.active:hover { background: var(--brand-soft); }
-.as-opt-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
-.as-opt-hint { flex: 0 0 auto; font-size: 11.5px; color: var(--muted); }
-.as-option.active .as-opt-hint { color: var(--brand); }
-.as-opt-check { flex: 0 0 auto; color: var(--brand); }
+/* 弹出菜单：自绘列表，淡紫圆角与选中高亮（自动适配上下空间，不超出视口） */
+.as-menu { position: absolute; top: calc(100% + 6px); left: 0; z-index: 60; min-width: 100%; width: max-content; max-width: 380px; max-height: 240px; overflow-y: auto; margin: 0; padding: 6px; list-style: none; background: #fff; border: 1.5px solid #e6dff5; border-bottom-width: 4px; border-radius: 14px; box-shadow: 0 12px 30px rgba(101, 74, 184, .14); transform-origin: top left; }
+.as-menu.is-up { top: auto; bottom: calc(100% + 6px); transform-origin: bottom left; }
+.as-pop-enter-active, .as-pop-up-enter-active { transition: opacity 180ms cubic-bezier(0.22, 1, 0.36, 1), transform 180ms cubic-bezier(0.22, 1, 0.36, 1); }
+.as-pop-leave-active, .as-pop-up-leave-active { transition: opacity 130ms ease, transform 130ms ease; }
+.as-pop-enter-from { opacity: 0; transform: translateY(-6px) scale(0.97); }
+.as-pop-leave-to { opacity: 0; transform: translateY(-4px) scale(0.98); }
+.as-pop-up-enter-from { opacity: 0; transform: translateY(6px) scale(0.97); }
+.as-pop-up-leave-to { opacity: 0; transform: translateY(4px) scale(0.98); }
+@media (prefers-reduced-motion: reduce) {
+  .as-pop-enter-active, .as-pop-leave-active, .as-pop-up-enter-active, .as-pop-up-leave-active, .as-chev { transition: none; }
+}
+.as-option { display: flex; align-items: center; gap: 8px; width: 100%; padding: 8px 10px; border: 0; border-radius: 9px; background: transparent; color: #2d294b; font-size: 13px; font-family: inherit; text-align: left; cursor: pointer; transition: background .12s, color .12s; }
+.as-option:hover { background: #faf8ff; }
+.as-option.active { background: #f0eaff; color: #654ab8; }
+.as-option.active:hover { background: #ebe4fa; }
+.as-opt-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 550; }
+.as-option.active .as-opt-name { font-weight: 650; }
+.as-opt-hint { flex: 0 0 auto; font-size: 11.5px; color: #7c7693; }
+.as-option.active .as-opt-hint { color: #8069c7; }
+.as-opt-check { flex: 0 0 auto; color: #8b73dd; }
 </style>

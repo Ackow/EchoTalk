@@ -1,5 +1,6 @@
 """avatar API 请求与响应结构。"""
 from datetime import datetime
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -28,5 +29,53 @@ class AvatarPreferenceResponse(BaseModel):
     speech_rate: float = 1.0  # 语速倍率
     lip_sync_enabled: bool = True  # 口型演示开关
     updated_at: datetime | None = None  # 最近保存时间（UTC）：从未保存为 null
+
+
+class AvatarPresetCreate(BaseModel):
+    """创建自定义数字人角色请求。"""
+
+    display_name: str = Field(min_length=1, max_length=100)
+    theme: str = Field(default="violet", max_length=30)
+    tagline: str = Field(default="", max_length=200)
+    description: str = Field(default="", max_length=200)
+    greeting: str = Field(default="", max_length=300)
+    default_voice: str = Field(default="emma", max_length=50)
+    is_public: bool = False
+    appearance: dict[str, Any] = Field(default_factory=dict)
+
+
+class AvatarPresetUpdate(BaseModel):
+    """更新自定义数字人角色请求。"""
+
+    display_name: str | None = Field(default=None, min_length=1, max_length=100)
+    theme: str | None = Field(default=None, max_length=30)
+    tagline: str | None = Field(default=None, max_length=200)
+    description: str | None = Field(default=None, max_length=200)
+    greeting: str | None = Field(default=None, max_length=300)
+    default_voice: str | None = Field(default=None, max_length=50)
+    is_public: bool | None = None
+    appearance: dict[str, Any] | None = None
+
+
+class AvatarPresetResponse(BaseModel):
+    """数字人角色目录响应项。"""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    is_builtin: bool = False
+    is_public: bool = False
+    is_owner: bool = False
+    is_acquired: bool = False
+    source_avatar_id: str | None = None
+    author_name: str = ""
+    display_name: str
+    kind: str = "2d"
+    theme: str = "violet"
+    tagline: str = ""
+    description: str = ""
+    greeting: str = ""
+    default_voice: str = "emma"
+    appearance: dict[str, Any] | None = None
 
 

@@ -6,7 +6,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.errors import AuthError
+from app.core.errors import AppError, AuthError
 from app.core.timeutil import utcnow
 from app.models import AuthSession, User
 
@@ -34,6 +34,13 @@ def get_current_session(
 def get_current_user(session: AuthSession = Depends(get_current_session), db: Session = Depends(get_db)) -> User:
     """从已验证会话解析用户，不接受客户端传入的用户 ID。"""
     return db.query(User).filter(User.id == session.user_id).one()  # 用户身份只来自令牌对应的会话
+
+
+def get_admin_user(user: User = Depends(get_current_user)) -> User:
+    """要求当前登录用户具备管理员权限。"""
+    if not user.is_admin:
+        raise AppError("需要管理员权限", code="FORBIDDEN", status_code=403)
+    return user
 
 
 def get_optional_user(

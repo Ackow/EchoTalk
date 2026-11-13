@@ -12,8 +12,9 @@ from fastapi.responses import JSONResponse
 from sqlalchemy import text
 
 from app import models  # noqa: F401 导入即注册 SQLAlchemy 表定义
+from app.api.endpoints.admin import router as admin_router
 from app.api.endpoints.auth import router as auth_router
-from app.api.endpoints.avatars import router as avatars_router
+from app.api.endpoints.avatars import catalog_router as avatar_catalog_router, router as avatars_router
 from app.api.endpoints.knowledge import router as knowledge_router
 from app.api.endpoints.scenes import router as scenes_router
 from app.api.endpoints.tts import router as tts_router
@@ -31,14 +32,20 @@ register_exception_handlers(app)  # 全局异常处理器：规范化错误响�
 
 @app.on_event("startup")
 def sync_builtin_scenes() -> None:
-    """启动时同步内置场景包种子（表未初始化时仅告警，不影响服务启动）。"""
+    """启动时同步内置场景包种子与数字人预设（表未初始化时仅告警，不影响服务启动）。"""
+    from app.api.endpoints.avatars import sync_builtin_avatars
+    from app.models.avatar import AvatarPreset
     from app.scenes.registry import sync_seeds
 
     try:
+        AvatarPreset.__table__.create(bind=engine, checkfirst=True)
         with SessionLocal() as db:
             count = sync_seeds(db)
+            avatar_count = sync_builtin_avatars(db)
         if count:
             logger.info("内置场景包种子同步完成：%d 个", count)
+        if avatar_count:
+            logger.info("内置数字人预设同步完成：%d 个", avatar_count)
     except Exception:
         logger.warning("内置场景包种子同步跳过（请先运行 python init_db.py 初始化表）", exc_info=True)
 
@@ -70,9 +77,11 @@ app.include_router(auth_router, prefix="/api")  # 账户路由统一挂 /api 前
 app.include_router(scenes_router, prefix="/api")  # 场景包路由（/api/scenes）
 app.include_router(knowledge_router, prefix="/api")  # 个人资料路由（/api/knowledge/personal）
 app.include_router(avatars_router, prefix="/api")  # 数字人偏好路由（/api/preferences/avatar）
+app.include_router(avatar_catalog_router, prefix="/api")  # 数字人角色目录路由（/api/avatars）
 app.include_router(tts_router, prefix="/api")  # TTS 语音合成路由（/api/tts/*）
 app.include_router(sessions_router, prefix="/api")  # 有状态文字对话框架
 app.include_router(speech_router, prefix="/api")  # 浏览器录音的英文 ASR 转写
+app.include_router(admin_router, prefix="/api")  # 管理端路由（/api/admin/*）
 
 
 @app.get("/api/health", tags=["服务"])

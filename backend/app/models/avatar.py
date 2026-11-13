@@ -22,6 +22,29 @@ class AvatarPreference(Base):
     speech_rate = Column(Float, nullable=False, default=1.0)  # 语速倍率：0.75~1.25
     lip_sync_enabled = Column(Integer, nullable=False, default=1)  # 口型演示开关：0/1（布尔语义）
     created_at = Column(DateTime, default=utcnow, nullable=False)  # 创建时间：UTC
-    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow, nullable=False)  # 最近保存时间：UTC
+    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow, nullable=False)  # 最近保存时间（UTC）
+
+
+class AvatarPreset(Base):
+    """数字人角色目录表：存储 4 个内置角色与用户自定义角色的外观/默认音色。"""
+
+    __tablename__ = "avatars"
+
+    id = Column(String(50), primary_key=True)
+    owner_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=True, index=True)
+    is_builtin = Column(Integer, nullable=False, default=0)
+    is_public = Column(Integer, nullable=False, default=0)
+    author_name = Column(String(100), nullable=False, default="")
+    source_avatar_id = Column(String(50), nullable=True, index=True)
+    display_name = Column(String(100), nullable=False)
+    kind = Column(String(20), nullable=False, default="2d")
+    theme = Column(String(30), nullable=False, default="violet")
+    tagline = Column(String(200), nullable=False, default="")
+    description = Column(String(200), nullable=False, default="")
+    greeting = Column(String(300), nullable=False, default="")
+    default_voice = Column(String(50), nullable=False, default="emma")
+    appearance = Column(JSON, nullable=True)
+    created_at = Column(DateTime, default=utcnow, nullable=False)
+    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow, nullable=False)
 
 
