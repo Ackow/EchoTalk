@@ -105,7 +105,9 @@ if __name__ == "__main__":
     ensure_default_admin()
 
     from app.scenes.registry import sync_seeds
+    from app.api.endpoints.avatars import sync_builtin_avatars
 
     with SessionLocal() as db:
         count = sync_seeds(db)
-    print(f"EchoTalk 数据表已初始化，内置场景包同步 {count} 个。")
+        avatar_count = sync_builtin_avatars(db)
+    print(f"EchoTalk 数据表已初始化，内置场景包同步 {count} 个，内置数字人同步 {avatar_count} 个。")

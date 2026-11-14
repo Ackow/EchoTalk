@@ -139,6 +139,17 @@ const irisR = computed(() => (ap.value.eyeStyle === 'calm' ? 6.2 : 6.8))
         <path d="M236,362 L262,356 L256,366 L238,368 Z" fill="#fde68a" stroke="#3d2c56" stroke-width="2.5" stroke-linejoin="round" />
       </template>
 
+      <!-- Railway Station Ticket Agent Uniform -->
+      <template v-else-if="ap.outfit === 'station_uniform'">
+        <path d="M84,440 C90,348 130,312 166,306 L234,306 C270,312 310,348 316,440 Z"
+              fill="#ffffff" stroke="#3d2c56" stroke-width="4.5" stroke-linejoin="round" />
+        <path d="M116,440 C122,354 146,316 170,308 L200,382 L230,308 C254,316 278,354 284,440 Z"
+              fill="#4c5192" stroke="#3d2c56" stroke-width="4" stroke-linejoin="round" />
+        <path d="M174,306 L200,378 L226,306 Z" fill="#ffffff" stroke="#3d2c56" stroke-width="3.2" stroke-linejoin="round" />
+        <path d="M188,314 L212,314 L206,362 L200,372 L194,362 Z" fill="#f59e0b" stroke="#3d2c56" stroke-width="2.8" stroke-linejoin="round" />
+        <rect x="234" y="362" width="26" height="12" rx="4" fill="#fde68a" stroke="#3d2c56" stroke-width="2.5" />
+      </template>
+
       <!-- PM Slate-Indigo Suit -->
       <template v-else-if="ap.outfit === 'pm_suit'">
         <path d="M60,440 C66,338 112,304 156,298 L244,298 C288,304 334,338 340,440 Z"

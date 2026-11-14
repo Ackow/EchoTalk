@@ -128,6 +128,7 @@ def sync_seeds(db: Session) -> int:
                 updated_at=utcnow(),
             )
             db.add(row)
+            db.flush()
             _cache[package.meta.id] = package
             synced += 1
         elif row.source == "builtin" and package.meta.version > (row.pkg_version or 0):
@@ -135,11 +136,30 @@ def sync_seeds(db: Session) -> int:
             apply_package(row, package, data)
             row.status = "published"
             db.add(row)
+            db.flush()
             _cache[package.meta.id] = package
             synced += 1
         elif row.source == "builtin" and row.status != "published":
             row.status = "published"
             db.add(row)
+
+        # 内置场景：若尚未设置封面图，优先关联 storage/scenes/{id}/cover.*，其次从 content/scenes/covers/{id}.* 物化
+        if row.source == "builtin" and not row.cover_path:
+            import shutil
+            from app.scenes import knowledge as knowledge_svc
+            for ext in (".png", ".jpg", ".jpeg", ".webp"):
+                target = knowledge_svc.STORAGE_ROOT / "scenes" / package.meta.id / f"cover{ext}"
+                if target.exists():
+                    row.cover_path = f"scenes/{package.meta.id}/cover{ext}"
+                    db.add(row)
+                    break
+                seed_cover = CONTENT_DIR / "covers" / f"{package.meta.id}{ext}"
+                if seed_cover.exists():
+                    target.parent.mkdir(parents=True, exist_ok=True)
+                    shutil.copy2(seed_cover, target)
+                    row.cover_path = f"scenes/{package.meta.id}/cover{ext}"
+                    db.add(row)
+                    break
 
         # 内置场景：把包声明的知识资料物化为文件 + documents/chunks（幂等）
         if row.source == "builtin" and package.knowledge.files:

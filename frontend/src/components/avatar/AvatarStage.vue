@@ -116,6 +116,32 @@ onBeforeUnmount(() => { clearTimeout(responseTimer); clearTimeout(demoTimer) })
         <rect x="0" y="366" width="400" height="14" fill="#c7d9ec" />
       </template>
 
+      <!-- Claire: 火车站售票大厅与站台列车 -->
+      <template v-else-if="resolvedBackdrop === 'station'">
+        <!-- 车站拱形穹顶与采光玻璃 -->
+        <rect x="0" y="0" width="400" height="315" fill="#eef1fc" />
+        <path d="M24,280 L24,132 C24,42 184,42 184,132 L184,280 Z" fill="#fef9ec" stroke="#d5d9ef" stroke-width="3" />
+        <line x1="104" y1="62" x2="104" y2="280" stroke="#dfe4f6" stroke-width="2.5" />
+        <line x1="24" y1="186" x2="184" y2="186" stroke="#dfe4f6" stroke-width="2.5" />
+        <!-- 车站大钟 -->
+        <circle cx="298" cy="86" r="30" fill="#ffffff" stroke="#b9c0e6" stroke-width="3" />
+        <line x1="298" y1="86" x2="298" y2="68" stroke="#4f4678" stroke-width="2.5" stroke-linecap="round" />
+        <line x1="298" y1="86" x2="312" y2="92" stroke="#6366f1" stroke-width="2.5" stroke-linecap="round" />
+        <!-- 电子车次牌 -->
+        <rect x="236" y="136" width="136" height="52" rx="8" fill="#2d3352" opacity="0.86" />
+        <circle cx="254" cy="154" r="4" fill="#34d399" />
+        <line x1="266" y1="154" x2="354" y2="154" stroke="#e2e8f0" stroke-width="3" stroke-linecap="round" />
+        <line x1="254" y1="170" x2="334" y2="170" stroke="#fde68a" stroke-width="2.5" stroke-linecap="round" opacity="0.9" />
+        <!-- 远景高速列车剪影 -->
+        <path d="M38,248 L158,248 Q182,248 190,270 L38,270 Z" fill="#a5b4fc" opacity="0.72" />
+        <rect x="52" y="254" width="24" height="8" rx="3" fill="#ffffff" opacity="0.85" />
+        <rect x="84" y="254" width="24" height="8" rx="3" fill="#ffffff" opacity="0.85" />
+        <rect x="116" y="254" width="24" height="8" rx="3" fill="#ffffff" opacity="0.85" />
+        <!-- 售票窗口台面 -->
+        <rect x="0" y="310" width="400" height="150" fill="#ebe7f7" />
+        <rect x="0" y="366" width="400" height="14" fill="#d3ccf0" />
+      </template>
+
       <!-- David: 现代玻璃会议室 -->
       <template v-else-if="resolvedBackdrop === 'meeting'">
         <!-- 室内墙面与落地窗城市天际线 -->
@@ -261,6 +287,7 @@ onBeforeUnmount(() => { clearTimeout(responseTimer); clearTimeout(demoTimer) })
 .stage { position: relative; max-width: 100%; aspect-ratio: 4 / 5; overflow: hidden; border-radius: 22px; isolation: isolate; background: linear-gradient(155deg, #f7f2ee 0%, #eee7f5 56%, #ded8ed 100%); border: 1px solid #e4dceb; }
 .stage.bg-cafe, .stage.char-leo_2d { background: linear-gradient(160deg, #fff8ee 0%, #f7effc 58%, #eadff7 100%); border-color: #eadfd4; }
 .stage.bg-airport, .stage.char-emily_2d { background: linear-gradient(160deg, #eefcf7 0%, #eff2fc 58%, #e4dcf7 100%); border-color: #d6ebe6; }
+.stage.bg-station, .stage.char-claire_2d { background: linear-gradient(160deg, #eef2ff 0%, #f5f2fc 58%, #e4ddf7 100%); border-color: #dce0f5; }
 .stage.bg-meeting, .stage.char-david_2d { background: linear-gradient(160deg, #eef2ff 0%, #efeafc 58%, #e0daf5 100%); border-color: #dbe0f5; }
 .stage.bg-interview, .stage.char-sarah_2d { background: linear-gradient(160deg, #f7f2ff 0%, #ede6fb 58%, #dfd4f4 100%); border-color: #e2d8f5; }
 .stage.bg-library { background: linear-gradient(160deg, #fbf7f1 0%, #f4ede4 58%, #e8dccf 100%); border-color: #e6d8c8; }

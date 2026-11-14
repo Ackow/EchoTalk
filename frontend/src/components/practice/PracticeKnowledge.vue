@@ -105,6 +105,7 @@ const parsedCafeMenu = computed(() => {
     }
     const items = []
     for (const line of rawLines) {
+      if (line.startsWith('<!--')) continue
       if (line.startsWith('# ')) {
         title = line.replace(/^#\s+/, '').trim()
         continue
@@ -115,21 +116,20 @@ const parsedCafeMenu = computed(() => {
       }
       if (!/^[-*+]/.test(line) && !line.includes('—') && !line.includes(':')) continue
       const cleaned = stripMarkdown(line)
-      const parts = cleaned.split(/\s*[—–-]{1,2}\s*|\s*:\s*/)
+      const parts = cleaned.split(/\s*[—–]\s*|\s+--\s+|\s*:\s*/)
       const name = (parts[0] || cleaned).trim()
       const desc = parts.slice(1).join(' · ').trim()
-      const priceMatch = cleaned.match(/\$\d+(?:\.\d{2})?/)
+      const priceMatch = cleaned.replace(/\([^)]*\)/g, '').match(/\$\d+(?:\.\d{2})?/)
       items.push({ name, desc, price: priceMatch ? priceMatch[0] : '' })
     }
     if (items.length) {
-      groups.push({ name: secName || 'Menu', items })
+      groups.push({ name: secName || 'Menu', label: sectionLabel(secName || 'Menu'), items })
     }
   }
 
-  // 把 prices 映射回对应菜品
+  // 把 prices 映射回对应菜品（prices 节优先覆盖）
   for (const g of groups) {
     for (const item of g.items) {
-      if (item.price) continue
       const lower = item.name.toLowerCase()
       for (const [k, v] of priceMap.entries()) {
         if (lower.includes(k) || k.includes(lower)) {
@@ -161,11 +161,47 @@ function menuItemKind(name) {
   return 'coffee'
 }
 
-// 通用结构化条目（供 transit_board / job_brief / hotel_guide / article 使用，支持条目级搜索过滤）
+// 过滤掉 HTML 注释和纯 H1 标题，避免作为普通条目或空分节出现
 const sectionNames = computed(() => {
   const doc = currentDoc.value
   if (!doc) return []
-  return doc.sections.map(s => s.name).filter(n => n && n !== '_' && n.toLowerCase() !== 'prices')
+  return doc.sections
+    .filter(s => {
+      if (!s.name || s.name === '_' || s.name.toLowerCase() === 'prices') return false
+      const lines = s.chunks.flatMap(c => c.text.split('\n')).map(l => l.trim()).filter(l => l && !l.startsWith('<!--') && !l.startsWith('# '))
+      return lines.length > 0
+    })
+    .map(s => s.name)
+})
+
+const SECTION_LABELS = {
+  my_booking: '我的原航班',
+  rebooking_options: '可选改签方案',
+  departures: '今日车次时刻',
+  fares_and_classes: '席别与票价',
+  drinks: '饮品',
+  pastries: '糕点',
+}
+
+function sectionLabel(name) {
+  return SECTION_LABELS[name] || name
+}
+
+const isTrainBoard = computed(() => {
+  const hay = `${props.sceneId} ${currentDoc.value?.filename || ''} ${currentDoc.value?.sections?.map(s => s.chunks.map(c => c.text).join(' ')).join(' ') || ''}`.toLowerCase()
+  return /train|rail|station|platform|acela|penn/.test(hay) && !/flight|airport|rebook/.test(hay)
+})
+
+const transitBoardTitle = computed(() => (isTrainBoard.value ? 'TRAIN DEPARTURES BOARD' : 'FLIGHT & REBOOKING BOARD'))
+
+const searchPlaceholder = computed(() => {
+  if (activeTheme.value === 'cafe_menu') return '搜索饮品、糕点或价格（如 Latte、$4.80）'
+  if (activeTheme.value === 'transit_board') {
+    return isTrainBoard.value
+      ? '搜索车次、站点、时间或站台（如 NE-124、Boston）'
+      : '搜索航班号、时间或登机口（如 ET-412、B18）'
+  }
+  return '搜索当前参考资料关键词'
 })
 
 const filteredSections = computed(() => {
@@ -178,12 +214,16 @@ const filteredSections = computed(() => {
     .filter(sec => secFilter === 'all' || sec.name === secFilter)
     .map(sec => {
       const rawText = sec.chunks.map(c => c.text).join('\n\n')
-      const lines = rawText.split('\n').map(l => l.trim()).filter(Boolean)
+      const lines = rawText
+        .split('\n')
+        .map(l => l.trim())
+        .filter(l => l && !l.startsWith('<!--') && !l.startsWith('# '))
+      if (!lines.length) return null
       const matchedLines = term
         ? lines.filter(l => stripMarkdown(l).toLowerCase().includes(term) || sec.name.toLowerCase().includes(term))
         : lines
       if (term && !matchedLines.length) return null
-      const mdSource = term ? matchedLines.join('\n') : rawText
+      const mdSource = term ? matchedLines.join('\n') : lines.join('\n')
       let html = marked.parse(mdSource, { breaks: true, async: false })
       if (term) {
         const escaped = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
@@ -200,15 +240,28 @@ const filteredSections = computed(() => {
     .filter(Boolean)
 })
 
-function extractTagOrValue(line) {
-  const statusMatch = line.match(/\b(ON TIME|BOARDING|DELAYED|GATE\s*[A-Z0-9]+|PLATFORM\s*[A-Z0-9]+)\b/i)
-  const timeMatch = line.match(/\b\d{1,2}:\d{2}(?:\s*(?:AM|PM))?(?:\s*(?:->|→|-)\s*\d{1,2}:\d{2}(?:\s*(?:AM|PM))?)?/i)
-  const priceMatch = line.match(/\$\d+(?:\.\d{2})?/)
-  return {
-    status: statusMatch ? statusMatch[0].toUpperCase() : '',
-    time: timeMatch ? timeMatch[0] : '',
-    price: priceMatch ? priceMatch[0] : '',
-  }
+function parseTicketLine(line) {
+  const statusMatch = line.match(/\b(ON TIME|BOARDING|DELAYED|CANCELLED)\b/i)
+  const gateMatch = line.match(/\b((?:GATE|PLATFORM)\s*[A-Z0-9]+)\b/i)
+  const timeMatch = line.match(/\b(\d{1,2}:\d{2}(?:\s*(?:AM|PM))?(?:\s*(?:->|→|-)\s*\d{1,2}:\d{2}(?:\s*(?:AM|PM))?(?:\+\d)?)?)/i)
+  const status = statusMatch ? statusMatch[1].toUpperCase() : ''
+  const gate = gateMatch ? gateMatch[1].toUpperCase() : ''
+  const time = timeMatch ? timeMatch[1].replace('->', '→') : ''
+
+  // 拆分主标题与补充说明，并去掉已提取成徽章的重复信息
+  const [rawHead, ...rest] = line.split(/\s*[—–]\s*/)
+  const title = (rawHead || line).trim()
+  let note = rest.join(' · ').trim()
+  if (timeMatch) note = note.replace(timeMatch[0], '')
+  if (gateMatch) note = note.replace(gateMatch[0], '')
+  if (statusMatch) note = note.replace(statusMatch[0], '')
+  note = note
+    .replace(/(?:^|\s)[·•]\s*(?=[·•]|$)/g, ' ')
+    .replace(/^\s*[·•]+\s*|\s*[·•]+\s*$/g, '')
+    .replace(/\s{2,}/g, ' ')
+    .trim()
+
+  return { title, note, status, gate, time }
 }
 
 async function load() {
@@ -278,7 +331,7 @@ onBeforeUnmount(() => { generation += 1; request?.abort() })
       <div class="k-toolbar">
         <label class="k-search">
           <AppIcon name="search" :size="13" />
-          <input v-model="query" type="search" aria-label="筛选条目" placeholder="搜索关键词（如 Latte、oat、$6.50）" />
+          <input v-model="query" type="search" aria-label="筛选条目" :placeholder="searchPlaceholder" />
         </label>
         <div v-if="sectionNames.length > 1" class="k-pills">
           <button type="button" :class="{ active: activeSection === 'all' }" @click="activeSection = 'all'">全部</button>
@@ -289,7 +342,7 @@ onBeforeUnmount(() => { generation += 1; request?.abort() })
             :class="{ active: activeSection === secName }"
             @click="activeSection = secName"
           >
-            {{ secName }}
+            {{ sectionLabel(secName) }}
           </button>
         </div>
       </div>
@@ -337,17 +390,30 @@ onBeforeUnmount(() => { generation += 1; request?.abort() })
         <div v-else-if="activeTheme === 'transit_board'" class="transit-board">
           <div class="transit-screen">
             <div class="transit-screen-head">
-              <span>DEPARTURES &amp; BOARDING</span>
+              <span>{{ transitBoardTitle }}</span>
               <span class="transit-live"><i />LIVE</span>
             </div>
             <div v-for="sec in filteredSections" :key="sec.key" class="transit-group">
-              <div v-if="sec.name !== '_'" class="transit-sec-title">{{ sec.name }}</div>
-              <div v-for="(line, i) in sec.lines" :key="i" class="transit-ticket">
-                <div class="ticket-main" v-html="highlightText(line, query.trim())"></div>
-                <div v-if="extractTagOrValue(line).time || extractTagOrValue(line).status" class="ticket-meta">
-                  <span v-if="extractTagOrValue(line).time" class="ticket-time">{{ extractTagOrValue(line).time }}</span>
-                  <span v-if="extractTagOrValue(line).status" class="ticket-status">{{ extractTagOrValue(line).status }}</span>
+              <div v-if="sec.name !== '_'" class="transit-sec-title">{{ sectionLabel(sec.name) }}</div>
+              <div
+                v-for="(line, i) in sec.lines"
+                :key="i"
+                class="transit-ticket"
+                :class="{ 'is-cancelled': parseTicketLine(line).status === 'CANCELLED' }"
+              >
+                <div class="ticket-top">
+                  <b class="ticket-title" v-html="highlightText(parseTicketLine(line).title, query.trim())"></b>
+                  <span
+                    v-if="parseTicketLine(line).status"
+                    class="ticket-status"
+                    :class="{ 'is-warn': parseTicketLine(line).status === 'CANCELLED' || parseTicketLine(line).status === 'DELAYED' }"
+                  >{{ parseTicketLine(line).status }}</span>
                 </div>
+                <div v-if="parseTicketLine(line).time || parseTicketLine(line).gate" class="ticket-meta">
+                  <span v-if="parseTicketLine(line).time" class="ticket-time">{{ parseTicketLine(line).time }}</span>
+                  <span v-if="parseTicketLine(line).gate" class="ticket-gate">{{ parseTicketLine(line).gate }}</span>
+                </div>
+                <p v-if="parseTicketLine(line).note" class="ticket-note" v-html="highlightText(parseTicketLine(line).note, query.trim())"></p>
               </div>
             </div>
           </div>
@@ -498,10 +564,10 @@ onBeforeUnmount(() => { generation += 1; request?.abort() })
 .menu-thumb.is-pastry { background: #fdf0e1; color: #b45309; }
 .menu-thumb.is-tea { background: #eaf5ec; color: #2c7a4b; }
 .menu-item-main { flex: 1; min-width: 0; }
-.menu-item-top { display: flex; align-items: baseline; gap: 6px; }
-.menu-item-top b { font-size: 12.5px; font-weight: 700; color: #332316; }
-.menu-leader { flex: 1; min-width: 12px; border-bottom: 1.5px dotted #dbcab0; }
-.menu-price { flex-shrink: 0; font-size: 12px; font-weight: 750; color: #8c4a18; font-variant-numeric: tabular-nums; }
+.menu-item-top { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 6px; row-gap: 2px; }
+.menu-item-top b { font-size: 12.5px; font-weight: 700; color: #332316; white-space: nowrap; }
+.menu-leader { flex: 1; min-width: 10px; border-bottom: 1.5px dotted #dbcab0; }
+.menu-price { flex-shrink: 0; font-size: 12px; font-weight: 750; color: #8c4a18; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .menu-item-main p { margin: 2px 0 0; font-size: 11px; line-height: 1.45; color: #7c6753; }
 .menu-combo {
   display: flex; align-items: flex-start; gap: 6px; margin-top: 14px; padding: 9px 11px;
@@ -509,36 +575,43 @@ onBeforeUnmount(() => { generation += 1; request?.abort() })
   font-size: 11.5px; line-height: 1.5; font-weight: 600; color: #744416;
 }
 
-/* ===== 主题 2：出行电子屏 ===== */
-.transit-screen {
-  padding: 12px; border-radius: 14px; background: #181c2b; color: #e2e8f0;
-}
+/* ===== 主题 2：出行电子屏（高对比航显顶栏 + 清晰白底登机牌卡片） ===== */
+.theme-transit_board .k-body { background: #f4f6fb; }
+.transit-screen { display: grid; gap: 10px; }
 .transit-screen-head {
   display: flex; align-items: center; justify-content: space-between;
-  padding-bottom: 8px; margin-bottom: 10px; border-bottom: 1px solid #2d344c;
-  font-family: ui-monospace, SFMono-Regular, monospace; font-size: 10.5px; letter-spacing: 0.08em; color: #94a3b8;
+  padding: 9px 12px; border-radius: 10px; background: #1e2438;
+  font-family: ui-monospace, SFMono-Regular, monospace; font-size: 11px; font-weight: 700;
+  letter-spacing: 0.08em; color: #e2e8f0;
 }
 .transit-live { display: inline-flex; align-items: center; gap: 5px; color: #34d399; font-weight: 700; }
 .transit-live i { width: 6px; height: 6px; border-radius: 50%; background: #34d399; }
-.transit-group + .transit-group { margin-top: 10px; }
+.transit-group { display: grid; gap: 7px; }
 .transit-sec-title {
-  margin-bottom: 6px; font-size: 10.5px; font-weight: 700; text-transform: uppercase;
-  letter-spacing: 0.06em; color: #fbbf24;
+  padding-left: 2px; font-size: 11.5px; font-weight: 750; color: #475569;
 }
 .transit-ticket {
-  padding: 8px 10px; margin-bottom: 6px; border-radius: 9px;
-  background: #23293e; border-left: 3px solid #fbbf24;
+  padding: 10px 12px; border: 1.5px solid #e2e8f0; border-left: 4px solid #4f46e5;
+  border-radius: 11px; background: #fff; box-shadow: 0 2px 6px rgba(30, 41, 59, .04);
 }
-.ticket-main { font-size: 12px; line-height: 1.55; color: #f1f5f9; }
-.ticket-meta { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 5px; }
+.transit-ticket.is-cancelled { border-left-color: #e11d48; background: #fffafa; }
+.ticket-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+.ticket-title { font-size: 13px; font-weight: 750; line-height: 1.45; color: #1e293b; }
+.ticket-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 6px; }
 .ticket-time {
-  padding: 1px 6px; border-radius: 5px; background: #111524;
-  font-family: ui-monospace, monospace; font-size: 10.5px; color: #fde68a;
+  padding: 2px 8px; border-radius: 6px; background: #eef2ff;
+  font-family: ui-monospace, monospace; font-size: 12px; font-weight: 700; color: #3730a3;
+}
+.ticket-gate {
+  padding: 2px 7px; border-radius: 6px; background: #f1f5f9;
+  font-family: ui-monospace, monospace; font-size: 11px; font-weight: 700; color: #334155;
 }
 .ticket-status {
-  padding: 1px 6px; border-radius: 5px; background: rgba(52, 211, 153, .16);
-  font-size: 10px; font-weight: 700; color: #34d399;
+  flex-shrink: 0; padding: 2px 7px; border-radius: 6px; background: #dcfce7;
+  font-size: 10.5px; font-weight: 750; color: #15803d;
 }
+.ticket-status.is-warn { background: #ffe4e6; color: #be123c; }
+.ticket-note { margin: 6px 0 0; font-size: 12px; line-height: 1.5; color: #475569; }
 
 /* ===== 主题 3 / 4 / 5：职位简报 / 酒店 / 文档 ===== */
 .brief-board, .hotel-board, .article-board { display: grid; gap: 10px; }

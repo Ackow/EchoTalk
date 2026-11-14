@@ -14,7 +14,7 @@ const props = defineProps({
   name: { type: String, default: 'Leo' },
 })
 
-const VALID_CHARACTERS = new Set(['leo_2d', 'emily_2d', 'david_2d', 'sarah_2d'])
+const VALID_CHARACTERS = new Set(['leo_2d', 'emily_2d', 'david_2d', 'sarah_2d', 'claire_2d'])
 const resolvedCharacter = computed(() => (VALID_CHARACTERS.has(props.character) ? props.character : 'leo_2d'))
 </script>
 

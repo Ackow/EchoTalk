@@ -55,12 +55,25 @@ export const AVATAR_PRESETS = {
     accessory: 'earring_pearl',
     backdrop: 'interview',
   },
+  claire_2d: {
+    base: 'female',
+    skinTone: 'warm',
+    hairStyle: 'high_ponytail',
+    hairColor: '#3b2b4a',
+    eyeStyle: 'bright',
+    eyeColor: '#35264a',
+    glasses: 'none',
+    outfit: 'station_uniform',
+    accessory: 'headset_single',
+    backdrop: 'station',
+  },
 }
 
 export const APPEARANCE_OPTIONS = {
   backdrop: [
     { value: 'cafe', label: '咖啡厅' },
     { value: 'airport', label: '机场大厅' },
+    { value: 'station', label: '火车站大厅' },
     { value: 'meeting', label: '商务会议室' },
     { value: 'interview', label: '科技面试室' },
     { value: 'library', label: '图书馆' },
@@ -116,6 +129,7 @@ export const APPEARANCE_OPTIONS = {
   outfit: [
     { value: 'apron_violet', label: '紫色围裙' },
     { value: 'airline_blazer', label: '航司制服' },
+    { value: 'station_uniform', label: '铁路制服' },
     { value: 'pm_suit', label: '商务西装' },
     { value: 'tech_cardigan', label: '针织开衫' },
   ],

@@ -341,7 +341,7 @@ function renderCharts() {
     const list = [...d.error_distribution].reverse()
     const chart = echarts.init(errorEl.value)
     chart.setOption({
-      tooltip: { ...tooltipStyle, trigger: 'axis', axisPointer: { type: 'shadow' } },
+      tooltip: { ...tooltipStyle, trigger: 'axis', axisPointer: { type: 'none' } },
       grid: { top: 10, right: 24, bottom: 20, left: 76 },
       xAxis: {
         type: 'value',

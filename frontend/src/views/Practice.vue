@@ -22,7 +22,7 @@
       <p v-if="error" class="page-error" role="alert"><AppIcon name="alert" :size="14" />{{ error }}</p>
       <div v-if="!loadingScenes" class="scene-grid">
         <article
-          v-for="(scene, index) in filteredScenes" :key="scene.id"
+          v-for="(scene, index) in pagedScenes" :key="scene.id"
           class="scene-card"
           :class="{ busy: starting }"
           role="button" tabindex="0"
@@ -56,7 +56,26 @@
           <p>{{ keyword || pickCategory !== 'all' ? '换个关键词或分类再试试。' : '到场景探索页创建或导入一个场景包，再回到这里开始对话。' }}</p>
         </div>
       </div>
-      <div v-else class="scene-grid" aria-busy="true" aria-label="正在加载场景">
+      <!-- 分页栏：对齐场景探索页，展示总数与页码（单页时上下页按钮禁用） -->
+      <nav v-if="!loadingScenes && filteredScenes.length" class="pagination" aria-label="场景分页">
+        <span class="page-info">共 {{ filteredScenes.length }} 个场景 · 第 {{ page }} / {{ totalPages }} 页</span>
+        <button class="page-btn" type="button" :disabled="page === 1" @click="page -= 1">
+          <AppIcon name="chevron-left" :size="14" />上一页
+        </button>
+        <button
+          v-for="p in totalPages"
+          :key="p"
+          class="page-btn page-num"
+          :class="{ active: p === page }"
+          type="button"
+          :aria-current="p === page ? 'page' : undefined"
+          @click="page = p"
+        >{{ p }}</button>
+        <button class="page-btn" type="button" :disabled="page === totalPages" @click="page += 1">
+          下一页<AppIcon name="arrow-right" :size="14" />
+        </button>
+      </nav>
+      <div v-if="loadingScenes" class="scene-grid" aria-busy="true" aria-label="正在加载场景">
         <div v-for="n in 4" :key="n" class="scene-card skeleton">
           <div class="sk-cover"></div>
           <div class="sk-body">
@@ -1129,6 +1148,13 @@ const filteredScenes = computed(() => {
     return [scene.name, scene.description, ...(scene.tags || [])].some((field) => String(field || '').toLowerCase().includes(text))
   })
 })
+// 分页：客户端分页（对齐场景探索页，筛选/搜索变化时回到第一页）
+const PAGE_SIZE = 9
+const page = ref(1)
+const totalPages = computed(() => Math.max(1, Math.ceil(filteredScenes.value.length / PAGE_SIZE)))
+const pagedScenes = computed(() => filteredScenes.value.slice((page.value - 1) * PAGE_SIZE, page.value * PAGE_SIZE))
+watch([pickCategory, keyword], () => { page.value = 1 })
+watch(totalPages, (total) => { if (page.value > total) page.value = total })
 
 async function toggleOriginal(key, event) {
   // 按消息展开原文，沿用旧版语音消息与文本分开展示的交互。
@@ -1884,7 +1910,7 @@ button, a, textarea, select, summary { -webkit-app-region: no-drag; }
 button { cursor: pointer; } button:disabled { cursor: not-allowed; }
 button:focus-visible, a:focus-visible, summary:focus-visible { outline: 2px solid var(--brand); outline-offset: 3px; }
 /* ---- 选场景页：工具行 + 卡片网格（对齐场景探索页） ---- */
-.page-scroll { flex: 1; min-height: 0; overflow: auto; padding: 22px 28px 32px; }
+.page-scroll { flex: 1; min-height: 0; display: flex; flex-direction: column; overflow: auto; padding: 22px 28px 32px; }
 /* 历史记录入口的过渡态：会话恢复完成前不渲染场景选择页，避免列表闪一下 */
 .practice-loading { display: flex; flex: 1; flex-direction: column; align-items: center; justify-content: center; gap: 16px; background: #faf9ff; }
 .loading-ring { width: 40px; height: 40px; border: 3.5px solid #e2d8f8; border-top-color: #7c62d2; border-radius: 50%; box-shadow: 0 0 0 8px #f3eefd; animation: spin .8s linear infinite; }
@@ -1895,7 +1921,7 @@ button:focus-visible, a:focus-visible, summary:focus-visible { outline: 2px soli
 .loading-track i { position: absolute; top: 0; bottom: 0; left: 0; width: 46%; border-radius: 999px; background: linear-gradient(90deg, #b6a2ee, #7c62d2); animation: loading-slide 1.1s cubic-bezier(.5, 0, .5, 1) infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 @keyframes loading-slide { from { transform: translateX(-105%); } to { transform: translateX(230%); } }
-.pick-toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
+.pick-toolbar { display: flex; flex: 0 0 auto; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
 .seg-filter { display: inline-flex; gap: 4px; padding: 4px; border: 1.5px solid #e9e5f1; border-radius: 13px; background: #fff; }
 .seg-item { display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 13px; border: 0; border-radius: 10px; background: transparent; color: var(--ink-soft); font-size: 13.5px; font-weight: 600; white-space: nowrap; transition: background .15s, color .15s; }
 .seg-item:hover { color: var(--ink); }
@@ -1912,7 +1938,7 @@ button:focus-visible, a:focus-visible, summary:focus-visible { outline: 2px soli
 .search-clear:hover { background: #e3e5ee; color: var(--ink); }
 .login-hint, .page-error { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; margin: 0 0 18px; color: var(--muted); font-size: 13px; }
 .login-hint a { color: var(--brand); }.page-error { color: var(--danger); }
-.scene-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(275px, 1fr)); gap: 14px; align-content: start; }
+.scene-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(275px, 1fr)); gap: 14px; align-content: start; flex: 1 0 auto; }
 .scene-card { display: flex; flex-direction: column; padding: 0; overflow: visible; border: 1.5px solid #ebe7f5; border-bottom: 4px solid #e5def1; border-radius: 19px; background: #fff; text-align: left; transition: border-color .18s, transform .18s, box-shadow .18s; animation: card-in .38s cubic-bezier(.22, .8, .32, 1) backwards; }
 .scene-card:hover:not(.busy) { border-color: #cfc1f1; border-bottom-color: #d9cdef; transform: translateY(-3px); box-shadow: 0 8px 18px #51408412; }
 .scene-card:active:not(.busy) { transform: translateY(0); }
@@ -1940,6 +1966,13 @@ button:focus-visible, a:focus-visible, summary:focus-visible { outline: 2px soli
 .empty-icon { display: grid; width: 54px; height: 54px; place-items: center; border: 0; border-radius: 18px; background: #f0eaff; color: #8067d1; }
 .scenes-empty h3 { margin: 14px 0 6px; font-size: 16px; font-weight: 600; }
 .scenes-empty p { margin: 0; max-width: 400px; color: var(--muted); font-size: 13.5px; line-height: 1.65; text-wrap: pretty; }
+.pagination { display: flex; flex-wrap: wrap; flex: 0 0 auto; justify-content: flex-end; align-items: center; gap: 6px; margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--line); }
+.page-info { color: var(--muted); font-size: 12.5px; margin-right: 8px; }
+.page-btn { display: inline-flex; align-items: center; gap: 4px; height: 31px; padding: 0 11px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--ink-soft); font-size: 13px; transition: border-color .15s, color .15s, background .15s; }
+.page-btn:hover:not(:disabled):not(.active) { border-color: #d5d7e6; color: var(--ink); }
+.page-btn:disabled { opacity: .45; cursor: default; }
+.page-num { width: 31px; justify-content: center; padding: 0; }
+.page-num.active { border-color: var(--brand); background: var(--brand-soft); color: var(--brand-deep, var(--brand)); font-weight: 500; }
 .scene-card.skeleton { animation: none; cursor: default; }
 .sk-cover { height: 100px; margin: -1.5px -1.5px 0; border-radius: 17px 17px 0 0; background: linear-gradient(90deg, #f0eef7 25%, #f8f7fc 45%, #f0eef7 65%); background-size: 200% 100%; animation: shimmer 1.3s infinite; }
 .sk-body { padding: 13px 17px 17px; }
@@ -1978,8 +2011,14 @@ button:focus-visible, a:focus-visible, summary:focus-visible { outline: 2px soli
 .back-button:hover { border-color: #c9bdf0; background: #f8f5ff; color: #5b43b0; }
 .session-heading { min-width: 0; flex: 1; }.session-heading h2 { margin: 0; color: #2d294b; font-size: 18px; font-weight: 800; line-height: 1.5; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }.session-heading p { margin: 3px 0 0; color: #7c7693; font-size: 12.5px; }.session-heading p span { margin: 0 8px; }
 .chat-layout { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 264px; gap: 16px; }
-.chat-layout.has-knowledge { grid-template-columns: minmax(0, 1fr) 256px 348px; }
-@media (max-width: 1080px) {
+.chat-layout.has-knowledge { grid-template-columns: minmax(0, 1fr) 360px; }
+@media (max-width: 1439px) {
+  .chat-layout.has-knowledge .chat-side { display: none; }
+}
+@media (min-width: 1440px) {
+  .chat-layout.has-knowledge { grid-template-columns: minmax(0, 1fr) 248px 360px; }
+}
+@media (max-width: 960px) {
   .chat-layout.has-knowledge { grid-template-columns: minmax(0, 1fr) 236px; }
   .chat-knowledge-dock { position: fixed; right: 16px; bottom: 16px; top: 82px; z-index: 45; width: min(360px, calc(100vw - 32px)); height: auto !important; box-shadow: 0 20px 56px rgba(45, 41, 75, .24); }
 }

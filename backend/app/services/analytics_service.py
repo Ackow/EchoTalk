@@ -21,6 +21,7 @@ _CATEGORY_LABELS = {
 
 _ISSUE_LABELS = {
     "grammar": "语法结构",
+    "naturalness": "表达自然度",
     "tense": "时态一致",
     "vocabulary": "词汇搭配",
     "expression": "地道表达",

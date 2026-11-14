@@ -9,6 +9,7 @@ export const FALLBACK_AVATARS = [
   { id: 'emily_2d', display_name: 'Emily · 艾米丽', kind: '2d', theme: 'teal', tagline: '冷静从容、乐于助人，帮你妥善安排改签行程。', description: '低发髻 · 薄荷丝巾 · 机场地勤', greeting: 'Good evening, how can I help with your flight?' },
   { id: 'david_2d', display_name: 'David · 大卫', kind: '2d', theme: 'blue', tagline: '结果导向且注重协作，推进跨国项目发布节奏。', description: '偏分短发 · 方框眼镜 · 产品经理', greeting: 'Hi team, let’s align on the Q3 launch.' },
   { id: 'sarah_2d', display_name: 'Sarah · 莎拉', kind: '2d', theme: 'violet', tagline: '专业且略带严格，深入考察你的工程实践与表达。', description: '及肩偏分 · 细框圆镜 · 技术面试官', greeting: 'Hi, I’m Sarah. Whenever you’re ready.' },
+  { id: 'claire_2d', display_name: 'Claire · 克莱尔', kind: '2d', theme: 'indigo', tagline: '耐心干练的车站售票员，在佩恩车站为你安排最佳车次。', description: '高马尾 · 铁路制服 · 车站售票员', greeting: 'Good morning, welcome to the ticket counter!' },
 ]
 
 // 缺省声音表：voice_style（声音名小写）→ 渠道 voice，覆盖美/英/澳口音；
@@ -35,6 +36,7 @@ export const FALLBACK_ROLES = [
   { id: 'agent', display_name: 'Emily', title: 'Ground Staff', avatar: 'emily_2d', voice: 'en-US-Female' },
   { id: 'chair', display_name: 'David', title: 'Product Manager', avatar: 'david_2d', voice: 'en-US-Male' },
   { id: 'tech', display_name: 'Sarah', title: 'Technical Interviewer', avatar: 'sarah_2d', voice: 'en-US-Female' },
+  { id: 'ticket', display_name: 'Claire', title: 'Ticket Agent', avatar: 'claire_2d', voice: 'en-US-Female' },
 ]
 
 // 统一解包：后端返回 { data: ... } 或裸对象都兼容

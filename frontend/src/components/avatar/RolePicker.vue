@@ -64,7 +64,7 @@ const emit = defineEmits(['update:modelValue', 'update:avatarId'])
 
 // 与 AvatarStage 共用同一套配色，缩略图与舞台形象一致
 const THEME_COLOR = {
-  sarah_2d: '#6f6cc4', leo_2d: '#c98a4b', david_2d: '#3f8f80', emily_2d: '#10b981', default: '#5a6478',
+  sarah_2d: '#6f6cc4', leo_2d: '#c98a4b', david_2d: '#3f8f80', emily_2d: '#10b981', claire_2d: '#4f46e5', default: '#5a6478',
 }
 function themeOf(id) { return { cloth: THEME_COLOR[id] || '#5a6478' } }
 

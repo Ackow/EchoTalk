@@ -58,7 +58,7 @@ async function probeVoices() {
 }
 
 const avatar = computed(() => avatars.value.find((a) => a.id === avatarId.value) || avatars.value[0])
-const customAvatars = computed(() => avatars.value.filter((a) => !a.is_builtin && !['leo_2d', 'emily_2d', 'david_2d', 'sarah_2d'].includes(a.id)))
+const customAvatars = computed(() => avatars.value.filter((a) => !a.is_builtin && !['leo_2d', 'emily_2d', 'david_2d', 'sarah_2d', 'claire_2d'].includes(a.id)))
 const nameOf = (a) => (a?.display_name || 'Leo').split(' · ')[0]
 const cnNameOf = (a) => (a?.display_name || '').split(' · ')[1] || ''
 

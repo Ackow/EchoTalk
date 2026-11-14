@@ -62,6 +62,15 @@ AVATAR_CATALOG = [
         "tagline": "专业且略带严格，深入考察你的工程实践与表达。",
         "default_voice": "aria",
     },
+    {
+        "id": "claire_2d",
+        "display_name": "Claire · 克莱尔",
+        "kind": "2d",
+        "theme": "indigo",
+        "description": "高马尾 · 铁路制服 · 车站售票员",
+        "tagline": "耐心干练的车站售票员，在佩恩车站为你安排最佳车次。",
+        "default_voice": "jenny",
+    },
 ]
 
 VOICE_CATALOG = [

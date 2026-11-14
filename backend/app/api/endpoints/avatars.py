@@ -65,6 +65,16 @@ BUILTIN_AVATAR_SEEDS = [
         "default_voice": "emma",
         "appearance": {"base": "female", "skinTone": "fair", "hairStyle": "shoulder_sleek", "hairColor": "#3d2b52", "eyeStyle": "calm", "eyeColor": "#2d2040", "glasses": "round_violet", "outfit": "tech_cardigan", "accessory": "earring_pearl", "backdrop": "interview"},
     },
+    {
+        "id": "claire_2d",
+        "display_name": "Claire · 克莱尔",
+        "theme": "indigo",
+        "tagline": "耐心干练的车站售票员，在佩恩车站为你安排最佳车次。",
+        "description": "高马尾 · 铁路制服 · 车站售票员",
+        "greeting": "Good morning, welcome to the ticket counter!",
+        "default_voice": "jenny",
+        "appearance": {"base": "female", "skinTone": "warm", "hairStyle": "high_ponytail", "hairColor": "#3b2b4a", "eyeStyle": "bright", "eyeColor": "#35264a", "glasses": "none", "outfit": "station_uniform", "accessory": "headset_single", "backdrop": "station"},
+    },
 ]
 
 

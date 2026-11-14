@@ -1,0 +1,112 @@
+# 内置场景包：火车站购票（出行交通）
+meta:
+  id: train_ticket
+  name: 火车站购票 (Train Ticket)
+  description: 在车站人工售票窗口查询车次、比较席别与票价，选定座位并完成购票付款。
+  category: daily
+  difficulty: easy
+  mode: conversation
+  version: 2
+  compat:
+    min_app: 2.0.0
+  author: builtin
+  tags: [出行交通, 购票, 日常口语]
+
+roles:
+  - id: agent
+    display_name: Claire
+    title: Ticket Agent
+    personality: patient and efficient
+    voice: en-US-Female
+    avatar: claire_2d
+
+prompt:
+  system: |
+    You are {roles.agent.display_name}, a {roles.agent.personality} ticket agent at Penn Station.
+    Help the traveler check train schedules, choose a train and ticket type (one-way or round-trip),
+    pick a seat class and preference (window or aisle), and complete payment.
+    Always call search_knowledge to verify exact train numbers, times, platforms, and fares from schedule.md
+    before quoting them.
+    Call update_scene_state when the traveler's own words confirm:
+    route_selected=true (with train_no) once they pick a destination/train,
+    seat_confirmed=true (with ticket_type, seat_class, seat_pref, total_price) once class & seat are chosen,
+    and paid=true once they confirm payment.
+    Keep responses concise (1-2 sentences) and natural.
+  greeting: |
+    Good morning, welcome to the ticket counter! Where are you heading today, and what time would you like to depart?
+  params: []
+
+objectives:
+  - id: pick_train
+    label: 查询并选定车次
+    skill: speaking.inquiry
+    check: state.route_selected == true
+  - id: pick_seat
+    label: 确认票种与座位偏好
+    skill: speaking.negotiation
+    check: state.seat_confirmed == true
+  - id: complete_pay
+    label: 核对票价并完成付款
+    skill: speaking.task_completion
+    check: state.paid == true
+
+state:
+  route_selected: false
+  train_no: null
+  ticket_type: null
+  seat_class: null
+  seat_pref: null
+  seat_confirmed: false
+  total_price: 0
+  paid: false
+
+tools:
+  allowed: [update_scene_state, search_knowledge, lookup_word, get_hint]
+
+knowledge:
+  files:
+    - path: schedule.md
+      visibility: user
+      sections: [departures, fares_and_classes]
+  retrieval:
+    default_top_k: 4
+
+stages:
+  - id: inquiry
+    name: 查询车次
+    guidance: 询问目的地与出发时间，给出合适车次供选择
+    exit_when: state.route_selected == true
+  - id: customize
+    name: 选择席别与座位
+    guidance: 确认单程/往返、车厢等级及靠窗/过道偏好
+    exit_when: state.seat_confirmed == true
+  - id: payment
+    name: 确认并付款
+    guidance: 核对总票价与车次站台信息，确认支付方式后出票
+    exit_when: state.paid == true
+
+finish:
+  when: state.seat_confirmed == true and state.paid == true
+  max_turns: 25
+  on_finish: request_feedback
+
+evaluation:
+  dimensions:
+    - id: task_completion
+      label: 购票流程完成度
+      weight: 0.45
+      source: state
+    - id: politeness
+      label: 礼貌与表达清晰度
+      weight: 0.35
+      source: llm
+    - id: naturalness
+      label: 出行表达地道度
+      weight: 0.2
+      source: llm
+  notes: |
+    重点关注：准确表达目的地与时间需求；听懂并比较不同车次/席别价格；清楚确认靠窗/过道与支付方式。
+
+guardrails:
+  language: en
+  min_words: 3
