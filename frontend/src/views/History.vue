@@ -88,7 +88,21 @@
             </div>
             <div class="row-side">
               <time :datetime="item.last_active_at">{{ formatWhen(item.last_active_at) }}</time>
-              <span class="row-action">{{ item.status === 'finished' ? '查看记录' : '继续练习' }}<AppIcon name="arrow-right" :size="14" /></span>
+              <div class="row-actions">
+                <button
+                  v-if="item.turn_count > 0"
+                  class="row-report-btn"
+                  type="button"
+                  :disabled="reportLoadingId === item.id"
+                  @click.stop="openReport(item)"
+                  @keydown.enter.stop
+                  @keydown.space.stop
+                >
+                  <AppIcon name="file-text" :size="13" />
+                  <span>{{ reportLoadingId === item.id ? '加载中…' : '查看报告' }}</span>
+                </button>
+                <span class="row-action">{{ item.status === 'finished' ? '查看记录' : '继续练习' }}<AppIcon name="arrow-right" :size="14" /></span>
+              </div>
             </div>
           </article>
         </div>
@@ -116,7 +130,16 @@
         <button v-if="filtered" class="ghost-button" type="button" @click="resetFilters">清除筛选</button>
         <router-link v-else class="primary-button slim" :to="{ name: 'practice' }"><AppIcon name="mic" :size="15" />开始第一次练习</router-link>
       </div>
+
+      <div v-if="reportError" class="report-error-banner" role="alert">
+        <span>{{ reportError }}</span>
+        <button type="button" @click="reportError = ''" aria-label="关闭提示"><AppIcon name="x" :size="13" /></button>
+      </div>
     </template>
+
+    <Teleport to="body">
+      <PracticeReportModal :open="reportOpen" :report="sessionReport" @close="reportOpen = false" />
+    </Teleport>
   </section>
 </template>
 
@@ -126,7 +149,8 @@ import { useRouter } from 'vue-router'
 import AppIcon from '../components/AppIcon.vue'
 import AppSelect from '../components/AppSelect.vue'
 import AppTabs from '../components/AppTabs.vue'
-import { listSessions } from '../api/sessions'
+import PracticeReportModal from '../components/practice/PracticeReportModal.vue'
+import { getSessionReport, listSessions } from '../api/sessions'
 import { listScenes } from '../api/scenes'
 import { session } from '../auth/session'
 import { usePageLoading } from '../app/loading'
@@ -150,6 +174,10 @@ const sceneOptions = ref([{ value: '', label: '全部场景' }])
 const stats = ref({ sessions: 0, turns: 0, finished: 0 })
 const loading = ref(false)
 const error = ref('')
+const reportOpen = ref(false)
+const reportLoadingId = ref(null)
+const sessionReport = ref(null)
+const reportError = ref('')
 const finishLoading = usePageLoading() // 首屏记录返回前沿用路由遮罩，翻页/筛选只走列表骨架
 
 const totalPages = computed(() => Math.max(1, Math.ceil(total.value / PAGE_SIZE)))
@@ -168,10 +196,10 @@ const goalPercent = (item) => item.goals_total ? Math.round((item.goals_done / i
 
 const pad = (value) => String(value).padStart(2, '0')
 
-// 后端时间为 UTC naive（如 2026-11-12T08:15:15），补 Z 后按本地时区展示
+// 后端时间为北京时间 naive（如 2026-11-12T20:15:15），直接按本地时区解析
 function formatWhen(iso) {
   if (!iso) return ''
-  const date = new Date(`${iso}Z`)
+  const date = new Date(iso)
   if (Number.isNaN(date.getTime())) return ''
   const now = new Date()
   const startOfDay = (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime()
@@ -186,6 +214,21 @@ function formatWhen(iso) {
 
 function openSession(item) {
   router.push({ name: 'practice', query: { session: item.id } }) // 对话页按 session 恢复历史会话
+}
+
+async function openReport(item) {
+  if (!item?.id || reportLoadingId.value) return
+  reportLoadingId.value = item.id
+  reportError.value = ''
+  try {
+    const { data } = await getSessionReport(item.id)
+    sessionReport.value = data
+    reportOpen.value = true
+  } catch (err) {
+    reportError.value = err?.message || '获取练习报告失败，请稍后重试'
+  } finally {
+    reportLoadingId.value = null
+  }
 }
 
 // 预取对话页分包：路由是按需加载，提前拉一次代码，点击记录时不再等分包下载（否则内容区会空一瞬）
@@ -303,8 +346,14 @@ onMounted(() => {
 .goal-bar i { display: block; height: 100%; border-radius: 99px; background: #a58ee9; }
 .row-side { display: flex; flex-direction: column; align-items: flex-end; justify-content: center; gap: 7px; flex: 0 0 auto; }
 .row-side time { color: #9a94b4; font-size: 11.5px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.row-actions { display: flex; align-items: center; gap: 6px; }
+.row-report-btn { display: inline-flex; align-items: center; gap: 4px; padding: 5px 10px; border: 1.5px solid #ebe7f5; border-bottom-width: 2px; border-radius: 11px; background: #fff; color: #5b5472; font-size: 12px; font-weight: 650; white-space: nowrap; cursor: pointer; transition: background .15s, border-color .15s, color .15s; }
+.row-report-btn:hover:not(:disabled) { border-color: #c9b8ee; background: #f6f3ff; color: #654ab8; }
+.row-report-btn:disabled { opacity: .6; cursor: wait; }
 .row-action { display: inline-flex; align-items: center; gap: 4px; padding: 5px 12px; border: 1.5px solid #ebe7f5; border-bottom-width: 2px; border-radius: 11px; background: #faf8ff; color: #654ab8; font-size: 12px; font-weight: 700; white-space: nowrap; transition: background .15s, border-color .15s; }
 .history-row:hover .row-action { border-color: #c9b8ee; background: #f0eaff; }
+.report-error-banner { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 10px; padding: 9px 14px; border: 1px solid #f2cbd4; border-radius: 12px; background: #fff5f7; color: #9c4056; font-size: 12.5px; }
+.report-error-banner button { display: grid; place-items: center; padding: 2px; border: 0; background: transparent; color: inherit; cursor: pointer; }
 
 /* 空态与游客态 */
 .history-empty, .history-guest { display: grid; flex: 1 0 auto; place-content: center; justify-items: center; padding: 46px 20px; border: 2px dashed #d9d0ef; border-radius: 18px; background: #fff; text-align: center; }

@@ -112,7 +112,7 @@ export function useVoiceInput({ onResult, onError }) {
       const { data } = await transcribeRecording(blob, upload.signal)
       if (current !== generation) return
       status.value = 'idle'
-      onResult(data.text)
+      onResult(data.text, { ...data, blob })
     } catch (error) {
       if (current !== generation) return
       onError(error.message || '语音识别失败，请重新录制。')

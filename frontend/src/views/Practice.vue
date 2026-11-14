@@ -1,6 +1,6 @@
 <template>
-  <section class="practice-page">
-    <div v-if="phase === 'select' && !resuming" class="page-scroll">
+  <section class="practice-page" :class="{ 'is-overlay-only': embeddedScene && phase === 'select' }">
+    <div v-if="phase === 'select' && !resuming && !embeddedScene" class="page-scroll">
       <div class="pick-toolbar">
         <AppTabs
           v-model="pickCategory"
@@ -81,7 +81,7 @@
       </template>
     </div>
 
-    <div v-else class="chat-page">
+    <div v-else-if="phase === 'chat'" class="chat-page">
       <!-- 延续旧版独立场景工具栏，场景操作不再挤占聊天卡头部。 -->
       <header class="session-toolbar">
         <button class="back-button" type="button" :disabled="sending" aria-label="返回场景选择" title="切换场景" @click="backToSelect"><AppIcon name="chevron-left" :size="19" /></button>
@@ -89,11 +89,11 @@
           <h2>{{ sceneTitle }}</h2>
           <p>{{ categoryLabel(sceneMeta?.package?.meta?.category) }}<span>·</span>{{ finished ? '本次练习已完成' : '场景口语练习' }}<span>·</span>{{ stateInfo.turn_count || 0 }} 轮对话</p>
         </div>
-        <button class="ghost-button reference-button" type="button" @click="knowledgeOpen = true"><AppIcon name="book-open" :size="14" />知识点</button>
+        <button class="ghost-button reference-button" :class="{ active: knowledgeOpen }" type="button" @click="knowledgeOpen = !knowledgeOpen"><AppIcon name="book-open" :size="14" />{{ knowledgeOpen ? '收起参考板' : '参考板' }}</button>
         <button class="exit-button" type="button" :disabled="sending" @click="finishAndExit"><AppIcon name="log-out" :size="14" />退出练习</button>
       </header>
 
-      <div class="chat-layout">
+      <div class="chat-layout" :class="{ 'has-knowledge': knowledgeOpen }">
         <section class="chat-card" aria-label="对话内容">
           <header class="chat-head">
             <span class="role-avatar">{{ roleInitial }}</span>
@@ -103,12 +103,21 @@
 
           <!-- 阶段 / 目标 / 场景状态：原在右栏底部，上移到对话卡顶部，开口时视线不用来回跑 -->
           <div class="progress-rail">
-            <span v-if="currentStage" class="rail-stage" :title="currentStage.guidance || currentStage.name">
+            <button
+              v-if="currentStage"
+              ref="stageButton"
+              type="button"
+              class="rail-stage rail-stage-btn"
+              :title="currentStage.guidance || currentStage.name"
+              :aria-expanded="stageOpen"
+              @click="toggleStagePop"
+            >
               <AppIcon name="chart-line" :size="12" />
               <small>阶段</small>
               <b>{{ currentStage.name }}</b>
               <em v-if="stageTotal">{{ stageIndex }} / {{ stageTotal }}</em>
-            </span>
+              <AppIcon v-if="stageList.length" name="chevron-down" :size="12" :class="{ flip: stageOpen }" />
+            </button>
             <span v-else class="rail-stage is-open">
               <AppIcon name="chart-line" :size="12" /><small>阶段</small><b>开放交流</b>
             </span>
@@ -125,47 +134,364 @@
               <span v-if="msg.role === 'agent'" class="msg-avatar">{{ roleInitial }}</span>
               <div class="message-content">
                 <span class="message-author">{{ msg.role === 'agent' ? activeRole?.display_name || '交流伙伴' : '你' }}</span>
-                <div v-if="msg.role === 'user'" class="bubble"><p class="bubble-text">{{ msg.text }}</p></div>
+                <template v-if="msg.role === 'user'">
+                  <template v-if="msg.isVoice">
+                    <div class="bubble-row is-user-voice">
+                      <button
+                        v-if="!showOriginal"
+                        class="original-toggle"
+                        type="button"
+                        :aria-expanded="expandedMessages.has(msg.key)"
+                        @click="toggleOriginal(msg.key, $event)"
+                      ><AppIcon name="file-text" :size="13" />{{ expandedMessages.has(msg.key) ? '收起' : '原文' }}</button>
+                      <button
+                        class="ai-voice-capsule user-voice-capsule"
+                        :class="{ playing: playingKey === msg.key, 'is-static': !msg.audioUrl && !msg.hasUserAudio }"
+                        :style="{ width: capsuleWidth(msg) }"
+                        type="button"
+                        :aria-label="playingKey === msg.key ? '停止播放我的语音' : '播放我的语音'"
+                        @click="playingKey === msg.key ? stopAudio() : playUserVoice(msg)"
+                      >
+                        <i v-if="playingKey === msg.key" class="capsule-progress" :style="{ width: `${Math.min(100, playbackTime / (playbackDuration || msg.duration || estimateSeconds(msg.text)) * 100)}%` }" aria-hidden="true"></i>
+                        <svg class="voice-wave-icon" width="16" height="18" viewBox="0 0 16 18" fill="none" aria-hidden="true"><circle cx="3" cy="9" r="1.35" fill="currentColor"/><path d="M6 5.8a4.5 4.5 0 0 1 0 6.4M8.5 3.3a8 8 0 0 1 0 11.4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+                        <span class="capsule-duration">{{ msg.duration ? `${Math.max(1, Math.ceil(msg.duration))}"` : `${estimateSeconds(msg.text)}"` }}</span>
+                      </button>
+                    </div>
+                    <transition
+                      name="panel"
+                      @enter="onPanelEnter"
+                      @after-enter="onPanelAfterEnter"
+                      @leave="onPanelLeave"
+                      @after-leave="onPanelAfterLeave"
+                    >
+                      <div v-show="(showOriginal || expandedMessages.has(msg.key)) && msg.text.trim()" class="original-panel is-user">
+                        <p class="bubble-text">{{ msg.text }}</p>
+                      </div>
+                    </transition>
+                  </template>
+                  <div v-else class="bubble"><p class="bubble-text">{{ msg.text }}</p></div>
+                  <div v-if="msg.pronunciationScore || msg.grammarCorrection" class="user-feedback-wrap">
+                    <button
+                      type="button"
+                      class="fb-collapse-pill"
+                      :class="{ 'is-open': expandedFeedback.has(msg.key) }"
+                      :aria-expanded="expandedFeedback.has(msg.key)"
+                      @click="toggleFeedback(msg.key)"
+                    >
+                      <template v-if="msg.pronunciationScore">
+                        <AppIcon name="mic" :size="12" />
+                        <span>发音 <b :class="scoreTier(msg.pronunciationScore.total_score)">{{ Math.round(msg.pronunciationScore.total_score) }}</b></span>
+                        <span v-if="msg.pronunciationScore.intonation_score != null" class="fb-sep" aria-hidden="true">·</span>
+                        <span v-if="msg.pronunciationScore.intonation_score != null">语调 <b :class="scoreTier(msg.pronunciationScore.intonation_score)">{{ Math.round(msg.pronunciationScore.intonation_score) }}</b></span>
+                        <span v-if="msg.pronunciationScore.speech_rate_wpm != null" class="fb-sep" aria-hidden="true">·</span>
+                        <span v-if="msg.pronunciationScore.speech_rate_wpm != null">{{ msg.pronunciationScore.speech_rate_wpm }} WPM</span>
+                        <span v-if="msg.grammarCorrection?.has_error" class="fb-dot-hint" title="有表达建议" />
+                      </template>
+                      <template v-else-if="msg.grammarCorrection?.has_error">
+                        <AppIcon name="sparkles" :size="12" />
+                        <span>{{ msg.grammarCorrection.issue_type === 'naturalness' ? '更地道表达建议' : '表达纠正建议' }}</span>
+                      </template>
+                      <template v-else>
+                        <AppIcon name="check" :size="12" />
+                        <span>表达自然准确</span>
+                      </template>
+                      <AppIcon name="chevron-down" :size="12" :class="{ flip: expandedFeedback.has(msg.key) }" />
+                    </button>
+
+                    <transition
+                      name="panel"
+                      @enter="onPanelEnter"
+                      @after-enter="onPanelAfterEnter"
+                      @leave="onPanelLeave"
+                      @after-leave="onPanelAfterLeave"
+                    >
+                      <div v-show="expandedFeedback.has(msg.key)" class="user-feedback-card">
+                        <div v-if="msg.pronunciationScore" class="fb-summary">
+                          <div class="fb-stats">
+                            <span class="fb-stat">
+                              <AppIcon name="mic" :size="12" />
+                              <span>发音</span>
+                              <b :class="scoreTier(msg.pronunciationScore.total_score)">{{ Math.round(msg.pronunciationScore.total_score) }}</b>
+                            </span>
+                            <span v-if="msg.pronunciationScore.intonation_score != null" class="fb-sep" aria-hidden="true">·</span>
+                            <span v-if="msg.pronunciationScore.intonation_score != null" class="fb-stat">
+                              <span>语调</span>
+                              <b :class="scoreTier(msg.pronunciationScore.intonation_score)">{{ Math.round(msg.pronunciationScore.intonation_score) }}</b>
+                            </span>
+                            <span v-if="msg.pronunciationScore.speech_rate_wpm != null" class="fb-sep" aria-hidden="true">·</span>
+                            <span v-if="msg.pronunciationScore.speech_rate_wpm != null" class="fb-stat">
+                              <span>{{ msg.pronunciationScore.speech_rate_wpm }} WPM</span>
+                              <small>{{ rateLabel(msg.pronunciationScore.rate_level) }}</small>
+                            </span>
+                          </div>
+                        </div>
+
+                        <div v-if="msg.pronunciationScore?.words?.length" class="fb-words">
+                          <span
+                            v-for="(w, wi) in msg.pronunciationScore.words"
+                            :key="`${msg.key}-w-${wi}`"
+                            class="fb-word"
+                            :class="scoreTier(w.score ?? w.total_score)"
+                            :title="`得分 ${Math.round(w.score ?? w.total_score ?? 0)}`"
+                          >{{ w.word }}<small>{{ Math.round(w.score ?? w.total_score ?? 0) }}</small></span>
+                        </div>
+
+                        <div v-if="msg.grammarCorrection" class="fb-correction" :class="{ 'is-good': !msg.grammarCorrection.has_error }">
+                          <template v-if="msg.grammarCorrection.has_error">
+                            <div class="fb-corr-label">
+                              <AppIcon name="sparkles" :size="12" />
+                              <span>{{ msg.grammarCorrection.issue_type === 'naturalness' ? '更地道表达' : '表达纠正' }}</span>
+                            </div>
+                            <p class="fb-corr-sentence">{{ msg.grammarCorrection.corrected }}</p>
+                            <p v-if="msg.grammarCorrection.explanation" class="fb-corr-note">{{ msg.grammarCorrection.explanation }}</p>
+                            <div v-if="msg.grammarCorrection.better_expressions?.length" class="fb-alts">
+                              <span v-for="(alt, ai) in msg.grammarCorrection.better_expressions" :key="`${msg.key}-alt-${ai}`" class="fb-alt">{{ alt }}</span>
+                            </div>
+                          </template>
+                          <template v-else>
+                            <div class="fb-corr-ok">
+                              <AppIcon name="check" :size="12" />
+                              <span>表达自然准确</span>
+                            </div>
+                          </template>
+                        </div>
+                      </div>
+                    </transition>
+                  </div>
+                </template>
                 <!-- agent 消息：参照 1.0 的语音胶囊展现——深灰胶囊常驻，原文面板平滑展开，胶囊不消失 -->
                 <template v-else>
                   <div class="bubble-row">
-                    <button class="ai-voice-capsule" :class="{ playing: playingKey === msg.key }" :style="{ width: capsuleWidth(msg) }" type="button" :disabled="ttsBusyKey === msg.key" :aria-label="playingKey === msg.key ? '停止播放回复' : '播放回复语音'" @click="playingKey === msg.key ? stopAudio() : playMessage(msg)">
+                    <button class="ai-voice-capsule" :class="{ playing: playingKey === msg.key, 'is-busy': ttsBusyKey === msg.key }" :style="{ width: capsuleWidth(msg) }" type="button" :disabled="ttsBusyKey === msg.key" :aria-label="playingKey === msg.key ? '停止播放回复' : '播放回复语音'" @click="playingKey === msg.key ? stopAudio() : playMessage(msg)">
                       <i v-if="playingKey === msg.key" class="capsule-progress" :style="{ width: `${Math.min(100, playbackTime / (playbackDuration || estimateSeconds(msg.text)) * 100)}%` }" aria-hidden="true"></i>
-                      <AppIcon v-if="ttsBusyKey === msg.key" name="loader" :size="16" class="spin" />
+                      <span v-if="ttsBusyKey === msg.key" class="tts-bars" aria-hidden="true"><i /><i /><i /></span>
                       <svg v-else class="voice-wave-icon" width="16" height="18" viewBox="0 0 16 18" fill="none" aria-hidden="true"><circle cx="3" cy="9" r="1.35" fill="currentColor"/><path d="M6 5.8a4.5 4.5 0 0 1 0 6.4M8.5 3.3a8 8 0 0 1 0 11.4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
-                      <span class="capsule-duration">{{ ttsBusyKey === msg.key ? '准备中' : msg.duration ? `${Math.ceil(msg.duration)}\"` : `${estimateSeconds(msg.text)}\"` }}</span>
+                      <span class="capsule-duration">{{ ttsBusyKey === msg.key ? '语音合成中…' : msg.duration ? `${Math.ceil(msg.duration)}\"` : `${estimateSeconds(msg.text)}\"` }}</span>
                     </button>
-                    <button v-if="!showOriginal" class="original-toggle" type="button" :aria-expanded="expandedMessages.has(msg.key)" @click="toggleOriginal(msg.key)"><AppIcon name="file-text" :size="13" />{{ expandedMessages.has(msg.key) ? '收起' : '原文' }}</button>
+                    <button v-if="!showOriginal" class="original-toggle" type="button" :aria-expanded="expandedMessages.has(msg.key)" @click="toggleOriginal(msg.key, $event)"><AppIcon name="file-text" :size="13" />{{ expandedMessages.has(msg.key) ? '收起' : '原文' }}</button>
                   </div>
-                  <transition name="panel">
-                    <div v-show="showOriginal || expandedMessages.has(msg.key)" class="original-panel"><p class="bubble-text">{{ msg.text }}</p></div>
+                  <transition
+                    name="panel"
+                    @enter="onPanelEnter"
+                    @after-enter="onPanelAfterEnter"
+                    @leave="onPanelLeave"
+                    @after-leave="onPanelAfterLeave"
+                  >
+                    <div v-show="(showOriginal || expandedMessages.has(msg.key)) && msg.text.trim()" class="original-panel"><div class="bubble-text md-body" v-html="renderMessageMd(msg.text)" /></div>
                   </transition>
                 </template>
               </div>
               <span v-if="msg.role === 'user'" class="msg-avatar user">{{ userInitial }}</span>
             </article>
-            <div v-if="sending" class="thinking-message" role="status"><span class="msg-avatar">{{ roleInitial }}</span><span class="thinking-dots"><i></i><i></i><i></i></span><small>正在组织回复…</small></div>
-            <div v-if="finished" class="finish-banner"><AppIcon name="check" :size="16" />{{ finishText }}</div>
+            <div v-if="sending && (!messages.length || messages[messages.length - 1]?.role !== 'agent' || !messages[messages.length - 1]?.text.trim())" class="thinking-message" role="status"><span class="msg-avatar">{{ roleInitial }}</span><span class="thinking-dots"><i></i><i></i><i></i></span><small>正在组织回复…</small></div>
+
+            <!-- 场景交互卡片：点咖啡待付款弹窗 / 完成后按场景类型展示专属结束交互 -->
+            <section v-if="paymentPromptVisible" class="ending-card is-checkout" aria-label="订单结账">
+              <div class="ending-head">
+                <span class="ending-badge"><AppIcon name="coffee" :size="13" />柜台结账</span>
+                <b v-if="quotedAmount" class="ending-amount">${{ quotedAmount }}</b>
+              </div>
+              <p class="ending-title">确认订单并完成付款，即可结束本次点单练习</p>
+              <ul v-if="orderDisplayItems.length" class="ending-items">
+                <li v-for="(item, idx) in orderDisplayItems" :key="idx">{{ item }}</li>
+              </ul>
+              <div class="pay-methods" role="radiogroup" aria-label="选择支付方式">
+                <button
+                  v-for="m in PAYMENT_METHODS"
+                  :key="m.id"
+                  type="button"
+                  class="pay-method-chip"
+                  :class="{ active: paymentMethod === m.id }"
+                  :disabled="paying"
+                  @click="paymentMethod = m.id"
+                ><AppIcon :name="m.icon" :size="14" /><span>{{ m.label }}</span></button>
+              </div>
+              <div class="ending-actions">
+                <button class="confirm-button" type="button" :disabled="paying" @click="confirmPayment">
+                  <span v-if="paying" class="ui-spinner send-spinner" aria-hidden="true" />
+                  <AppIcon v-else name="check" :size="14" />
+                  <span>{{ paying ? '支付中…' : `确认付款${quotedAmount ? ' $' + quotedAmount : ''}` }}</span>
+                </button>
+              </div>
+            </section>
+
+            <section v-else-if="rebookPromptVisible" class="ending-card is-checkout" aria-label="改签确认">
+              <div class="ending-head">
+                <span class="ending-badge"><AppIcon name="plane" :size="13" />改签行程确认</span>
+              </div>
+              <p class="ending-title">选择要确认的改签方案，即可生成电子改签单并结束练习</p>
+              <div class="pay-methods" role="radiogroup" aria-label="选择改签方案">
+                <button
+                  v-for="opt in REBOOK_OPTIONS"
+                  :key="opt.id"
+                  type="button"
+                  class="pay-method-chip"
+                  :class="{ active: rebookOption === opt.id }"
+                  :disabled="paying"
+                  @click="rebookOption = opt.id"
+                ><AppIcon name="plane" :size="13" /><span>{{ opt.label }}</span></button>
+              </div>
+              <div class="ending-actions">
+                <button class="confirm-button" type="button" :disabled="paying" @click="confirmRebooking">
+                  <span v-if="paying" class="ui-spinner send-spinner" aria-hidden="true" />
+                  <AppIcon v-else name="check" :size="14" />
+                  <span>{{ paying ? '确认中…' : '确认改签方案' }}</span>
+                </button>
+              </div>
+            </section>
+
+            <section v-else-if="meetingPromptVisible" class="ending-card is-checkout" aria-label="会议行动项确认">
+              <div class="ending-head">
+                <span class="ending-badge"><AppIcon name="file-text" :size="13" />会议收尾 · 行动项</span>
+              </div>
+              <p class="ending-title">确认下一步行动计划并结束本次对齐会议</p>
+              <div class="pay-methods" role="group" aria-label="快速填入下一步行动">
+                <button
+                  v-for="preset in MEETING_NEXT_PRESETS"
+                  :key="preset"
+                  type="button"
+                  class="pay-method-chip"
+                  :class="{ active: nextStepInput === preset }"
+                  :disabled="paying"
+                  @click="nextStepInput = preset"
+                >{{ preset }}</button>
+              </div>
+              <input v-model="nextStepInput" class="ending-input" type="text" placeholder="或输入自定义下一步行动（如：Send revised timeline by Friday）" :disabled="paying" />
+              <div class="ending-actions">
+                <button class="confirm-button" type="button" :disabled="paying" @click="confirmMeetingEnd">
+                  <span v-if="paying" class="ui-spinner send-spinner" aria-hidden="true" />
+                  <AppIcon v-else name="check" :size="14" />
+                  <span>{{ paying ? '提交中…' : '确认纪要并结束' }}</span>
+                </button>
+              </div>
+            </section>
+
+            <section v-else-if="wrapupPromptVisible" class="ending-card is-checkout" aria-label="结束本次练习">
+              <div class="ending-head">
+                <span class="ending-badge"><AppIcon :name="endingType === 'interview_result' ? 'briefcase' : 'sparkles'" :size="13" />{{ endingType === 'interview_result' ? '面试收尾' : '练习收尾' }}</span>
+              </div>
+              <p class="ending-title">{{ endingType === 'interview_result' ? '已进入面试最后阶段，可继续提问或直接结束本轮面试' : '当前已接近练习尾声，可继续交流或点击完成本次练习' }}</p>
+              <div v-if="endingType === 'interview_result'" class="pay-methods" role="radiogroup" aria-label="自评表现">
+                <button
+                  v-for="r in INTERVIEW_RATINGS"
+                  :key="r"
+                  type="button"
+                  class="pay-method-chip"
+                  :class="{ active: interviewRating === r }"
+                  :disabled="paying"
+                  @click="interviewRating = r"
+                >{{ r }}</button>
+              </div>
+              <div class="ending-actions">
+                <button class="confirm-button" type="button" :disabled="paying" @click="confirmGenericFinish">
+                  <span v-if="paying" class="ui-spinner send-spinner" aria-hidden="true" />
+                  <AppIcon v-else name="check" :size="14" />
+                  <span>{{ paying ? '结算中…' : (endingType === 'interview_result' ? '结束本轮面试' : '完成当前练习') }}</span>
+                </button>
+              </div>
+            </section>
+
+            <section v-else-if="finished" class="ending-card is-done" :class="`kind-${endingType}`" aria-label="场景结束">
+              <div class="ending-head">
+                <span class="ending-badge"><AppIcon :name="endingMeta.icon" :size="13" />{{ endingMeta.badge }}</span>
+                <b v-if="endingType === 'payment' && (stateInfo.scenario_state?.paid_amount || quotedAmount)" class="ending-amount">
+                  已付 ${{ stateInfo.scenario_state?.paid_amount || quotedAmount }}
+                </b>
+              </div>
+              <p class="ending-title">{{ endingMeta.title }}</p>
+              <p class="ending-sub">{{ finishText }}</p>
+              <ul v-if="endingType === 'payment' && orderDisplayItems.length" class="ending-items">
+                <li v-for="(item, idx) in orderDisplayItems" :key="idx">{{ item }}</li>
+              </ul>
+              <div v-else-if="endingType === 'boarding_pass' && stateInfo.scenario_state?.selected_option" class="ending-note">
+                <b>已选改签方案：</b>{{ stateInfo.scenario_state.selected_option }}
+              </div>
+              <div v-else-if="endingType === 'meeting_minutes' && stateInfo.scenario_state?.next_step" class="ending-note">
+                <b>下一步行动：</b>{{ stateInfo.scenario_state.next_step }}
+              </div>
+              <div v-else-if="endingType === 'interview_result' && stateInfo.scenario_state?.self_rating" class="ending-note">
+                <b>本轮自评：</b>{{ stateInfo.scenario_state.self_rating }}
+              </div>
+              <div class="ending-stats">
+                <span>目标完成 {{ completedGoals }} / {{ stateInfo.goals?.length || 0 }}</span>
+                <span>·</span>
+                <span>共 {{ stateInfo.turn_count || 0 }} 轮对话</span>
+                <template v-if="endingType === 'payment' && stateInfo.scenario_state?.payment_method">
+                  <span>·</span>
+                  <span>{{ paymentMethodLabel(stateInfo.scenario_state.payment_method) }}</span>
+                </template>
+              </div>
+              <div class="ending-actions">
+                <button class="ghost-button" type="button" :disabled="reportLoading" @click="openSessionReport">
+                  <span v-if="reportLoading" class="ui-spinner" aria-hidden="true" />
+                  <AppIcon v-else name="file-text" :size="14" />
+                  <span>{{ reportLoading ? '生成报告中…' : '查看练习报告' }}</span>
+                </button>
+                <button class="ghost-button" type="button" :disabled="starting" @click="backToSelect">返回列表</button>
+                <button class="confirm-button" type="button" :disabled="starting" @click="restartCurrentScene">
+                  <span v-if="starting" class="ui-spinner send-spinner" aria-hidden="true" />
+                  <AppIcon v-else name="rotate" :size="14" />
+                  <span>{{ starting ? '准备中…' : '再来一次' }}</span>
+                </button>
+              </div>
+            </section>
           </div>
 
           <footer class="composer-area">
             <p v-if="playbackNotice" class="playback-notice" role="status"><AppIcon name="volume" :size="13" />{{ playbackNotice }}</p>
             <p v-if="error" class="chat-error" role="alert"><AppIcon name="alert" :size="14" />{{ error }}</p>
 
+            <!-- AI 帮助回复建议条 -->
+            <div v-if="replySuggestions.length" class="ai-suggest-tray" role="region" aria-label="AI 参考回复">
+              <div class="ai-suggest-head">
+                <span><AppIcon name="sparkles" :size="13" />AI 参考回复（点击填入，可编辑或朗读）</span>
+                <div class="ai-suggest-actions">
+                  <button type="button" class="ai-mini-btn" :disabled="suggesting" @click="requestReplyAssist">{{ suggesting ? '生成中…' : '换一批' }}</button>
+                  <button type="button" class="ai-mini-close" title="关闭" @click="replySuggestions = []"><AppIcon name="x" :size="13" /></button>
+                </div>
+              </div>
+              <div class="ai-suggest-list">
+                <button
+                  v-for="(item, idx) in replySuggestions"
+                  :key="idx"
+                  type="button"
+                  class="ai-suggest-chip"
+                  @click="applySuggestion(item.en)"
+                >
+                  <b>{{ item.en }}</b>
+                  <span v-if="item.zh">{{ item.zh }}</span>
+                </button>
+              </div>
+            </div>
+
             <!-- 语音优先：单行紧凑条，待机 / 录音中 / 转写确认三态共用 .composer 外壳 -->
             <template v-if="inputMode === 'voice'">
-              <!-- 转写结果：确认后再发送 -->
-              <div v-if="transcribedText" class="composer voice-result" role="status">
-                <p class="voice-result-text">{{ transcribedText }}</p>
+              <!-- 暂存语音：可试听、重录后再发送 -->
+              <div v-if="transcribedText" class="composer voice-result is-staged" role="status">
+                <button
+                  type="button"
+                  class="ai-voice-capsule user-voice-capsule staged-capsule"
+                  :class="{ playing: playingKey === '__pending__' }"
+                  @click="playingKey === '__pending__' ? stopAudio() : playPendingVoice()"
+                >
+                  <i v-if="playingKey === '__pending__'" class="capsule-progress" :style="{ width: `${Math.min(100, playbackTime / (playbackDuration || pendingVoiceDuration || 2) * 100)}%` }" aria-hidden="true"></i>
+                  <svg class="voice-wave-icon" width="16" height="18" viewBox="0 0 16 18" fill="none" aria-hidden="true"><circle cx="3" cy="9" r="1.35" fill="currentColor"/><path d="M6 5.8a4.5 4.5 0 0 1 0 6.4M8.5 3.3a8 8 0 0 1 0 11.4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+                  <span class="capsule-duration">{{ playingKey === '__pending__' ? '试听中…' : `试听 ${Math.max(1, Math.ceil(pendingVoiceDuration || estimateSeconds(transcribedText)))}"` }}</span>
+                </button>
                 <div class="voice-result-actions">
                   <button class="icon-button" type="button" title="重新录制" :disabled="voiceBusy" @click="retryRecording"><AppIcon name="rotate" :size="15" /></button>
-                  <button class="send-button" type="button" :disabled="sending || finished" @click="sendTranscribed"><AppIcon :name="sending ? 'loader' : 'send'" :size="14" />{{ sending ? '发送中' : '发送' }}</button>
+                  <button class="icon-button" type="button" title="放弃录音" :disabled="voiceBusy" @click="discardPendingVoice"><AppIcon name="x" :size="15" /></button>
+                  <button class="send-button" type="button" :disabled="sending || finished" @click="sendTranscribed">
+                    <span v-if="sending" class="ui-spinner send-spinner" aria-hidden="true" />
+                    <AppIcon v-else name="send" :size="14" />
+                    <span>{{ sending ? '发送中' : '发送' }}</span>
+                  </button>
                 </div>
               </div>
               <!-- 录音中 / 识别中 -->
               <div v-else-if="voiceBusy" class="composer voice-bar live" role="status" aria-live="polite">
                 <button v-if="voiceStatus === 'recording'" class="mic-orb stop" type="button" title="结束并转写" @click="stopRecording"><AppIcon name="square" :size="15" /><i class="orb-pulse" aria-hidden="true"></i></button>
-                <span v-else class="mic-orb static"><AppIcon name="loader" :size="16" /></span>
+                <span v-else class="mic-orb static"><span class="ui-spinner" aria-hidden="true" /></span>
                 <div class="voice-bar-info">
                   <b>{{ voiceStatusLabel }}<template v-if="voiceStatus === 'recording'"> · {{ String(recordingSeconds).padStart(2, '0') }} / 60 秒</template></b>
                   <span v-if="voiceStatus === 'recording'" class="live-hint">说英语，点左侧按钮结束<span class="live-wave" aria-hidden="true"><i v-for="n in 7" :key="n" :style="{ height: levelBar(n - 1) }"></i></span></span>
@@ -189,6 +515,11 @@
                     <span>{{ voiceHintText }}</span>
                   </span>
                 </button>
+                <button class="foot-toggle in-bar" type="button" :disabled="sending || finished || suggesting" @click="requestReplyAssist">
+                  <span v-if="suggesting" class="ui-spinner" aria-hidden="true" />
+                  <AppIcon v-else name="sparkles" :size="13" />
+                  <span>{{ suggesting ? '思考中…' : 'AI 帮回复' }}</span>
+                </button>
                 <button class="foot-toggle in-bar" type="button" :disabled="voiceBusy" @click="toggleInputMode"><AppIcon name="pencil" :size="13" />文字输入</button>
               </div>
               <div v-if="voiceBusy || transcribedText" class="composer-foot">
@@ -202,9 +533,20 @@
               <div class="composer">
                 <textarea ref="composerBox" v-model="draft" class="composer-input" rows="2" maxlength="4000" :disabled="sending || finished" :placeholder="finished ? '本次练习已结束' : '用英语写下你的回答…'" aria-label="你的英语回答" @keydown.enter.exact="handleComposerEnter" @input="autoGrow"></textarea>
                 <button class="icon-button" type="button" title="改用语音输入" :disabled="voiceBusy" @click="toggleInputMode"><AppIcon name="mic" :size="15" /></button>
-                <button class="send-button" type="button" :disabled="sending || finished || !draft.trim()" @click="sendTurn"><AppIcon :name="sending ? 'loader' : 'arrow-right'" :size="18" /><span>发送</span></button>
+                <button class="send-button" type="button" :disabled="sending || finished || !draft.trim()" @click="sendTurn">
+                  <span v-if="sending" class="ui-spinner send-spinner" aria-hidden="true" />
+                  <AppIcon v-else name="arrow-right" :size="18" />
+                  <span>{{ sending ? '发送中' : '发送' }}</span>
+                </button>
               </div>
-              <div class="composer-foot"><span class="keyboard-hint"><kbd>Enter</kbd> 发送<span>·</span><kbd>Shift + Enter</kbd> 换行</span></div>
+              <div class="composer-foot">
+                <span class="keyboard-hint"><kbd>Enter</kbd> 发送<span>·</span><kbd>Shift + Enter</kbd> 换行</span>
+                <button class="foot-toggle in-bar ai-assist-btn" type="button" :disabled="sending || finished || suggesting" title="让 AI 帮你生成参考回复" @click="requestReplyAssist">
+                  <span v-if="suggesting" class="ui-spinner" aria-hidden="true" />
+                  <AppIcon v-else name="sparkles" :size="13" />
+                  <span>{{ suggesting ? '生成中…' : 'AI 帮回复' }}</span>
+                </button>
+              </div>
             </template>
           </footer>
         </section>
@@ -213,7 +555,7 @@
           <section class="companion-card">
             <div class="side-head"><h3>交流伙伴</h3></div>
             <div class="companion-stage">
-              <AvatarStage :avatar="companionAvatar" :state="voiceBusy ? (voiceStatus === 'recording' ? 'listening' : 'thinking') : avatarState" :size="238" :show-backdrop="false" />
+              <AvatarStage :avatar="companionAvatar" :state="voiceBusy ? (voiceStatus === 'recording' ? 'listening' : 'thinking') : avatarState" :size="238" />
             </div>
             <div class="companion-identity"><b>{{ activeRole?.display_name || '交流伙伴' }}</b><span>{{ activeRole?.title || '英语练习伙伴' }}</span></div>
             <div class="companion-meta">
@@ -250,9 +592,17 @@
               </li>
             </ul>
             <p v-else class="support-empty">这个场景采用开放交流，按自己的节奏继续。</p>
-            <p class="support-foot"><AppIcon name="headphones" :size="13" />练习反馈尚未接入</p>
           </section>
         </aside>
+
+        <PracticeKnowledge
+          v-if="knowledgeOpen"
+          class="chat-knowledge-dock"
+          :scene-id="sessionInfo.scene_id"
+          :description="sceneMeta?.package?.meta?.description || ''"
+          :goals="stateInfo.goals || []"
+          @close="knowledgeOpen = false"
+        />
       </div>
     </div>
 
@@ -263,7 +613,7 @@
         <h3>「{{ confirmScene.name }}」</h3>
         <p v-if="checkingHistory">正在查找练习记录…</p>
         <p v-else-if="historyError" class="history-error" role="alert">{{ historyError }}</p>
-        <p v-else-if="latestHistory">{{ latestHistory.state?.status === 'finished' ? '你有一条已结束的练习记录，可以查看记录或开始新练习。' : '你有一条未结束的练习记录，要继续上次练习还是新开一场？' }}</p>
+        <p v-else-if="latestHistory">你有一条未结束的练习记录，要继续上次练习还是新开一场？</p>
         <p v-else>将创建一条新的练习会话，与场景角色从开场白开始对话。</p>
         <ul v-if="!latestHistory && !checkingHistory && !historyError" class="modal-facts">
           <li v-if="confirmScene.objective_count"><span>训练目标</span><b>{{ confirmScene.objective_count }} 个</b></li>
@@ -273,9 +623,21 @@
         <div class="modal-actions">
           <button class="ghost-button" type="button" :disabled="starting" @click="confirmScene = null">取消</button>
           <button v-if="historyError" class="ghost-button" type="button" :disabled="checkingHistory" @click="chooseScene(confirmScene)">重试</button>
-          <button v-if="latestHistory" class="ghost-button" type="button" :disabled="starting || checkingHistory" @click="startScene(confirmScene, latestHistory.id)">{{ latestHistory.state?.status === 'finished' ? '查看记录' : '继续练习' }}</button>
-          <button class="confirm-button" type="button" :disabled="starting || checkingHistory || !!historyError" @click="confirmStart">
-            <AppIcon :name="starting ? 'loader' : 'arrow-right'" :size="14" />{{ starting ? '准备中…' : latestHistory ? '新开练习' : '确认开始' }}
+          <template v-if="latestHistory">
+            <button class="ghost-button" type="button" :disabled="starting || checkingHistory || !!historyError" @click="confirmStart">
+              <span v-if="starting" class="ui-spinner" aria-hidden="true" />
+              <span>{{ starting ? '准备中…' : '新开练习' }}</span>
+            </button>
+            <button class="confirm-button" type="button" :disabled="starting || checkingHistory" @click="startScene(confirmScene, latestHistory.id)">
+              <span v-if="starting" class="ui-spinner send-spinner" aria-hidden="true" />
+              <AppIcon v-else name="arrow-right" :size="14" />
+              <span>继续练习</span>
+            </button>
+          </template>
+          <button v-else class="confirm-button" type="button" :disabled="starting || checkingHistory || !!historyError" @click="confirmStart">
+            <span v-if="starting" class="ui-spinner send-spinner" aria-hidden="true" />
+            <AppIcon v-else name="arrow-right" :size="14" />
+            <span>{{ starting ? '准备中…' : '确认开始' }}</span>
           </button>
         </div>
       </div>
@@ -283,6 +645,26 @@
 
     <!-- 场景状态浮层：挂在 body 上，避免被对话卡圆角裁切 -->
     <Teleport to="body">
+      <template v-if="stageOpen">
+        <div class="rail-pop-backdrop" @click="stageOpen = false"></div>
+        <div class="rail-pop stage-pop" role="dialog" aria-label="对话阶段" :style="{ top: `${stagePop.top}px`, left: `${stagePop.left}px` }">
+          <p>场景流程共 {{ stageTotal }} 个阶段</p>
+          <ul class="stage-pop-list">
+            <li
+              v-for="(st, idx) in stageList"
+              :key="st.id"
+              :class="{ 'is-done': idx + 1 < stageIndex || finished, 'is-current': idx + 1 === stageIndex && !finished }"
+            >
+              <span class="stage-num"><AppIcon v-if="idx + 1 < stageIndex || finished" name="check" :size="11" /><template v-else>{{ idx + 1 }}</template></span>
+              <div class="stage-meta">
+                <b>{{ st.name }}</b>
+                <small v-if="formatStageGuidance(st.guidance)">{{ formatStageGuidance(st.guidance) }}</small>
+              </div>
+            </li>
+          </ul>
+        </div>
+      </template>
+
       <template v-if="stateOpen">
         <div class="rail-pop-backdrop" @click="stateOpen = false"></div>
         <div class="rail-pop" role="dialog" aria-label="场景状态" :style="{ top: `${statePop.top}px`, right: `${statePop.right}px` }">
@@ -290,23 +672,24 @@
           <ul><li v-for="row in stateRows" :key="row.key"><span>{{ row.key }}</span><b>{{ row.value }}</b></li></ul>
         </div>
       </template>
-    </Teleport>
 
-    <!-- 场景知识点弹窗：分资料模块 Tab + Markdown 正文（对齐 1.0 的独立知识面板） -->
-    <PracticeKnowledge v-if="knowledgeOpen" :scene-id="sessionInfo.scene_id" :description="sceneMeta?.package?.meta?.description || ''" :goals="stateInfo.goals || []" @close="knowledgeOpen = false" />
+      <PracticeReportModal :open="reportOpen" :report="sessionReport" @close="reportOpen = false" />
+    </Teleport>
   </section>
 </template>
 
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { marked } from 'marked'
 import AppIcon from '../components/AppIcon.vue'
 import AppTabs from '../components/AppTabs.vue'
 import AvatarStage from '../components/avatar/AvatarStage.vue'
 import PracticeKnowledge from '../components/practice/PracticeKnowledge.vue'
+import PracticeReportModal from '../components/practice/PracticeReportModal.vue'
 import SceneCover from '../components/scene/SceneCover.vue'
 import { getScene, listScenes } from '../api/scenes'
-import { createSession, getSession, getLatestSession, getGreetingAudio, getTurnAudio, submitTurn } from '../api/sessions'
+import { applySessionAction, createSession, getSession, getSessionReport, getLatestSession, getGreetingAudio, getTurnAudio, getUserTurnAudio, submitTurnStream, suggestReply } from '../api/sessions'
 import { loadingVisible, usePageLoading } from '../app/loading'
 import { getSpeechStatus } from '../api/speech'
 import { useVoiceInput } from '../composables/useVoiceInput'
@@ -314,15 +697,22 @@ import { FALLBACK_AVATARS, FALLBACK_VOICES, getAvatarPreference, listAvatars, sa
 import { resolveRoleVoiceStyle } from '../components/avatar/avatarAppearance'
 import { session } from '../auth/session'
 
+const props = defineProps({
+  embeddedScene: { type: Object, default: null },
+})
+const emit = defineEmits(['exit', 'phase'])
+
 const CATEGORY_LABELS = { daily: '日常', interview: '面试', career: '职业', academic: '学术', custom: '自定义', travel: '旅行', business: '商务', campus: '校园', debate: '辩论' }
 const route = useRoute()
 const router = useRouter()
 const FINISH_REASONS = { condition_met: '场景任务已完成，本次练习结束。', max_turns: '已达到本场景的轮次上限，练习结束。' }
 
 const phase = ref('select') // select=选场景 / chat=对话中
-const resuming = ref(Boolean(route.query.session)) // 从历史记录进入会话时，恢复完成前保持加载态
+const resuming = ref(Boolean(!props.embeddedScene && route.query.session)) // 从历史记录进入会话时，恢复完成前保持加载态
 // 页面级加载：场景列表（及历史会话恢复）到位后才收起全局遮罩；恢复入口已知会慢，立即盖住
-const finishLoading = usePageLoading(route.query.session ? '正在打开这次练习' : '', Boolean(route.query.session))
+const finishLoading = props.embeddedScene
+  ? () => {}
+  : usePageLoading(route.query.session ? '正在打开这次练习' : '', Boolean(route.query.session))
 const scenes = ref([])
 const loadingScenes = ref(false)
 const starting = ref(false)
@@ -345,14 +735,31 @@ const composerBox = ref(null)
 const asrAvailable = ref(null)
 const inputMode = ref('voice') // 语音优先：voice=麦克风主输入 / text=文字备选
 const transcribedText = ref('') // 语音转写结果：待用户确认后发送
+const pendingAudioToken = ref('') // 语音暂存令牌：随下一轮流式对话提交给讯飞发音评估
+const pendingVoiceBlobUrl = ref('') // 本地录音预览 URL：用于展示用户语音胶囊与回放
+const pendingVoiceDuration = ref(0)
+
+function clearPendingVoice(revoke = true) {
+  pendingAudioToken.value = ''
+  pendingVoiceDuration.value = 0
+  if (revoke && pendingVoiceBlobUrl.value) {
+    URL.revokeObjectURL(pendingVoiceBlobUrl.value)
+  }
+  pendingVoiceBlobUrl.value = ''
+}
+
 const {
   status: voiceStatus, seconds: recordingSeconds, level: recordingLevel,
   busy: voiceBusy, supported: recordingSupported,
   start: beginRecording, stop: stopRecording, cancel: cancelRecording,
 } = useVoiceInput({
-  onResult(text) {
-    // 转写结果先展示在语音模式里，用户点「发送」才真正进入对话。
+  onResult(text, meta) {
+    // 录音识别后暂存为可试听的语音条，支持试听、重录或直接发送。
+    if (pendingVoiceBlobUrl.value) URL.revokeObjectURL(pendingVoiceBlobUrl.value)
     transcribedText.value = [draft.value.trim(), text].filter(Boolean).join(' ')
+    pendingAudioToken.value = meta?.audio_token || ''
+    pendingVoiceBlobUrl.value = meta?.blob ? URL.createObjectURL(meta.blob) : ''
+    pendingVoiceDuration.value = Number(meta?.duration || 0)
     avatarState.value = 'idle'
   },
   onError(message) { error.value = message; avatarState.value = 'idle' },
@@ -373,7 +780,26 @@ function toggleStatePop() {
 const knowledgeOpen = ref(false) // 场景知识点弹窗（参照 1.0 独立面板，分资料模块 Tab）
 const showOriginal = ref(false) // 默认语音气泡：原文默认隐藏，可全局显示或逐条展开
 const expandedMessages = ref(new Set())
+const expandedFeedback = ref(new Set())
 let msgSeq = 0
+
+function toggleFeedback(key) {
+  const next = new Set(expandedFeedback.value)
+  if (next.has(key)) next.delete(key)
+  else next.add(key)
+  expandedFeedback.value = next
+}
+
+function scoreTier(score) {
+  const n = Number(score || 0)
+  if (n >= 85) return 'is-high'
+  if (n >= 70) return 'is-mid'
+  return 'is-low'
+}
+
+function rateLabel(level) {
+  return { slow: '偏慢', natural: '适中', normal: '适中', fast: '偏快' }[level] || '适中'
+}
 
 // TTS 播报：音色/语速取场景档偏好，未设置时用缺省值
 const voiceStyle = ref('emma')
@@ -431,13 +857,53 @@ const roleName = computed(() => activeRole.value ? `${activeRole.value.display_n
 const roleInitial = computed(() => (activeRole.value?.display_name || 'A').slice(0, 1).toUpperCase())
 const userInitial = computed(() => (session.user?.username || 'A').slice(0, 1).toUpperCase())
 const sceneTitle = computed(() => sceneMeta.value?.package?.meta?.name || sceneMeta.value?.name || '场景对话')
-const currentStage = computed(() => sceneMeta.value?.package?.stages?.find(stage => stage.id === stateInfo.value.stage))
+const currentStage = computed(() => {
+  const stages = stageList.value
+  if (!stages.length) return null
+  if (finished.value) return stages[stages.length - 1]
+  return stages.find(stage => stage.id === stateInfo.value.stage) || stages[0]
+})
 // 阶段进度：用于顶部信息条显示「2 / 4」
-const stageTotal = computed(() => sceneMeta.value?.package?.stages?.length || 0)
+const stageList = computed(() => sceneMeta.value?.package?.stages || [])
+const stageTotal = computed(() => stageList.value.length)
 const stageIndex = computed(() => {
-  const i = (sceneMeta.value?.package?.stages || []).findIndex(stage => stage.id === stateInfo.value.stage)
+  if (finished.value && stageTotal.value) return stageTotal.value
+  const i = stageList.value.findIndex(stage => stage.id === stateInfo.value.stage)
   return i >= 0 ? i + 1 : 0
 })
+const stageOpen = ref(false)
+const stageButton = ref(null)
+const stagePop = ref({ top: 0, left: 0 })
+function toggleStagePop() {
+  stateOpen.value = false
+  if (!stageOpen.value && stageButton.value) {
+    const rect = stageButton.value.getBoundingClientRect()
+    stagePop.value = { top: Math.round(rect.bottom + 8), left: Math.round(rect.left) }
+  }
+  stageOpen.value = !stageOpen.value
+}
+function formatStageGuidance(text) {
+  if (!text) return ''
+  return String(text)
+    .replace(/；?\s*[^；。]*调用\s*`?[a-z0-9_]+`?[^；。]*/gi, '')
+    .trim()
+}
+const reportOpen = ref(false)
+const reportLoading = ref(false)
+const sessionReport = ref(null)
+async function openSessionReport() {
+  if (!sessionInfo.value?.id || reportLoading.value) return
+  reportLoading.value = true
+  try {
+    const { data } = await getSessionReport(sessionInfo.value.id)
+    sessionReport.value = data
+    reportOpen.value = true
+  } catch (err) {
+    error.value = err?.message || '生成练习报告失败，请稍后重试'
+  } finally {
+    reportLoading.value = false
+  }
+}
 const completedGoals = computed(() => (stateInfo.value.goals || []).filter(goal => goal.done).length)
 const goalHasCheck = id => Boolean(sceneMeta.value?.package?.objectives?.find(goal => goal.id === id)?.check)
 const conversationStatus = computed(() => finished.value ? '本次练习已结束' : voiceBusy.value ? voiceStatusLabel.value : sending.value ? '正在思考你的回答…' : ttsBusyKey.value ? '正在准备语音…' : playingKey.value ? '正在播放回复' : '等待你的回应')
@@ -454,7 +920,7 @@ const voiceHintText = computed(() => {
   if (asrAvailable.value === false) return '切换文字输入可以继续交流'
   if (!recordingSupported.value) return '切换文字输入可以继续交流'
   if (finished.value) return '退出后可另选场景练习'
-  return '最长 60 秒，转写后确认发送'
+  return '最长 60 秒，录完可试听或重录'
 })
 // 录音中迷你声波：7 根柱子按基准波形 × 实时音量缩放
 const LEVEL_BARS = [0.35, 0.6, 0.9, 1, 0.75, 0.5, 0.65]
@@ -463,12 +929,164 @@ function levelBar(i) {
   return `${Math.max(3, Math.min(15, Math.round(scaled * 15)))}px`
 }
 // 场景状态变量是场景包里的机器键名（update_scene_state 按此写入），只展示已登记中文名的键；未登记的键不直接暴露英文
-const STATE_LABELS = { issue_explained: '问题说明', rebooked: '新行程', options_compared: '方案比较', reported: '进度汇报', clarified: '问题澄清', next_step: '下一步', confirmed: '订单确认', paid: '付款', order: '点单内容', greeted: '打招呼', price_asked: '问价', booked: '预订' }
-// 场景状态卡：仅展示原始值字段，对象/数组不强行渲染
+const STATE_LABELS = { polite_request: '礼貌请求', issue_explained: '问题说明', rebooked: '新行程', options_compared: '方案比较', reported: '进度汇报', clarified: '问题澄清', next_step: '下一步', confirmed: '订单确认', paid: '付款', order: '点单内容', greeted: '打招呼', price_asked: '问价', booked: '预订', payment_method: '支付方式', paid_amount: '实付金额' }
+const PAYMENT_METHODS = [
+  { id: 'card', icon: 'credit-card', label: '刷卡 Card' },
+  { id: 'apple_pay', icon: 'smartphone', label: 'Apple Pay' },
+  { id: 'cash', icon: 'banknote', label: '现金 Cash' },
+]
+const REBOOK_OPTIONS = [
+  { id: 'earliest', label: '最早航班 Earliest Flight' },
+  { id: 'next_day', label: '次日航班 Next-Day Flight' },
+  { id: 'refund', label: '全额退票 Full Refund' },
+]
+const MEETING_NEXT_PRESETS = [
+  'Confirm launch timeline & owners',
+  'Follow up on QA blockers',
+  'Sync updated scope by Friday',
+]
+const INTERVIEW_RATINGS = ['表现自信', '稳步推进', '仍需打磨']
+
+const paymentMethod = ref('card')
+const rebookOption = ref('earliest')
+const nextStepInput = ref(MEETING_NEXT_PRESETS[0])
+const interviewRating = ref(INTERVIEW_RATINGS[0])
+const paying = ref(false)
+const paymentMethodLabel = (id) => ({ card: '刷卡支付', apple_pay: 'Apple Pay', cash: '现金支付' }[id] || id)
+const renderMessageMd = (text) => marked.parse(String(text || '').trim(), { breaks: true, async: false }).trim()
+
+const orderDisplayItems = computed(() => {
+  const raw = stateInfo.value.scenario_state?.order
+  if (!Array.isArray(raw)) return []
+  return raw.map((item) => (typeof item === 'string' ? item : item?.name || item?.item || JSON.stringify(item)))
+})
+
+const quotedAmount = computed(() => {
+  const sc = stateInfo.value.scenario_state || {}
+  for (const key of ['paid_amount', 'total_amount', 'total_price', 'total', 'amount']) {
+    if (sc[key] !== undefined && sc[key] !== null && sc[key] !== '') {
+      const m = String(sc[key]).match(/\d+(?:\.\d{1,2})?/)
+      if (m) return Number(m[0]).toFixed(2)
+    }
+  }
+  const agentMsgs = [...messages.value].reverse().filter((m) => m.role === 'agent')
+  for (const msg of agentMsgs) {
+    const beforeTotal = msg.text.match(/\$\s*(\d+(?:\.\d{1,2})?)\s*(?:total|in total|altogether|all together)\b/i)
+    if (beforeTotal) return Number(beforeTotal[1]).toFixed(2)
+    const afterTotal = msg.text.match(/(?:total|comes to|that'll be|that will be|all together|altogether)[^$\n]{0,24}\$\s*(\d+(?:\.\d{1,2})?)/i)
+    if (afterTotal) return Number(afterTotal[1]).toFixed(2)
+    const allDollars = [...msg.text.matchAll(/\$\s*(\d+(?:\.\d{1,2})?)/g)]
+    if (allDollars.length) return Number(allDollars[allDollars.length - 1][1]).toFixed(2)
+  }
+  return ''
+})
+
+const paymentPromptVisible = computed(() => {
+  if (finished.value) return false
+  const sc = stateInfo.value.scenario_state || {}
+  if (!('paid' in sc) || sc.paid) return false
+  return stateInfo.value.stage === 'checkout' || Boolean(sc.confirmed) || (Boolean(quotedAmount.value) && (stateInfo.value.turn_count || 0) >= 2)
+})
+
+const rebookPromptVisible = computed(() => {
+  if (finished.value) return false
+  const sc = stateInfo.value.scenario_state || {}
+  if (!('rebooked' in sc) || sc.rebooked) return false
+  return stateInfo.value.stage === 'confirm' || (Boolean(sc.issue_explained) && Boolean(sc.options_compared)) || (stateInfo.value.turn_count || 0) >= 4
+})
+
+const meetingPromptVisible = computed(() => {
+  if (finished.value) return false
+  const sc = stateInfo.value.scenario_state || {}
+  if (!('next_step' in sc) || sc.next_step) return false
+  return (Boolean(sc.reported) && Boolean(sc.clarified)) || (stateInfo.value.turn_count || 0) >= 4
+})
+
+const isLastStage = computed(() => {
+  const stages = sceneMeta.value?.package?.stages || []
+  return stages.length > 0 && stateInfo.value.stage === stages[stages.length - 1].id
+})
+
+const wrapupPromptVisible = computed(() => {
+  if (finished.value || paymentPromptVisible.value || rebookPromptVisible.value || meetingPromptVisible.value) return false
+  if (endingType.value === 'payment' || endingType.value === 'boarding_pass' || endingType.value === 'meeting_minutes') return false
+  return isLastStage.value || (stateInfo.value.turn_count || 0) >= 5
+})
+
+const endingType = computed(() => {
+  const sc = stateInfo.value.scenario_state || {}
+  const id = sessionInfo.value?.scene_id || ''
+  const mode = sceneMeta.value?.package?.meta?.mode || ''
+  if ('paid' in sc || id === 'cafe_ordering') return 'payment'
+  if ('rebooked' in sc || id === 'airport_rebooking') return 'boarding_pass'
+  if ('next_step' in sc || id === 'launch_alignment') return 'meeting_minutes'
+  if (mode === 'interview' || id === 'tech_interview') return 'interview_result'
+  return 'summary'
+})
+
+const endingMeta = computed(() => ({
+  payment: { icon: 'coffee', badge: '电子小票 · 已结账', title: '点单与付款已完成，祝你享用！' },
+  boarding_pass: { icon: 'plane', badge: '改签确认单', title: '新行程已确认，祝你旅途顺利！' },
+  meeting_minutes: { icon: 'file-text', badge: '会议纪要', title: '关键事项与下一步行动已对齐！' },
+  interview_result: { icon: 'briefcase', badge: '面试结束', title: '本轮模拟面试已完成！' },
+  summary: { icon: 'sparkles', badge: '练习完成', title: '本场口语练习已顺利完成！' },
+}[endingType.value]))
+
+async function runSessionAction(action, payload) {
+  if (!sessionInfo.value || paying.value) return
+  paying.value = true
+  error.value = ''
+  try {
+    const { data } = await applySessionAction(sessionInfo.value.id, action, payload)
+    if (data?.session) sessionInfo.value = data.session
+    await scrollToBottom()
+  } catch (err) {
+    error.value = err.message
+  } finally {
+    paying.value = false
+  }
+}
+
+const confirmPayment = () => runSessionAction('pay', { method: paymentMethod.value, amount: quotedAmount.value || undefined })
+const confirmRebooking = () => runSessionAction('finish', {
+  state_updates: {
+    issue_explained: true,
+    options_compared: true,
+    rebooked: true,
+    selected_option: REBOOK_OPTIONS.find((o) => o.id === rebookOption.value)?.label || rebookOption.value,
+  },
+})
+const confirmMeetingEnd = () => runSessionAction('finish', {
+  state_updates: {
+    reported: true,
+    clarified: true,
+    next_step: nextStepInput.value.trim() || MEETING_NEXT_PRESETS[0],
+  },
+})
+const confirmGenericFinish = () => runSessionAction('finish', {
+  state_updates: endingType.value === 'interview_result' ? { self_rating: interviewRating.value } : {},
+})
+
+async function restartCurrentScene() {
+  const scene = scenes.value.find((s) => s.id === sessionInfo.value?.scene_id) || props.embeddedScene || { id: sessionInfo.value?.scene_id, name: sceneTitle.value }
+  if (!scene?.id) return
+  await startScene(scene, null)
+}
+// 场景状态卡：展示标量字段与非内部数组（如点单列表）
 const stateRows = computed(() =>
   Object.entries(stateInfo.value.scenario_state || {})
-    .filter(([key, value]) => STATE_LABELS[key] && ['string', 'number', 'boolean'].includes(typeof value))
-    .map(([key, value]) => ({ key: STATE_LABELS[key], value: typeof value === 'boolean' ? (value ? '已确认' : '待确认') : String(value) }))
+    .filter(([key, value]) => STATE_LABELS[key] && (['string', 'number', 'boolean'].includes(typeof value) || Array.isArray(value)))
+    .map(([key, value]) => {
+      if (Array.isArray(value)) {
+        const text = value.length
+          ? value.map((item) => (typeof item === 'string' ? item : item?.name || item?.item || JSON.stringify(item))).join('、')
+          : '暂无'
+        return { key: STATE_LABELS[key], value: text }
+      }
+      if (key === 'payment_method') return { key: STATE_LABELS[key], value: paymentMethodLabel(String(value)) }
+      if (key === 'paid_amount') return { key: STATE_LABELS[key], value: `$${value}` }
+      return { key: STATE_LABELS[key], value: typeof value === 'boolean' ? (value ? '已确认' : '待确认') : String(value) }
+    })
 )
 const avatarsList = ref([...FALLBACK_AVATARS])
 // 伙伴形象：优先用户场景档偏好，其次当前场景角色推荐（含自定义外观），最后缺省清单首个
@@ -512,11 +1130,77 @@ const filteredScenes = computed(() => {
   })
 })
 
-function toggleOriginal(key) {
+async function toggleOriginal(key, event) {
   // 按消息展开原文，沿用旧版语音消息与文本分开展示的交互。
-  if (expandedMessages.value.has(key)) expandedMessages.value.delete(key)
-  else expandedMessages.value.add(key)
+  if (expandedMessages.value.has(key)) {
+    expandedMessages.value.delete(key)
+    return
+  }
+  expandedMessages.value.add(key)
+  const rowEl = event?.currentTarget?.closest('.msg-row')
+  await nextTick()
+  const box = chatBody.value
+  if (!box || box.scrollHeight <= box.clientHeight) return
+  if (rowEl) {
+    const boxRect = box.getBoundingClientRect()
+    const rowRect = rowEl.getBoundingClientRect()
+    if (rowRect.bottom <= boxRect.bottom - 8) return
+  }
+  void scrollToBottom(true)
 }
+
+function onPanelEnter(el) {
+  el.style.height = 'auto'
+  const targetHeight = el.getBoundingClientRect().height
+  el.style.height = '0px'
+  el.style.opacity = '0'
+  el.style.marginTop = '0px'
+  el.style.paddingTop = '0px'
+  el.style.paddingBottom = '0px'
+  el.style.borderTopWidth = '0px'
+  el.style.borderBottomWidth = '0px'
+  void el.offsetHeight
+  el.style.height = `${targetHeight}px`
+  el.style.opacity = '1'
+  el.style.marginTop = ''
+  el.style.paddingTop = ''
+  el.style.paddingBottom = ''
+  el.style.borderTopWidth = ''
+  el.style.borderBottomWidth = ''
+}
+
+function onPanelAfterEnter(el) {
+  el.style.height = ''
+  el.style.opacity = ''
+}
+
+function onPanelLeave(el) {
+  const currentHeight = el.getBoundingClientRect().height
+  el.style.height = `${currentHeight}px`
+  el.style.opacity = '1'
+  void el.offsetHeight
+  el.style.height = '0px'
+  el.style.opacity = '0'
+  el.style.marginTop = '0px'
+  el.style.paddingTop = '0px'
+  el.style.paddingBottom = '0px'
+  el.style.borderTopWidth = '0px'
+  el.style.borderBottomWidth = '0px'
+}
+
+function onPanelAfterLeave(el) {
+  el.style.height = ''
+  el.style.opacity = ''
+  el.style.marginTop = ''
+  el.style.paddingTop = ''
+  el.style.paddingBottom = ''
+  el.style.borderTopWidth = ''
+  el.style.borderBottomWidth = ''
+}
+
+watch(showOriginal, (val) => {
+  if (val) void scrollToBottom(true)
+})
 
 function handleComposerEnter(event) {
   // 输入法选词时的 Enter 不应发送尚未确认的文字。
@@ -532,9 +1216,20 @@ function pushMessage(role, text) {
   return messages.value[messages.value.length - 1]
 }
 
-async function scrollToBottom() {
+async function scrollToBottom(smooth = false) {
   await nextTick()
-  if (chatBody.value) chatBody.value.scrollTop = chatBody.value.scrollHeight
+  const el = chatBody.value
+  if (!el) return
+  if (smooth) {
+    requestAnimationFrame(() => {
+      el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' })
+    })
+    return
+  }
+  el.scrollTop = el.scrollHeight
+  requestAnimationFrame(() => {
+    if (chatBody.value) chatBody.value.scrollTop = chatBody.value.scrollHeight
+  })
 }
 
 // ---- 场景选择与会话创建 -----------------------------------------------------
@@ -549,6 +1244,11 @@ async function loadCustomAvatars() {
 onMounted(async () => {
   void loadCustomAvatars()
   getSpeechStatus().then(({ data }) => { asrAvailable.value = data.configured }).catch(() => {})
+  if (props.embeddedScene) {
+    finishLoading()
+    void chooseScene(props.embeddedScene)
+    return
+  }
   // 历史记录入口：会话详情与场景列表并行拉取，过渡态不必串行等两次往返
   const resumeId = route.query.session
   const pendingSession = resumeId ? getSession(resumeId) : null
@@ -557,7 +1257,7 @@ onMounted(async () => {
   try {
     const { data } = await listScenes()
     scenes.value = data?.items || []
-    const selected = scenes.value.find(scene => scene.id === route.query.scene)
+    const selected = route.query.scene ? scenes.value.find(scene => scene.id === route.query.scene) : null
     if (selected) void chooseScene(selected)
     else if (resumeId) await resumeSession(resumeId, pendingSession) // 从历史记录进入某次会话：等恢复完成再收遮罩
   } catch (err) {
@@ -565,6 +1265,16 @@ onMounted(async () => {
   } finally {
     loadingScenes.value = false
     finishLoading() // 场景列表（或恢复的会话）就绪，交还遮罩
+  }
+})
+
+watch(phase, (val) => {
+  if (props.embeddedScene) emit('phase', val)
+})
+
+watch(confirmScene, (val) => {
+  if (props.embeddedScene && phase.value === 'select' && !val && !starting.value) {
+    emit('exit')
   }
 })
 
@@ -597,7 +1307,9 @@ async function chooseScene(scene) {
   checkingHistory.value = true
   try {
     const { data } = await getLatestSession(scene.id)
-    if (generation === historyGeneration && confirmScene.value?.id === scene.id) latestHistory.value = data.session
+    if (generation === historyGeneration && confirmScene.value?.id === scene.id) {
+      latestHistory.value = data.session?.state?.status === 'finished' ? null : data.session
+    }
   } catch (err) {
     if (generation === historyGeneration && confirmScene.value?.id === scene.id) historyError.value = err.message
   } finally {
@@ -610,35 +1322,55 @@ async function startScene(scene, existingId = null) {
   starting.value = true
   const generation = ++sessionGeneration
   error.value = ''
+  historyError.value = ''
+  stopAudio()
+  clearAudioCache()
+  replySuggestions.value = []
+  stateOpen.value = false
+  stageOpen.value = false
+  reportOpen.value = false
+  sessionReport.value = null
+  draft.value = ''
+  transcribedText.value = ''
   try {
-    // 知识点面板按需独立加载，不因资料服务失败阻塞进入对话。
+    const hasCachedMeta = sceneMeta.value?.package?.meta?.id === scene.id
+    // 知识点面板按需独立加载，不因资料服务失败阻塞进入对话；同场景「再来一次」直接复用已缓存的场景元数据。
     const [detailRes, sessionRes, preference] = await Promise.all([
-      getScene(scene.id),
+      hasCachedMeta ? Promise.resolve({ data: sceneMeta.value }) : getScene(scene.id),
       existingId ? getSession(existingId) : createSession(scene.id),
-      getAvatarPreference(scene.id),
+      hasCachedMeta ? Promise.resolve(null) : getAvatarPreference(scene.id),
     ])
     if (generation !== sessionGeneration) return
     sceneMeta.value = { ...detailRes.data, package: sessionRes.data.scene_display || detailRes.data.package }
-    applyVoicePreference(preference, activeRole.value?.voice)
+    if (!hasCachedMeta) applyVoicePreference(preference, activeRole.value?.voice)
     sessionInfo.value = sessionRes.data
     messages.value = []
     const greetingMessage = sessionRes.data.greeting ? pushMessage('agent', sessionRes.data.greeting) : null
     if (greetingMessage) greetingMessage.greetingSessionId = sessionRes.data.id
     for (const turn of sessionRes.data.turns || []) {
-      pushMessage('user', turn.input_text)
+      const userTurnMsg = pushMessage('user', turn.input_text)
+      userTurnMsg.isVoice = Boolean(turn.pronunciation_score)
+      userTurnMsg.duration = turn.pronunciation_score?.duration_sec || null
+      userTurnMsg.turnId = turn.turn_id
+      userTurnMsg.sessionId = sessionRes.data.id
+      userTurnMsg.hasUserAudio = Boolean(turn.has_user_audio)
+      userTurnMsg.pronunciationScore = turn.pronunciation_score || null
+      userTurnMsg.grammarCorrection = turn.grammar_correction || null
       const reply = pushMessage('agent', turn.text)
       reply.turnId = turn.turn_id
       reply.sessionId = sessionRes.data.id
     }
     phase.value = 'chat'
+    if (props.embeddedScene) emit('phase', 'chat')
     avatarState.value = 'idle'
     confirmScene.value = null // 进入成功后收起确认弹窗
-    await nextTick()
+    await scrollToBottom()
     if (generation !== sessionGeneration) return
     composerBox.value?.focus()
     if (!existingId && greetingMessage && autoPlayReplies.value) void playMessage(greetingMessage, { automatic: true })
   } catch (err) {
-    historyError.value = err.message
+    if (phase.value === 'chat') error.value = err.message
+    else historyError.value = err.message
   } finally {
     starting.value = false
   }
@@ -661,9 +1393,12 @@ function applyVoicePreference(pref, roleVoice) {
 function backToSelect() {
   if (sending.value) return
   sessionGeneration += 1
+  activeStreamController?.abort()
+  replySuggestions.value = []
   playbackNotice.value = ''
   cancelRecording()
   transcribedText.value = ''
+  clearPendingVoice()
   stopAudio()
   clearAudioCache()
   phase.value = 'select'
@@ -673,7 +1408,11 @@ function backToSelect() {
   draft.value = ''
   expandedMessages.value.clear()
   stateOpen.value = false
+  stageOpen.value = false
+  reportOpen.value = false
+  sessionReport.value = null
   error.value = ''
+  if (props.embeddedScene) { emit('exit'); return }
   if (route.query.session) { router.replace({ name: 'history' }); return } // 由历史记录进入时退回列表，而非场景选择
 }
 
@@ -695,6 +1434,7 @@ function startRecording() {
   stopAudio()
   error.value = ''
   transcribedText.value = ''
+  clearPendingVoice()
   avatarState.value = 'listening' // 数字人进入倾听姿态
   beginRecording()
 }
@@ -702,59 +1442,293 @@ function startRecording() {
 function retryRecording() {
   // 转写结果不满意：清掉结果直接重录
   transcribedText.value = ''
+  clearPendingVoice()
   startRecording()
 }
 
 function sendTranscribed() {
-  // 确认发送语音转写文本
+  // 确认发送语音转写文本（保留语音属性与 audio_token，用于展示语音胶囊与发音评测）
   const text = transcribedText.value.trim()
   if (!text || sending.value || finished.value) return
-  draft.value = text
+  const voiceMeta = {
+    isVoice: true,
+    text,
+    audioToken: pendingAudioToken.value || undefined,
+    audioUrl: pendingVoiceBlobUrl.value || '',
+    duration: pendingVoiceDuration.value || 0,
+  }
+  clearPendingVoice(false) // audioUrl 移交给消息对象，不立即 revoke
   transcribedText.value = ''
-  sendTurn()
+  sendTurn(voiceMeta)
 }
 
 function toggleInputMode() {
   // 语音/文字互切（录音中禁用切换，避免设备资源泄漏）
   if (voiceBusy.value) return
   transcribedText.value = ''
+  clearPendingVoice()
   inputMode.value = inputMode.value === 'voice' ? 'text' : 'voice'
   if (inputMode.value === 'text') nextTick(() => composerBox.value?.focus())
 }
 
-async function sendTurn() {
-  const text = draft.value.trim()
+let activeStreamController = null
+let streamAudioQueue = []
+let streamAudioEnded = false
+let streamPlaybackGen = 0
+const suggesting = ref(false)
+const replySuggestions = ref([])
+
+async function requestReplyAssist() {
+  if (!sessionInfo.value?.id || suggesting.value || sending.value || finished.value) return
+  suggesting.value = true
+  error.value = ''
+  try {
+    const { data } = await suggestReply(sessionInfo.value.id)
+    replySuggestions.value = Array.isArray(data?.suggestions) ? data.suggestions : []
+    if (!replySuggestions.value.length) error.value = '暂未生成参考回复，请再试一次'
+  } catch (err) {
+    error.value = err?.message || '生成参考回复失败，请稍后重试'
+  } finally {
+    suggesting.value = false
+  }
+}
+
+async function applySuggestion(enText) {
+  if (!enText) return
+  draft.value = enText
+  replySuggestions.value = []
+  if (inputMode.value !== 'text') inputMode.value = 'text'
+  await nextTick()
+  autoGrow()
+  composerBox.value?.focus()
+}
+
+function resetStreamAudioQueue() {
+  streamPlaybackGen += 1
+  for (const item of streamAudioQueue) {
+    if (item.url?.startsWith('blob:')) URL.revokeObjectURL(item.url)
+  }
+  streamAudioQueue = []
+  streamAudioEnded = false
+}
+
+function base64ToMp3Blob(b64) {
+  const bin = atob(b64)
+  const bytes = new Uint8Array(bin.length)
+  for (let i = 0; i < bin.length; i += 1) bytes[i] = bin.charCodeAt(i)
+  return new Blob([bytes], { type: 'audio/mpeg' })
+}
+
+async function pumpStreamAudio(msgKey, expectedGen) {
+  if (expectedGen !== streamPlaybackGen || currentAudio) return
+  const next = streamAudioQueue.shift()
+  if (!next) {
+    if (streamAudioEnded) {
+      playingKey.value = ''
+      if (avatarState.value === 'speaking') avatarState.value = 'idle'
+    }
+    return
+  }
+  const audio = new Audio(next.url)
+  audio.preservesPitch = true
+  audio.playbackRate = speechRate.value
+  currentAudio = audio
+  playingKey.value = msgKey
+  avatarState.value = 'speaking'
+  audio.ontimeupdate = () => { playbackTime.value = currentAudio?.currentTime || 0 }
+  audio.onloadedmetadata = () => {
+    playbackDuration.value = Number.isFinite(currentAudio?.duration) ? currentAudio.duration : 0
+  }
+  const finishChunk = () => {
+    if (next.url?.startsWith('blob:')) URL.revokeObjectURL(next.url)
+    if (currentAudio === audio) currentAudio = null
+    if (expectedGen === streamPlaybackGen) void pumpStreamAudio(msgKey, expectedGen)
+  }
+  audio.onended = finishChunk
+  audio.onerror = finishChunk
+  try {
+    await audio.play()
+  } catch (err) {
+    if (next.url?.startsWith('blob:')) URL.revokeObjectURL(next.url)
+    if (currentAudio === audio) currentAudio = null
+    resetStreamAudioQueue()
+    playingKey.value = ''
+    if (avatarState.value === 'speaking') avatarState.value = 'idle'
+    if (err?.name === 'NotAllowedError') {
+      playbackNotice.value = '浏览器阻止了自动播放，请点击回复下方的「听语音」。'
+    }
+  }
+}
+
+function discardPendingVoice() {
+  stopAudio()
+  transcribedText.value = ''
+  clearPendingVoice()
+}
+
+function playPendingVoice() {
+  if (!pendingVoiceBlobUrl.value) return
+  void playUserVoice({
+    key: '__pending__',
+    audioUrl: pendingVoiceBlobUrl.value,
+    duration: pendingVoiceDuration.value,
+  })
+}
+
+async function playUserVoice(msg) {
+  if (!msg) return
+  stopAudio()
+  let url = msg.audioUrl
+  if (!url && msg.hasUserAudio && msg.sessionId && msg.turnId) {
+    try {
+      const blob = await getUserTurnAudio(msg.sessionId, msg.turnId)
+      url = URL.createObjectURL(blob)
+      msg.audioUrl = url
+    } catch {
+      return
+    }
+  }
+  if (!url) {
+    playbackNotice.value = '该条历史录音未保留音频文件，可点击左侧「原文」查看文字。'
+    return
+  }
+  const audio = new Audio(url)
+  currentAudio = audio
+  playingKey.value = msg.key
+  playbackTime.value = 0
+  playbackDuration.value = msg.duration || 0
+  audio.ontimeupdate = () => { playbackTime.value = currentAudio?.currentTime || 0 }
+  audio.onloadedmetadata = () => {
+    if (Number.isFinite(currentAudio?.duration)) playbackDuration.value = currentAudio.duration
+  }
+  const done = () => {
+    if (currentAudio === audio) currentAudio = null
+    playingKey.value = ''
+    playbackTime.value = 0
+  }
+  audio.onended = done
+  audio.onerror = done
+  try {
+    await audio.play()
+  } catch {
+    done()
+  }
+}
+
+async function sendTurn(voiceMeta = null) {
+  const isVoiceTurn = Boolean(voiceMeta?.isVoice)
+  const text = String(isVoiceTurn ? (voiceMeta?.text ?? '') : draft.value).trim()
   if (!text || sending.value || finished.value || voiceBusy.value) return
   if (text.length > 4000) { error.value = '回答超过 4000 字，请精简后再发送。'; return }
   transcribedText.value = ''
+  const audioToken = isVoiceTurn ? voiceMeta.audioToken : undefined
+  if (!isVoiceTurn) clearPendingVoice()
+  replySuggestions.value = []
   stopAudio()
   sending.value = true
   const generation = sessionGeneration
   let replyMessage = null
+  let doneReceived = false
   avatarState.value = 'thinking'
   error.value = ''
   draft.value = ''
   if (composerBox.value) composerBox.value.style.height = 'auto'
   const userMsg = pushMessage('user', text) // 乐观上屏，失败时按 key 撤回
+  if (isVoiceTurn) {
+    userMsg.isVoice = true
+    userMsg.audioUrl = voiceMeta.audioUrl || ''
+    userMsg.duration = voiceMeta.duration || 0
+  }
+  const controller = new AbortController()
+  activeStreamController = controller
+  const expectedStreamGen = streamPlaybackGen
+  const streamedBlobs = []
+  let hadAudioError = false
+
   try {
     const requestId = crypto.randomUUID() // 幂等键：网络重试时后端去重
-    const { data } = await submitTurn(sessionInfo.value.id, requestId, text)
-    if (generation !== sessionGeneration) return
-    replyMessage = pushMessage('agent', data.text)
-    replyMessage.turnId = data.turn_id
-    replyMessage.sessionId = data.session_id
-    sessionInfo.value = { ...sessionInfo.value, state: data.state, version: data.version }
+    await submitTurnStream(sessionInfo.value.id, requestId, text, {
+      voiceStyle: voiceStyle.value,
+      includeAudio: autoPlayReplies.value,
+      audioToken,
+      signal: controller.signal,
+      onCorrection(data) {
+        if (generation !== sessionGeneration) return
+        userMsg.grammarCorrection = data
+        scrollToBottom()
+      },
+      onPronunciation(data) {
+        if (generation !== sessionGeneration) return
+        userMsg.pronunciationScore = data
+        scrollToBottom()
+      },
+      onDelta(delta) {
+        if (generation !== sessionGeneration || !delta) return
+        if (!replyMessage && !delta.trim()) return
+        if (!replyMessage) {
+          replyMessage = pushMessage('agent', '')
+          if (autoPlayReplies.value) ttsBusyKey.value = replyMessage.key
+        }
+        replyMessage.text += delta
+        scrollToBottom()
+      },
+      onDone(data) {
+        if (generation !== sessionGeneration) return
+        doneReceived = true
+        if (!replyMessage) {
+          replyMessage = pushMessage('agent', data.text)
+          if (autoPlayReplies.value) ttsBusyKey.value = replyMessage.key
+        } else {
+          replyMessage.text = data.text
+        }
+        replyMessage.turnId = data.turn_id
+        replyMessage.sessionId = data.session_id
+        sessionInfo.value = { ...sessionInfo.value, state: data.state, version: data.version }
+        sending.value = false
+        if (!autoPlayReplies.value && avatarState.value === 'thinking') avatarState.value = 'idle'
+        scrollToBottom()
+      },
+      onAudio(chunk) {
+        if (generation !== sessionGeneration || !autoPlayReplies.value || !chunk?.audio_b64) return
+        if (expectedStreamGen !== streamPlaybackGen) return
+        const msgKey = replyMessage?.key || ''
+        if (ttsBusyKey.value === msgKey) ttsBusyKey.value = ''
+        const blob = base64ToMp3Blob(chunk.audio_b64)
+        streamedBlobs.push(blob)
+        streamAudioQueue.push({ url: URL.createObjectURL(blob), text: chunk.text || '' })
+        if (!currentAudio && msgKey) void pumpStreamAudio(msgKey, expectedStreamGen)
+      },
+      onAudioError() {
+        hadAudioError = true
+      },
+      onAudioEnd() {
+        if (generation !== sessionGeneration) return
+        if (replyMessage && ttsBusyKey.value === replyMessage.key) ttsBusyKey.value = ''
+        if (!hadAudioError && streamedBlobs.length && replyMessage) {
+          audioCache.set(JSON.stringify([replyMessage.key, voiceStyle.value]), new Blob(streamedBlobs, { type: 'audio/mpeg' }))
+        }
+        streamAudioEnded = true
+        if (!currentAudio && streamAudioQueue.length === 0) {
+          playingKey.value = ''
+          if (avatarState.value === 'speaking' || avatarState.value === 'thinking') avatarState.value = 'idle'
+        }
+      },
+    })
   } catch (err) {
-    if (generation !== sessionGeneration) return
-    // 提交失败：撤回乐观气泡，把输入还给用户重发
-    messages.value = messages.value.filter((m) => m.key !== userMsg.key)
-    draft.value = text
-    error.value = err.message
+    if (generation !== sessionGeneration || err?.name === 'AbortError') return
+    if (!doneReceived) {
+      // 提交失败：撤回乐观气泡，把输入还给用户重发
+      const removeKeys = new Set([userMsg.key, replyMessage?.key].filter(Boolean))
+      messages.value = messages.value.filter((m) => !removeKeys.has(m.key))
+      draft.value = text
+      error.value = err.message
+    }
   } finally {
+    if (activeStreamController === controller) activeStreamController = null
+    if (replyMessage && ttsBusyKey.value === replyMessage.key) ttsBusyKey.value = ''
     sending.value = false
-    avatarState.value = 'idle'
+    if (avatarState.value === 'thinking') avatarState.value = 'idle'
     scrollToBottom()
-    if (generation === sessionGeneration && replyMessage && autoPlayReplies.value) void playMessage(replyMessage, { automatic: true })
   }
 }
 
@@ -805,6 +1779,7 @@ async function playMessage(msg, { automatic = false } = {}) {
 
 function stopAudio() {
   playbackGeneration += 1
+  resetStreamAudioQueue()
   if (currentAudio) {
     currentAudio.pause()
     if (currentAudio.src?.startsWith('blob:')) URL.revokeObjectURL(currentAudio.src)
@@ -818,7 +1793,12 @@ function stopAudio() {
 }
 
 function clearAudioCache() { audioCache.clear() }
-onBeforeUnmount(() => { sessionGeneration += 1; stopAudio(); clearAudioCache() })
+onBeforeUnmount(() => {
+  sessionGeneration += 1
+  activeStreamController?.abort()
+  stopAudio()
+  clearAudioCache()
+})
 </script>
 
 <style scoped>
@@ -866,12 +1846,40 @@ button.voice-bar-info:disabled { opacity: .65; cursor: not-allowed; }
 .foot-toggle:disabled { opacity: .5; }
 .foot-toggle.in-bar { height: 34px; padding: 0 12px; border: 1.5px solid #e7e1f5; border-bottom: 3px solid #dcd3f0; border-radius: 11px; background: #faf8ff; color: #694ec0; font-weight: 700; white-space: nowrap; }
 .foot-toggle.in-bar:hover:not(:disabled) { border-color: #c9bdf0; background: #f2ecff; color: #583eb0; }
+.ai-assist-btn { height: 30px; padding: 0 11px; font-size: 11.5px; border-radius: 9px; }
+.ai-suggest-tray {
+  margin-bottom: 10px; padding: 10px 12px; border-radius: 14px;
+  border: 1.5px solid #e6dff5; background: #faf8ff; display: grid; gap: 8px;
+}
+.ai-suggest-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 11.5px; font-weight: 650; color: #694ec0; }
+.ai-suggest-head > span { display: inline-flex; align-items: center; gap: 5px; }
+.ai-suggest-actions { display: flex; align-items: center; gap: 6px; }
+.ai-mini-btn {
+  border: 1px solid #dfd6f4; background: #fff; color: #694ec0; font-size: 11px; font-weight: 600;
+  padding: 2px 8px; border-radius: 999px; cursor: pointer;
+}
+.ai-mini-btn:hover:not(:disabled) { background: #f2ecff; }
+.ai-mini-close { border: 0; background: transparent; color: #8c85a6; padding: 2px; display: inline-flex; cursor: pointer; border-radius: 6px; }
+.ai-mini-close:hover { background: #ede7fa; color: #583eb0; }
+.ai-suggest-list { display: grid; gap: 6px; }
+.ai-suggest-chip {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 2px; width: 100%;
+  padding: 8px 11px; border-radius: 11px; border: 1.5px solid #ece6f8; border-bottom-width: 2.5px;
+  background: #fff; text-align: left; cursor: pointer; transition: border-color .15s, background .15s;
+}
+.ai-suggest-chip:hover { border-color: #b79ced; background: #f6f2ff; }
+.ai-suggest-chip b { font-size: 13px; font-weight: 600; color: #2d294b; line-height: 1.45; }
+.ai-suggest-chip span { font-size: 11.5px; color: #7c7693; }
 /* 转写结果确认：绿色浅底，文本限三行，操作右对齐 */
 .voice-result { flex-direction: column; align-items: stretch; gap: 8px; border-color: #d9e8de; background: #f4faf6; }
+.voice-result.is-staged { flex-direction: row; align-items: center; justify-content: space-between; gap: 10px; border-color: #e4def7; background: #faf8ff; }
+.staged-capsule { border-radius: 999px; min-width: 132px; }
 .voice-result-text { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; margin: 0; color: var(--ink); font-size: 14.5px; line-height: 1.7; white-space: pre-wrap; overflow-wrap: anywhere; }
 .voice-result-actions { display: flex; align-items: center; justify-content: flex-end; gap: 6px; }
 /* 继承旧版「场景工具栏 + 对话主区 + 辅助栏」，沿用 2.0 的色彩与控件。 */
 .practice-page { flex: 1; min-height: 0; min-width: 0; display: flex; flex-direction: column; }
+.practice-page.is-overlay-only { position: fixed; inset: 0; z-index: 60; pointer-events: none; }
+.practice-page.is-overlay-only > * { pointer-events: auto; }
 button, a, textarea, select, summary { -webkit-app-region: no-drag; }
 button { cursor: pointer; } button:disabled { cursor: not-allowed; }
 button:focus-visible, a:focus-visible, summary:focus-visible { outline: 2px solid var(--brand); outline-offset: 3px; }
@@ -960,7 +1968,7 @@ button:focus-visible, a:focus-visible, summary:focus-visible { outline: 2px soli
 @keyframes fade-in { from { opacity: 0; } }
 @keyframes pop-in { from { opacity: 0; transform: translateY(8px) scale(.97); } }
 .ghost-button, .exit-button { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; gap: 7px; min-height: 36px; padding: 0 13px; border: 1.5px solid #e7e1f5; border-bottom: 3px solid #dcd3f0; border-radius: 12px; background: white; color: #5b5572; font-size: 13px; font-weight: 650; text-decoration: none; transition: border-color .15s, background .15s, color .15s, transform .12s; }
-.ghost-button:hover { border-color: #c9bdf0; background: #f8f5ff; color: #5b43b0; }
+.ghost-button:hover, .reference-button.active { border-color: #c9bdf0; background: #f3effd; color: #5b43b0; }
 .exit-button { color: #a14959; background: #fff7f8; border-color: #f0dfe3; border-bottom-color: #e5ccd2; }
 .exit-button:hover { background: #fdeff1; border-color: #e5c3cb; } button:disabled { opacity: .5; }
 /* 页面内只滚动消息与辅助栏，输入始终可见。 */
@@ -970,6 +1978,11 @@ button:focus-visible, a:focus-visible, summary:focus-visible { outline: 2px soli
 .back-button:hover { border-color: #c9bdf0; background: #f8f5ff; color: #5b43b0; }
 .session-heading { min-width: 0; flex: 1; }.session-heading h2 { margin: 0; color: #2d294b; font-size: 18px; font-weight: 800; line-height: 1.5; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }.session-heading p { margin: 3px 0 0; color: #7c7693; font-size: 12.5px; }.session-heading p span { margin: 0 8px; }
 .chat-layout { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 264px; gap: 16px; }
+.chat-layout.has-knowledge { grid-template-columns: minmax(0, 1fr) 256px 348px; }
+@media (max-width: 1080px) {
+  .chat-layout.has-knowledge { grid-template-columns: minmax(0, 1fr) 236px; }
+  .chat-knowledge-dock { position: fixed; right: 16px; bottom: 16px; top: 82px; z-index: 45; width: min(360px, calc(100vw - 32px)); height: auto !important; box-shadow: 0 20px 56px rgba(45, 41, 75, .24); }
+}
 .chat-card { display: flex; flex-direction: column; min-width: 0; min-height: 0; background: white; border: 1px solid var(--line); border-radius: 14px; overflow: hidden; }
 .chat-head { display: flex; align-items: center; gap: 10px; padding: 14px 20px; border-bottom: 1px solid var(--line); flex-shrink: 0; }
 .role-avatar { display: grid; place-items: center; flex: 0 0 36px; width: 36px; height: 36px; border-radius: 12px; background: #eee9ff; color: #694ec0; font-size: 14px; font-weight: 750; }
@@ -1016,13 +2029,52 @@ button:focus-visible, a:focus-visible, summary:focus-visible { outline: 2px soli
 .capsule-duration { font-size: 12.5px; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .voice-wave-icon { flex: 0 0 auto; }
 .spin { animation: spin 1s linear infinite; }
+.ui-spinner {
+  width: 13px; height: 13px; border-radius: 50%; flex: 0 0 auto;
+  border: 2px solid rgba(105, 78, 192, 0.22); border-top-color: #694ec0;
+  animation: spin .72s linear infinite;
+}
+.send-spinner { width: 14px; height: 14px; border-color: rgba(255, 255, 255, 0.34); border-top-color: #fff; }
+.ai-voice-capsule.is-busy { border-color: #c8bbf0; background: linear-gradient(90deg, #faf8ff 0%, #f1ebff 50%, #faf8ff 100%); background-size: 200% 100%; animation: tts-shimmer 1.6s ease-in-out infinite; }
+.tts-bars { display: inline-flex; align-items: center; gap: 2.5px; height: 14px; }
+.tts-bars i { width: 2.5px; height: 6px; border-radius: 999px; background: #7b61ff; animation: tts-bar 0.9s ease-in-out infinite; }
+.tts-bars i:nth-child(2) { animation-delay: 0.15s; }
+.tts-bars i:nth-child(3) { animation-delay: 0.3s; }
+@keyframes tts-bar { 0%, 100% { height: 5px; opacity: 0.55; } 50% { height: 14px; opacity: 1; } }
+@keyframes tts-shimmer { 0% { background-position: 100% 0; } 100% { background-position: -100% 0; } }
 .original-toggle { display: inline-flex; align-items: center; gap: 4px; padding: 5px 10px; border: 1.5px solid #e6e3f2; border-bottom: 3px solid #dad4ec; border-radius: 999px; background: #fff; color: #6b6485; font-size: 12px; font-weight: 650; transition: color .15s, border-color .15s; white-space: nowrap; }
 .original-toggle:hover { color: #5b43b0; border-color: #c9bdf0; }
 .original-panel { max-width: 100%; margin-top: 7px; padding: 11px 15px; border: 1px solid #ededf3; border-radius: 4px 15px 15px 15px; background: #fff; }
-.panel-enter-active, .panel-leave-active { transition: opacity .18s ease, transform .18s ease; }
-.panel-enter-from, .panel-leave-to { opacity: 0; transform: translateY(-4px); }
+.panel-enter-active, .panel-leave-active {
+  transition: height .22s cubic-bezier(.22, 1, .36, 1), opacity .18s ease, margin-top .22s cubic-bezier(.22, 1, .36, 1), padding-top .22s cubic-bezier(.22, 1, .36, 1), padding-bottom .22s cubic-bezier(.22, 1, .36, 1), border-top-width .22s cubic-bezier(.22, 1, .36, 1), border-bottom-width .22s cubic-bezier(.22, 1, .36, 1);
+  overflow: hidden;
+}
 .thinking-message { display: flex; align-items: center; gap: 10px; margin-bottom: 20px; }.thinking-message .msg-avatar { margin-top: 0; }.thinking-message small { color: var(--muted); font-size: 12.5px; }.thinking-dots { display: flex; gap: 4px; padding: 12px; border-radius: 10px; background: var(--bg); }.thinking-dots i { width: 4px; height: 4px; border-radius: 50%; background: var(--brand); }
 .finish-banner { display: flex; align-items: center; gap: 8px; padding: 12px; color: #4a7f63; border-radius: 8px; background: #f1f8f3; font-size: 13.5px; }
+.md-body { white-space: normal; }
+.md-body :deep(p) { margin: 0 0 6px; }
+.md-body :deep(p:last-child) { margin-bottom: 0; }
+.md-body :deep(strong) { font-weight: 700; color: #2d294b; }
+.md-body :deep(ul), .md-body :deep(ol) { margin: 4px 0 6px; padding-left: 18px; }
+.md-body :deep(code) { padding: 1px 5px; border-radius: 4px; background: #f3f1fb; font-size: .9em; }
+.ending-card { margin: 8px 0 6px; padding: 14px 16px; border: 1.5px solid #dfd8f6; border-radius: 14px; background: linear-gradient(180deg, #fcfbff 0%, #f6f3fe 100%); display: flex; flex-direction: column; gap: 10px; }
+.ending-card.is-done { border-color: #cde6d6; background: linear-gradient(180deg, #fafdfb 0%, #f1f9f4 100%); }
+.ending-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.ending-badge { display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px; border-radius: 999px; background: #ece6fc; color: #5b43b0; font-size: 12px; font-weight: 750; }
+.ending-card.is-done .ending-badge { background: #dff2e6; color: #2d6f49; }
+.ending-amount { font-size: 18px; font-weight: 800; color: #2d294b; font-variant-numeric: tabular-nums; }
+.ending-title { margin: 0; font-size: 14px; font-weight: 700; color: #2d294b; }
+.ending-sub { margin: -4px 0 0; font-size: 12.5px; color: #6b6485; }
+.ending-items { margin: 0; padding: 8px 12px 8px 26px; border-radius: 10px; background: rgba(255, 255, 255, 0.8); border: 1px solid #ece7f8; font-size: 13px; color: #393457; display: flex; flex-direction: column; gap: 4px; }
+.ending-note { padding: 8px 11px; border-radius: 9px; background: rgba(255, 255, 255, 0.85); border: 1px solid #d7ebde; font-size: 12.5px; color: #2d294b; }
+.ending-input { width: 100%; box-sizing: border-box; padding: 8px 11px; border: 1.5px solid #e1dbf4; border-radius: 9px; background: #fff; font: inherit; font-size: 13px; color: #2d294b; outline: none; }
+.ending-input:focus { border-color: #7c62d2; }
+.pay-methods { display: flex; flex-wrap: wrap; gap: 8px; }
+.pay-method-chip { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border: 1.5px solid #e1dbf4; border-radius: 999px; background: #fff; color: #595275; font-size: 12.5px; font-weight: 650; cursor: pointer; transition: all .15s; }
+.pay-method-chip:hover:not(:disabled) { border-color: #9e87e8; color: #4c359d; }
+.pay-method-chip.active { border-color: #7c62d2; background: #efeafc; color: #4c359d; }
+.ending-stats { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; font-size: 12px; color: #6b6485; }
+.ending-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 2px; }
 .composer-area { flex-shrink: 0; margin: 0 20px; padding: 13px 0 12px; border-top: 1px solid var(--line); }
 .composer { display: flex; align-items: flex-end; gap: 10px; padding: 10px; border: 1px solid #e6e6f0; border-radius: 11px; background: #fcfcfe; transition: border-color .15s; }.composer:focus-within { border-color: #a9a7e9; }.composer-input { display: block; flex: 1; min-width: 0; min-height: 42px; max-height: 132px; padding: 0 3px; outline: none; border: 0; resize: none; background: transparent; font: inherit; font-size: 14.5px; line-height: 1.7; color: #2d294b; }.composer-input::placeholder { color: #9c96b2; }.send-button { display: flex; align-items: center; justify-content: center; gap: 5px; height: 36px; padding: 0 15px; border: 1.5px solid #7960cc; border-bottom: 4px solid #6349b4; border-radius: 11px; color: white; background: #8b73dd; font-size: 13px; font-weight: 700; transition: background .15s, transform .12s; }.send-button:hover:not(:disabled) { background: #7d64d1; transform: translateY(-1px); }.send-button:active:not(:disabled) { transform: translateY(1px); border-bottom-width: 2px; }
 .composer-foot { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 7px; margin-top: 9px; color: #7c7693; font-size: 11.5px; }.recording-note { display: flex; align-items: center; gap: 4px; }.keyboard-hint { display: flex; align-items: center; gap: 5px; }.keyboard-hint>span { margin: 0 3px; }kbd { font-family: inherit; font-size: 10.5px; }.chat-error { display: flex; align-items: center; gap: 5px; margin: 0 0 10px; color: var(--danger); font-size: 13px; }
@@ -1082,8 +2134,102 @@ h3 { margin: 0; color: #2d294b; font-size: 14px; font-weight: 750; }
 .msg-avatar.user { background: #e8f3ee; color: #568b72; }
 .bubble { border: 1.5px solid #eae6f2; border-bottom: 3px solid #e4dfec; border-radius: 5px 17px 17px 17px; background: #fff; }
 .msg-row.user .bubble { border-color: #d9d0f8; border-bottom-color: #c8bbef; border-radius: 17px 5px 17px 17px; background: #eee9ff; color: #393451; }
+.bubble-row.is-user-voice { justify-content: flex-end; }
+.user-voice-capsule {
+  flex-direction: row-reverse;
+  border-color: #d9d0f8; border-bottom-color: #c8bbef;
+  border-radius: 16px 5px 16px 16px;
+  background: #eee9ff; color: #4e3b94;
+}
+.user-voice-capsule.staged-capsule .voice-wave-icon { transform: none; }
+.user-voice-capsule:hover:not(:disabled) { background: #e6deff; }
+.user-voice-capsule .capsule-progress { background: rgba(115, 87, 204, 0.14); }
+.user-voice-capsule.is-static { opacity: 0.92; }
+.original-panel.is-user {
+  border-color: #eae6f2; background: #fff; color: #393451;
+  border-radius: 15px 4px 15px 15px; text-align: left;
+}
+.user-feedback-wrap { margin-top: 6px; display: flex; flex-direction: column; align-items: flex-end; max-width: 100%; }
+.fb-collapse-pill {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 4px 10px; border-radius: 999px; cursor: pointer;
+  background: #fff; border: 1.5px solid #e6e3f2; border-bottom-width: 2.5px;
+  color: #6b6485; font-size: 11.5px; font-weight: 600;
+  transition: background .15s, border-color .15s;
+}
+.fb-collapse-pill:hover, .fb-collapse-pill.is-open { background: #fff; border-color: #d3c9f0; color: #53439c; }
+.fb-collapse-pill b.is-high { color: #16a34a; }
+.fb-collapse-pill b.is-mid { color: #d97706; }
+.fb-collapse-pill b.is-low { color: #e11d48; }
+.fb-collapse-pill .flip { transform: rotate(180deg); transition: transform .18s; }
+.fb-dot-hint { width: 6px; height: 6px; border-radius: 999px; background: #8b73dd; flex-shrink: 0; }
+.user-feedback-card {
+  margin-top: 6px; max-width: 440px; width: fit-content; min-width: 240px;
+  background: #fff; border: 1.5px solid #eae6f2; border-bottom: 3px solid #e4dfec;
+  border-radius: 14px; padding: 9px 13px; text-align: left;
+  display: flex; flex-direction: column; gap: 8px;
+}
+.fb-summary { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.fb-stats { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; font-size: 12px; color: #7c7693; }
+.fb-stat { display: inline-flex; align-items: center; gap: 4px; }
+.fb-stat b { font-weight: 750; font-size: 12.5px; }
+.fb-stat b.is-high { color: #16a34a; }
+.fb-stat b.is-mid { color: #d97706; }
+.fb-stat b.is-low { color: #e11d48; }
+.fb-stat small { font-size: 11px; color: #8b84a3; }
+.fb-sep { color: #d5cfe4; font-weight: 700; }
+.fb-word-toggle {
+  display: inline-flex; align-items: center; gap: 3px; flex-shrink: 0;
+  border: 0; background: #f6f4fc; color: #6d5cb0; border-radius: 999px;
+  padding: 2px 8px; font-size: 11px; font-weight: 650; cursor: pointer;
+  transition: background .15s;
+}
+.fb-word-toggle:hover { background: #ede8fb; }
+.fb-word-toggle .flip { transform: rotate(180deg); }
+.fb-words {
+  display: flex; flex-wrap: wrap; gap: 6px 10px;
+  padding: 7px 10px; border-radius: 10px; background: #faf9fd; border: 1px solid #f0ecf8;
+}
+.fb-word {
+  display: inline-flex; align-items: baseline; gap: 3px; font-size: 12.5px; font-weight: 600;
+  color: #393451; padding-bottom: 1px; border-bottom: 2px solid transparent;
+}
+.fb-word small { font-size: 10px; font-weight: 600; color: #8c85a6; }
+.fb-word.is-high { border-bottom-color: #86efac; }
+.fb-word.is-mid { border-bottom-color: #fcd34d; }
+.fb-word.is-low { border-bottom-color: #fda4af; color: #be123c; }
+.fb-word.is-low small { color: #e11d48; }
+.fb-correction { padding-top: 7px; border-top: 1px solid #f0ecf7; }
+.fb-summary + .fb-correction, .fb-words + .fb-correction { padding-top: 8px; }
+.user-feedback-card > .fb-correction:first-child { padding-top: 0; border-top: 0; }
+.fb-corr-label { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 700; color: #7357cc; margin-bottom: 3px; }
+.fb-corr-sentence { margin: 0; font-size: 13px; font-weight: 650; color: #2d294b; line-height: 1.5; }
+.fb-corr-note { margin: 3px 0 0; font-size: 12px; color: #6e6885; line-height: 1.55; }
+.fb-alts { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 6px; }
+.fb-alt {
+  padding: 2px 8px; border-radius: 8px; background: #f7f5fc;
+  border: 1px solid #e7e1f5; color: #544b75; font-size: 11.5px; line-height: 1.45;
+}
+.fb-corr-ok { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 600; color: #1f7a4c; }
 .ai-voice-capsule { border: 1.5px solid #eae6f2; border-bottom: 3px solid #e4dfec; border-radius: 5px 16px 16px 16px; }
 .ai-voice-capsule:hover:not(:disabled) { background: #f6f2ff; }
+.ai-voice-capsule.user-voice-capsule:not(.staged-capsule) {
+  flex-direction: row-reverse;
+  border-color: #d9d0f8; border-bottom-color: #c8bbef;
+  border-radius: 16px 5px 16px 16px;
+  background: #eee9ff; color: #4e3b94;
+}
+.ai-voice-capsule.user-voice-capsule:not(.staged-capsule):hover:not(:disabled) { background: #e6deff; }
+.user-voice-capsule:not(.staged-capsule) .voice-wave-icon { transform: scaleX(-1); }
+.user-voice-capsule:not(.staged-capsule) .capsule-progress { left: auto; right: 0; }
+.ai-voice-capsule.user-voice-capsule.staged-capsule {
+  flex-direction: row;
+  border-color: #d9d0f8; border-bottom-color: #c8bbef;
+  border-radius: 999px;
+  background: #eee9ff; color: #4e3b94;
+}
+.ai-voice-capsule.user-voice-capsule.staged-capsule .voice-wave-icon { transform: none; }
+.ai-voice-capsule.user-voice-capsule.staged-capsule .capsule-progress { left: 0; right: auto; }
 .original-toggle, .text-toggle { border-radius: 999px; }
 .composer { border: 1.5px solid #eae6f2; border-bottom-width: 3px; border-radius: 16px; background: #fff; }
 .composer:focus-within { border-color: #b5a4e9; }
@@ -1096,5 +2242,22 @@ h3 { margin: 0; color: #2d294b; font-size: 14px; font-weight: 750; }
 .confirm-button { border-bottom: 4px solid #6951b8; background: #8b73dd; }
 .modal-card { border: 1.5px solid #ebe7f5; border-bottom: 5px solid #e5def1; border-radius: 20px; }
 .modal-icon { border-radius: 14px; background: #f0eaff; color: #7158c4; }
+
+.rail-stage-btn { cursor: pointer; font-family: inherit; font-size: 12px; line-height: 1; transition: border-color .15s, background .15s; }
+.rail-stage-btn:hover { border-color: #c9bce8; background: #f8f6ff; }
+.stage-pop { width: 292px; max-width: calc(100vw - 24px); }
+.stage-pop .stage-pop-list { display: grid; gap: 6px; }
+.stage-pop .stage-pop-list li { display: flex; align-items: flex-start; justify-content: flex-start; gap: 9px; padding: 6px 8px; border-radius: 10px; text-align: left; }
+.stage-pop .stage-pop-list li.is-current { background: #f4f0ff; }
+.stage-num {
+  display: grid; place-items: center; width: 20px; height: 20px; flex: 0 0 20px; margin-top: 1px;
+  border: 1.5px solid #e2daf5; border-radius: 50%; color: #7c7693; font-size: 11px; font-weight: 700;
+}
+.stage-pop .stage-pop-list li.is-current .stage-num { border-color: #8b73dd; background: #8b73dd; color: #fff; }
+.stage-pop .stage-pop-list li.is-done .stage-num { border-color: #bde4cf; background: #e8f8f0; color: #2c8a5e; }
+.stage-pop .stage-meta { display: flex; flex: 1; flex-direction: column; gap: 2px; min-width: 0; text-align: left; }
+.stage-pop .stage-meta b { display: block; font-size: 12.5px; font-weight: 650; color: #2d294b; text-align: left; }
+.stage-pop .stage-pop-list li.is-done .stage-meta b { color: #6e6885; }
+.stage-pop .stage-meta small { display: block; font-size: 11px; line-height: 1.5; color: #7c7693; text-align: left; }
 
 </style>

@@ -38,7 +38,14 @@ def sync_builtin_scenes() -> None:
     from app.scenes.registry import sync_seeds
 
     try:
+        from sqlalchemy import inspect as sa_inspect
         AvatarPreset.__table__.create(bind=engine, checkfirst=True)
+        existing_turn_cols = {c["name"] for c in sa_inspect(engine).get_columns("practice_turns")}
+        with engine.begin() as conn:
+            if "pronunciation_score" not in existing_turn_cols:
+                conn.execute(text("ALTER TABLE practice_turns ADD COLUMN pronunciation_score JSON NULL"))
+            if "grammar_correction" not in existing_turn_cols:
+                conn.execute(text("ALTER TABLE practice_turns ADD COLUMN grammar_correction JSON NULL"))
         with SessionLocal() as db:
             count = sync_seeds(db)
             avatar_count = sync_builtin_avatars(db)

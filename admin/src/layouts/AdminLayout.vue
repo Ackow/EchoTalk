@@ -16,6 +16,7 @@ const menuItems = [
   { path: '/avatars', title: '数字人管理', icon: 'Avatar' },
   { path: '/scenes', title: '场景管理', icon: 'Collection' },
   { path: '/sessions', title: '对话记录', icon: 'ChatDotRound' },
+  { path: '/tokens', title: 'Token 统计', icon: 'TrendCharts' },
 ]
 
 const activePath = computed(() => route.path)

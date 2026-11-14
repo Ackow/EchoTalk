@@ -7,9 +7,11 @@ const path = require('path')
 // 菜单加速器在无菜单栏时并不可靠，before-input-event 直接作用于本窗口最稳。
 function isDevtoolsShortcut(input) {
   if (input.type !== 'keyDown') return false
-  if (input.key === 'F12') return true // F12 各平台一致
-  // Ctrl+Shift+I（Win/Linux）、Cmd+Alt+I（macOS 对应 key 为 i，meta 为 Cmd）
-  return input.key?.toLowerCase() === 'i' && (input.control || input.meta) && input.shift
+  if (input.key === 'F12' || input.code === 'F12') return true // F12 各平台一致
+  const key = input.key?.toLowerCase()
+  if (key !== 'i') return false
+  // Ctrl+Shift+I（Win/Linux）、Cmd+Alt+I / Cmd+Shift+I（macOS）
+  return (input.control && input.shift) || (input.meta && (input.alt || input.shift))
 }
 
 function createWindow() {
@@ -38,10 +40,23 @@ function createWindow() {
 
   // 仅开发环境注册快捷键；打包后即使拿到按键也不会打开开发者工具
   if (!app.isPackaged) {
-    window.webContents.on('before-input-event', (event, input) => {
-      if (!isDevtoolsShortcut(input)) return
-      event.preventDefault() // 拦掉默认行为，避免与页面内快捷键重复触发
-      window.webContents.toggleDevTools()
+    const bindDevtoolsShortcut = (wc) => {
+      wc.on('before-input-event', (event, input) => {
+        if (!isDevtoolsShortcut(input)) return
+        event.preventDefault() // 拦掉默认行为，避免与页面内快捷键重复触发
+        if (window.webContents.isDevToolsOpened()) {
+          window.webContents.closeDevTools()
+        } else {
+          window.webContents.openDevTools({ mode: 'detach' })
+        }
+      })
+    }
+    bindDevtoolsShortcut(window.webContents)
+    // DevTools 自身获得焦点时，主 webContents 收不到按键，需同步绑定以便再次按 F12 收起
+    window.webContents.on('devtools-opened', () => {
+      if (window.webContents.devToolsWebContents) {
+        bindDevtoolsShortcut(window.webContents.devToolsWebContents)
+      }
     })
   }
 

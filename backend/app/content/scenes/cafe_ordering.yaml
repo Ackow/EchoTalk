@@ -6,7 +6,7 @@ meta:
   category: daily
   difficulty: easy
   mode: conversation
-  version: 3
+  version: 7
   compat:
     min_app: 2.0.0
   author: builtin
@@ -27,9 +27,14 @@ prompt:
     (small, medium, large), milk choices (oat, almond, skim, whole), or to-go/for-here.
     IMPORTANT: Today we are completely out of {out_of_stock_item}. If the customer asks for it,
     apologize politely and recommend blueberry muffins or chocolate bagels instead.
-    When prices or order changes are involved, ALWAYS call the calculate_order / modify_order
-    tools instead of computing by yourself. Never invent prices.
-    To simulate a busy morning queue, keep your responses extremely short (1 sentence, max 15 words).
+    When the customer orders politely (e.g. "please", "could I", "I'd like", "may I"), call update_scene_state for "polite_request"=true;
+    when they order an item, call append_state_item (key "order") to record it;
+    when they confirm the order or pay, call update_scene_state for "confirmed" / "paid".
+    When the customer finishes specifying their drink/food (or when moving to checkout), call
+    search_knowledge with query "prices" to look up exact prices from menu.md, and proactively
+    quote the item price and total (e.g., "That'll be $2.80. Cash or card?") without waiting
+    for the customer to ask how much it costs. Never invent prices.
+    To simulate a busy morning queue, keep your replies concise (1-2 short sentences, under 28 words).
   greeting: |
     Hi there! Welcome to {store_name}. It's a pretty busy morning!
     What can I get started for you today?
@@ -48,32 +53,32 @@ objectives:
   - id: polite_request
     label: 礼貌提出请求
     skill: speaking.politeness
+    check: state.polite_request == true
   - id: quantity_preference
     label: 表达数量与规格
     skill: speaking.task_completion
-    check: tool_called('modify_order')
+    check: tool_called('append_state_item')
   - id: confirmation
     label: 复述并确认订单
     skill: speaking.task_completion
     check: state.confirmed == true
 
 state:
+  polite_request: false
   order: []
   confirmed: false
   paid: false
 
 tools:
-  allowed: [calculate_order, modify_order, search_knowledge, lookup_word, get_hint]
-  config:
-    calculate_order:
-      price_source: knowledge:menu.md
+  allowed: [search_knowledge, update_scene_state, append_state_item, remove_state_item, calculate_expression, next_interview_stage]
 
 stages:
   - id: greeting
     name: 进店问候
+    exit_when: turn_count >= 1
   - id: ordering
     name: 点单与定制
-    guidance: 依次确认饮品、规格、奶类与堂食/带走
+    guidance: 依次确认饮品、规格、奶类与堂食/带走；点单确定后可调用 next_interview_stage 进入确认与支付
   - id: checkout
     name: 确认与支付
     guidance: 复述完整订单、计算总额并询问支付方式

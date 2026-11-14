@@ -12,3 +12,4 @@ class TranscriptionResponse(BaseModel):
     text: str
     duration: float
     provider: str = "tencent"
+    audio_token: str | None = None

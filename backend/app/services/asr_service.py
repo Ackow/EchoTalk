@@ -49,7 +49,7 @@ def sign_request(app_id: str, secret_key: str, params: dict) -> str:
     return base64.b64encode(hmac.new(secret_key.encode(), raw.encode(), hashlib.sha1).digest()).decode()
 
 
-async def transcribe(audio: bytes) -> dict:
+async def transcribe(audio: bytes, *, user_id: int | None = None) -> dict:
     """识别一段经过校验的英文录音；配置缺失或服务失败时显式报错。"""
     duration = validate_audio(audio)
     if not configured():
@@ -89,4 +89,9 @@ async def transcribe(audio: bytes) -> dict:
         raise AppError("没有识别到语音，请靠近麦克风重新录制", code="ASR_NO_SPEECH", status_code=422)
     if len(text) > 4000:
         raise AppError("识别内容过长，请缩短录音后重试", code="ASR_TEXT_TOO_LONG", status_code=422)
-    return {"text": text, "duration": round(duration, 3), "provider": "tencent"}
+    result = {"text": text, "duration": round(duration, 3), "provider": "tencent"}
+    if user_id is not None:
+        from app.services import pronunciation_service
+
+        result["audio_token"] = pronunciation_service.stage_audio(user_id, audio, duration)
+    return result

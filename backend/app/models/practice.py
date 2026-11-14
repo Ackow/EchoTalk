@@ -34,6 +34,8 @@ class PracticeTurn(Base):
     input_text = Column(Text, nullable=False)
     response_json = Column(JSON, nullable=False)  # 仅公开回复与任务状态
     trace_json = Column(JSON, nullable=False)  # 内部工具轨迹，禁止通过接口直接下发
+    pronunciation_score = Column(JSON, nullable=True)  # 语音评测：发音/语调/语速/逐词得分
+    grammar_correction = Column(JSON, nullable=True)  # 对话纠正：语法/地道表达建议
     created_at = Column(DateTime, default=utcnow, nullable=False)
 
 

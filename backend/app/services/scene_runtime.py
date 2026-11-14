@@ -39,8 +39,10 @@ def advance(package: ScenePackage, state: dict, before: dict) -> dict:
         if spec.check and evaluate(spec.check, context):
             goal["done"] = True
     stage_id, stage_turns = state["stage"], state["stage_turns"]
+    advance_requested = bool(state["scenario_state"].pop("_advance_stage_request", False))
     for index, stage in enumerate(package.stages[:-1]):
-        if stage.id == stage_id and stage.exit_when and evaluate(stage.exit_when, context):
+        should_advance = advance_requested or (stage.exit_when and evaluate(stage.exit_when, context))
+        if stage.id == stage_id and should_advance:
             stage_id, stage_turns = package.stages[index + 1].id, 0
             break
     context.update(stage=stage_id, stage_turns=stage_turns)

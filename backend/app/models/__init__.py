@@ -14,5 +14,6 @@ from .knowledge import PersonalChunkEmbedding
 from .avatar import AvatarPreference, AvatarPreset
 from .practice import PracticeSession
 from .practice import PracticeTurn
+from .usage import ApiTokenUsage
 
-__all__ = ['User', 'AuthSession', 'Scene', 'SceneStats', 'SceneUserStat', 'Document', 'Chunk', 'PersonalDocument', 'PersonalChunk', 'ChunkEmbedding', 'PersonalChunkEmbedding', 'AvatarPreference', 'AvatarPreset', 'PracticeSession', 'PracticeTurn']
+__all__ = ['User', 'AuthSession', 'Scene', 'SceneStats', 'SceneUserStat', 'Document', 'Chunk', 'PersonalDocument', 'PersonalChunk', 'ChunkEmbedding', 'PersonalChunkEmbedding', 'AvatarPreference', 'AvatarPreset', 'PracticeSession', 'PracticeTurn', 'ApiTokenUsage']

@@ -203,11 +203,11 @@ const loggingOut = ref(false)
 const logoutError = ref('')
 
 const pad = (value) => String(value).padStart(2, '0')
-// 后端为 UTC naive：补 Z 后按本地时区展示
+// 后端为北京时间 naive：直接按本地时区解析
 const joinedFull = computed(() => {
   const iso = user.value?.created_at
   if (!iso) return '—'
-  const date = new Date(`${iso}Z`)
+  const date = new Date(iso)
   if (Number.isNaN(date.getTime())) return '—'
   return `${date.getFullYear()}年${date.getMonth() + 1}月${date.getDate()}日 ${pad(date.getHours())}:${pad(date.getMinutes())}`
 })
@@ -215,7 +215,7 @@ const joinedFull = computed(() => {
 const joinedDays = computed(() => {
   const iso = user.value?.created_at
   if (!iso) return '刚加入'
-  const date = new Date(`${iso}Z`)
+  const date = new Date(iso)
   if (Number.isNaN(date.getTime())) return '刚加入'
   const days = Math.floor((Date.now() - date.getTime()) / 86400000)
   if (days <= 0) return '今天加入'

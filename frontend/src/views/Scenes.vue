@@ -1,6 +1,6 @@
 <template>
   <!-- 场景探索：搜索 / 分类 / 来源筛选 / 场景卡（作者·封面） / 详情弹窗 / 导入导出与互动 -->
-  <section class="scenes-page">
+  <section v-show="trainingPhase !== 'chat'" class="scenes-page">
     <!-- 工具行：来源筛选 + 创建/导入 -->
     <div class="scenes-toolbar">
       <AppTabs
@@ -10,7 +10,7 @@
       />
       <div class="toolbar-actions">
         <button class="ghost-button" type="button" @click="pickImport">
-          <AppIcon name="upload" :size="14" />导入场景包
+          <AppIcon name="download" :size="14" />导入场景包
         </button>
         <button class="primary-button slim" type="button" @click="goCreate">
           <AppIcon name="plus" :size="14" />新建场景
@@ -80,7 +80,7 @@
                     <AppIcon name="copy" :size="13" />复制为我的场景
                   </button>
                   <button class="menu-item" type="button" @click="doExport(scene)">
-                    <AppIcon name="download" :size="13" />导出 ZIP
+                    <AppIcon name="upload" :size="13" />导出 ZIP
                   </button>
                   <button v-if="canEdit(scene)" class="menu-item" type="button" @click="doPublishToggle(scene)">
                     <AppIcon :name="scene.status === 'published' ? 'lock' : 'send'" :size="13" />
@@ -270,7 +270,7 @@
                 <AppIcon name="copy" :size="13" />复制
               </button>
               <button class="ghost-button" type="button" @click="doExport(detail)">
-                <AppIcon name="download" :size="13" />导出
+                <AppIcon name="upload" :size="13" />导出
               </button>
               <button class="primary-button slim" type="button" @click="startTraining(detail)">
                 <AppIcon name="messages" :size="13" />开始训练
@@ -317,6 +317,12 @@
       <div v-if="toast" class="toast" role="status">{{ toast }}</div>
     </transition>
   </section>
+  <Practice
+    v-if="activeTrainingScene"
+    :embedded-scene="activeTrainingScene"
+    @phase="trainingPhase = $event"
+    @exit="activeTrainingScene = null; trainingPhase = 'select'"
+  />
 </template>
 
 <script setup>
@@ -325,6 +331,7 @@ import { useRouter } from 'vue-router'
 import AppIcon from '../components/AppIcon.vue'
 import AppSelect from '../components/AppSelect.vue'
 import AppTabs from '../components/AppTabs.vue'
+import Practice from './Practice.vue'
 import SceneCover from '../components/scene/SceneCover.vue'
 import { session } from '../auth/session'
 import { usePageLoading } from '../app/loading'
@@ -465,7 +472,10 @@ const avatarColor = (name) => {
   return AVATAR_COLORS[sum % AVATAR_COLORS.length]
 }
 const avatarInitial = (name) => (name || 'E').charAt(0).toUpperCase()
-const formatDate = (iso) => new Date(iso).toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' })
+const formatDate = (iso) => {
+  if (!iso) return ''
+  return new Date(iso).toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' })
+}
 
 // 难度五级（后端英文枚举存储，前端映射中文标签与配色）
 const DIFFICULTIES = {
@@ -530,8 +540,15 @@ async function openDetail(scene) {
   }
 }
 
+const activeTrainingScene = ref(null)
+const trainingPhase = ref('select')
+
 function startTraining(scene) {
-  notify(`「${scene.name}」的训练功能即将开放，敬请期待。`)
+  if (!scene?.id) return
+  if (!session.token) return notify('开始训练需要先登录，点击左下角账户卡片登录。')
+  detail.value = null
+  trainingPhase.value = 'select'
+  activeTrainingScene.value = scene
 }
 
 function goCreate() {

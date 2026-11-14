@@ -22,4 +22,4 @@ async def transcribe(file: UploadFile = File(...), user: User = Depends(get_curr
         audio = await file.read(asr_service.MAX_BYTES + 1)
     finally:
         await file.close()
-    return await asr_service.transcribe(audio)
+    return await asr_service.transcribe(audio, user_id=user.id)

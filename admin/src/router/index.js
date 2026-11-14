@@ -47,6 +47,12 @@ const router = createRouter({
           component: () => import('../views/Sessions.vue'),
           meta: { title: '对话记录', icon: 'ChatDotRound' },
         },
+        {
+          path: 'tokens',
+          name: 'tokens',
+          component: () => import('../views/TokenStats.vue'),
+          meta: { title: 'API Token 统计', icon: 'TrendCharts' },
+        },
       ],
     },
   ],

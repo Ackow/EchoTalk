@@ -23,4 +23,5 @@ def create_chat_model():
         timeout=45,
         max_retries=1,
         max_tokens=700,
+        stream_usage=True,
     )

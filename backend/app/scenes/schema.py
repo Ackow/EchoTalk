@@ -18,9 +18,13 @@ REGISTERED_TOOLS = {
     "calculate_order",
     "modify_order",
     "update_scene_state",
+    "append_state_item",
+    "remove_state_item",
+    "calculate_expression",
     "get_hint",
     "add_review_task",
     "next_interview_stage",
+    "record_feedback",
 }
 
 CATEGORIES = {"daily", "business", "career", "academic", "custom"}

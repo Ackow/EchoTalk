@@ -324,3 +324,26 @@ def batch_delete_sessions(
     db: Session = Depends(get_db),
 ):
     return admin_service.batch_delete_sessions(db, payload.ids)
+
+
+# ---- API Token 统计 ----
+@router.get("/token-stats")
+def token_stats(
+    days: int = Query(default=7, ge=1, le=90),
+    category: str | None = Query(default=None),
+    model: str | None = Query(default=None),
+    user_id: int | None = Query(default=None),
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=1, le=100),
+    _: User = Depends(get_admin_user),
+    db: Session = Depends(get_db),
+):
+    return admin_service.get_token_stats(
+        db,
+        days=days,
+        category=category,
+        model=model,
+        user_id=user_id,
+        page=page,
+        page_size=page_size,
+    )

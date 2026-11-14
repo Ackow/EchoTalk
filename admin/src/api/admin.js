@@ -48,3 +48,6 @@ export const fetchSessions = (params) => http.get('/admin/sessions', { params })
 export const fetchSessionDetail = (sessionId) => http.get(`/admin/sessions/${sessionId}`)
 export const deleteSession = (sessionId) => http.delete(`/admin/sessions/${sessionId}`)
 export const batchDeleteSessions = (ids) => http.post('/admin/sessions/batch-delete', { ids })
+
+// API Token 统计
+export const fetchTokenStats = (params) => http.get('/admin/token-stats', { params })

@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from app.core.errors import AppError, ConflictError
 from app.core.timeutil import utcnow
 from app.models import (
+    ApiTokenUsage,
     AuthSession,
     AvatarPreference,
     AvatarPreset,
@@ -109,6 +110,16 @@ def get_dashboard(db: Session) -> dict:
     avatar_pref_total = db.scalar(select(func.count()).select_from(AvatarPreference)) or 0
     avatar_custom_total = db.scalar(select(func.count()).select_from(AvatarPreset).where(AvatarPreset.is_builtin == 0)) or 0
     avatar_public_total = db.scalar(select(func.count()).select_from(AvatarPreset).where(AvatarPreset.is_public == 1)) or 0
+    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    token_total = db.scalar(select(func.coalesce(func.sum(ApiTokenUsage.total_tokens), 0))) or 0
+    token_today = (
+        db.scalar(
+            select(func.coalesce(func.sum(ApiTokenUsage.total_tokens), 0)).where(
+                ApiTokenUsage.created_at >= today_start
+            )
+        )
+        or 0
+    )
 
     # 形象与音色使用分布
     avatar_dist_rows = db.execute(
@@ -196,6 +207,7 @@ def get_dashboard(db: Session) -> dict:
             "voice_distribution": [{"voice_style": normalized_voice(r[0]) or r[0], "count": r[1]} for r in voice_dist_rows],
         },
         "turn_trend": [{"date": k, "count": v} for k, v in daily_map.items()],
+        "token_usage": {"total_tokens": int(token_total), "today_tokens": int(token_today)},
         "recent_sessions": recent_sessions,
     }
 
@@ -831,6 +843,173 @@ def batch_delete_scenes(db: Session, scene_ids: list[str]) -> dict:
     return {"deleted": deleted, "skipped_builtin": skipped_builtin}
 
 
+def get_token_stats(
+    db: Session,
+    *,
+    days: int = 7,
+    category: str | None = None,
+    model: str | None = None,
+    user_id: int | None = None,
+    page: int = 1,
+    page_size: int = 20,
+) -> dict:
+    """汇总全平台 API Token 消耗统计、趋势、模型/用户分布及明细流水。"""
+    now = utcnow()
+    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    start_day = (now - timedelta(days=days - 1)).replace(hour=0, minute=0, second=0, microsecond=0)
+
+    conditions = []
+    if category:
+        conditions.append(ApiTokenUsage.category == category)
+    if model:
+        conditions.append(ApiTokenUsage.model == model)
+    if user_id is not None:
+        conditions.append(ApiTokenUsage.user_id == user_id)
+
+    summary_row = db.execute(
+        select(
+            func.coalesce(func.sum(ApiTokenUsage.total_tokens), 0),
+            func.coalesce(func.sum(ApiTokenUsage.prompt_tokens), 0),
+            func.coalesce(func.sum(ApiTokenUsage.completion_tokens), 0),
+            func.coalesce(func.sum(ApiTokenUsage.call_count), 0),
+        ).where(*conditions)
+    ).one()
+
+    today_tokens = (
+        db.scalar(
+            select(func.coalesce(func.sum(ApiTokenUsage.total_tokens), 0)).where(
+                *conditions, ApiTokenUsage.created_at >= today_start
+            )
+        )
+        or 0
+    )
+
+    # 近 N 天每日趋势
+    daily_map: dict[str, dict] = {}
+    for offset in range(days):
+        d = (start_day + timedelta(days=offset)).strftime("%m-%d")
+        daily_map[d] = {"date": d, "prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0, "calls": 0}
+
+    trend_rows = db.execute(
+        select(
+            ApiTokenUsage.created_at,
+            ApiTokenUsage.prompt_tokens,
+            ApiTokenUsage.completion_tokens,
+            ApiTokenUsage.total_tokens,
+            ApiTokenUsage.call_count,
+        ).where(*conditions, ApiTokenUsage.created_at >= start_day)
+    ).all()
+    for dt, p, c, t, cnt in trend_rows:
+        if dt is not None:
+            key = dt.strftime("%m-%d")
+            if key in daily_map:
+                daily_map[key]["prompt_tokens"] += int(p or 0)
+                daily_map[key]["completion_tokens"] += int(c or 0)
+                daily_map[key]["total_tokens"] += int(t or 0)
+                daily_map[key]["calls"] += int(cnt or 0)
+
+    # 按调用类型分布
+    by_category_rows = db.execute(
+        select(
+            ApiTokenUsage.category,
+            func.coalesce(func.sum(ApiTokenUsage.total_tokens), 0),
+            func.coalesce(func.sum(ApiTokenUsage.call_count), 0),
+        )
+        .where(*conditions)
+        .group_by(ApiTokenUsage.category)
+    ).all()
+
+    # 按模型分布
+    by_model_rows = db.execute(
+        select(
+            ApiTokenUsage.model,
+            func.coalesce(func.sum(ApiTokenUsage.prompt_tokens), 0),
+            func.coalesce(func.sum(ApiTokenUsage.completion_tokens), 0),
+            func.coalesce(func.sum(ApiTokenUsage.total_tokens), 0),
+            func.coalesce(func.sum(ApiTokenUsage.call_count), 0),
+        )
+        .where(*conditions)
+        .group_by(ApiTokenUsage.model)
+        .order_by(func.sum(ApiTokenUsage.total_tokens).desc())
+    ).all()
+
+    # 用户消耗排行 Top 10
+    top_users_rows = db.execute(
+        select(
+            ApiTokenUsage.user_id,
+            User.username,
+            func.coalesce(func.sum(ApiTokenUsage.total_tokens), 0),
+            func.coalesce(func.sum(ApiTokenUsage.call_count), 0),
+        )
+        .outerjoin(User, User.id == ApiTokenUsage.user_id)
+        .where(*conditions, ApiTokenUsage.user_id.is_not(None))
+        .group_by(ApiTokenUsage.user_id, User.username)
+        .order_by(func.sum(ApiTokenUsage.total_tokens).desc())
+        .limit(10)
+    ).all()
+
+    # 明细分页
+    total_logs = db.scalar(select(func.count()).select_from(ApiTokenUsage).where(*conditions)) or 0
+    log_rows = db.execute(
+        select(ApiTokenUsage, User.username)
+        .outerjoin(User, User.id == ApiTokenUsage.user_id)
+        .where(*conditions)
+        .order_by(ApiTokenUsage.id.desc())
+        .offset((page - 1) * page_size)
+        .limit(page_size)
+    ).all()
+
+    return {
+        "summary": {
+            "total_tokens": int(summary_row[0]),
+            "prompt_tokens": int(summary_row[1]),
+            "completion_tokens": int(summary_row[2]),
+            "total_calls": int(summary_row[3]),
+            "today_tokens": int(today_tokens),
+        },
+        "trend": list(daily_map.values()),
+        "by_category": [
+            {"category": r[0], "total_tokens": int(r[1]), "calls": int(r[2])} for r in by_category_rows
+        ],
+        "by_model": [
+            {
+                "model": r[0],
+                "prompt_tokens": int(r[1]),
+                "completion_tokens": int(r[2]),
+                "total_tokens": int(r[3]),
+                "calls": int(r[4]),
+            }
+            for r in by_model_rows
+        ],
+        "top_users": [
+            {"user_id": r[0], "username": r[1] or f"User#{r[0]}", "total_tokens": int(r[2]), "calls": int(r[3])}
+            for r in top_users_rows
+        ],
+        "logs": {
+            "items": [
+                {
+                    "id": row.id,
+                    "user_id": row.user_id,
+                    "username": uname or ("系统任务" if row.user_id is None else f"User#{row.user_id}"),
+                    "category": row.category,
+                    "model": row.model,
+                    "prompt_tokens": row.prompt_tokens,
+                    "completion_tokens": row.completion_tokens,
+                    "total_tokens": row.total_tokens,
+                    "call_count": row.call_count,
+                    "scene_id": row.scene_id,
+                    "session_id": row.session_id,
+                    "created_at": row.created_at,
+                }
+                for row, uname in log_rows
+            ],
+            "total": total_logs,
+            "page": page,
+            "page_size": page_size,
+        },
+    }
+
+
 def batch_delete_sessions(db: Session, session_ids: list[str]) -> dict:
     """批量删除对话会话及其所有轮次。"""
     unique_ids = list(dict.fromkeys(session_ids))
@@ -991,3 +1170,170 @@ def batch_delete_avatar_presets(db: Session, avatar_ids: list[str]) -> dict:
         deleted += 1
     db.commit()
     return {"deleted": deleted, "skipped_builtin": skipped_builtin}
+
+
+def get_token_stats(
+    db: Session,
+    *,
+    days: int = 7,
+    category: str | None = None,
+    model: str | None = None,
+    user_id: int | None = None,
+    page: int = 1,
+    page_size: int = 20,
+) -> dict:
+    """汇总全平台 API Token 消耗统计、趋势、模型/用户分布及明细流水。"""
+    now = utcnow()
+    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    start_day = (now - timedelta(days=days - 1)).replace(hour=0, minute=0, second=0, microsecond=0)
+
+    conditions = []
+    if category:
+        conditions.append(ApiTokenUsage.category == category)
+    if model:
+        conditions.append(ApiTokenUsage.model == model)
+    if user_id is not None:
+        conditions.append(ApiTokenUsage.user_id == user_id)
+
+    summary_row = db.execute(
+        select(
+            func.coalesce(func.sum(ApiTokenUsage.total_tokens), 0),
+            func.coalesce(func.sum(ApiTokenUsage.prompt_tokens), 0),
+            func.coalesce(func.sum(ApiTokenUsage.completion_tokens), 0),
+            func.coalesce(func.sum(ApiTokenUsage.call_count), 0),
+        ).where(*conditions)
+    ).one()
+
+    today_tokens = (
+        db.scalar(
+            select(func.coalesce(func.sum(ApiTokenUsage.total_tokens), 0)).where(
+                *conditions, ApiTokenUsage.created_at >= today_start
+            )
+        )
+        or 0
+    )
+
+    # 近 N 天每日趋势
+    daily_map: dict[str, dict] = {}
+    for offset in range(days):
+        d = (start_day + timedelta(days=offset)).strftime("%m-%d")
+        daily_map[d] = {"date": d, "prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0, "calls": 0}
+
+    trend_rows = db.execute(
+        select(
+            ApiTokenUsage.created_at,
+            ApiTokenUsage.prompt_tokens,
+            ApiTokenUsage.completion_tokens,
+            ApiTokenUsage.total_tokens,
+            ApiTokenUsage.call_count,
+        ).where(*conditions, ApiTokenUsage.created_at >= start_day)
+    ).all()
+    for dt, p, c, t, cnt in trend_rows:
+        if dt is not None:
+            key = dt.strftime("%m-%d")
+            if key in daily_map:
+                daily_map[key]["prompt_tokens"] += int(p or 0)
+                daily_map[key]["completion_tokens"] += int(c or 0)
+                daily_map[key]["total_tokens"] += int(t or 0)
+                daily_map[key]["calls"] += int(cnt or 0)
+
+    # 按调用类型分布
+    by_category_rows = db.execute(
+        select(
+            ApiTokenUsage.category,
+            func.coalesce(func.sum(ApiTokenUsage.total_tokens), 0),
+            func.coalesce(func.sum(ApiTokenUsage.call_count), 0),
+        )
+        .where(*conditions)
+        .group_by(ApiTokenUsage.category)
+    ).all()
+
+    # 按模型分布
+    by_model_rows = db.execute(
+        select(
+            ApiTokenUsage.model,
+            func.coalesce(func.sum(ApiTokenUsage.prompt_tokens), 0),
+            func.coalesce(func.sum(ApiTokenUsage.completion_tokens), 0),
+            func.coalesce(func.sum(ApiTokenUsage.total_tokens), 0),
+            func.coalesce(func.sum(ApiTokenUsage.call_count), 0),
+        )
+        .where(*conditions)
+        .group_by(ApiTokenUsage.model)
+        .order_by(func.sum(ApiTokenUsage.total_tokens).desc())
+    ).all()
+
+    # 用户消耗排行 Top 10
+    top_users_rows = db.execute(
+        select(
+            ApiTokenUsage.user_id,
+            User.username,
+            func.coalesce(func.sum(ApiTokenUsage.total_tokens), 0),
+            func.coalesce(func.sum(ApiTokenUsage.call_count), 0),
+        )
+        .outerjoin(User, User.id == ApiTokenUsage.user_id)
+        .where(*conditions, ApiTokenUsage.user_id.is_not(None))
+        .group_by(ApiTokenUsage.user_id, User.username)
+        .order_by(func.sum(ApiTokenUsage.total_tokens).desc())
+        .limit(10)
+    ).all()
+
+    # 明细分页
+    total_logs = db.scalar(select(func.count()).select_from(ApiTokenUsage).where(*conditions)) or 0
+    log_rows = db.execute(
+        select(ApiTokenUsage, User.username)
+        .outerjoin(User, User.id == ApiTokenUsage.user_id)
+        .where(*conditions)
+        .order_by(ApiTokenUsage.id.desc())
+        .offset((page - 1) * page_size)
+        .limit(page_size)
+    ).all()
+
+    return {
+        "summary": {
+            "total_tokens": int(summary_row[0]),
+            "prompt_tokens": int(summary_row[1]),
+            "completion_tokens": int(summary_row[2]),
+            "total_calls": int(summary_row[3]),
+            "today_tokens": int(today_tokens),
+        },
+        "trend": list(daily_map.values()),
+        "by_category": [
+            {"category": r[0], "total_tokens": int(r[1]), "calls": int(r[2])} for r in by_category_rows
+        ],
+        "by_model": [
+            {
+                "model": r[0],
+                "prompt_tokens": int(r[1]),
+                "completion_tokens": int(r[2]),
+                "total_tokens": int(r[3]),
+                "calls": int(r[4]),
+            }
+            for r in by_model_rows
+        ],
+        "top_users": [
+            {"user_id": r[0], "username": r[1] or f"User#{r[0]}", "total_tokens": int(r[2]), "calls": int(r[3])}
+            for r in top_users_rows
+        ],
+        "logs": {
+            "items": [
+                {
+                    "id": row.id,
+                    "user_id": row.user_id,
+                    "username": uname or ("系统任务" if row.user_id is None else f"User#{row.user_id}"),
+                    "category": row.category,
+                    "model": row.model,
+                    "prompt_tokens": row.prompt_tokens,
+                    "completion_tokens": row.completion_tokens,
+                    "total_tokens": row.total_tokens,
+                    "call_count": row.call_count,
+                    "scene_id": row.scene_id,
+                    "session_id": row.session_id,
+                    "created_at": row.created_at,
+                }
+                for row, uname in log_rows
+            ],
+            "total": total_logs,
+            "page": page,
+            "page_size": page_size,
+        },
+    }

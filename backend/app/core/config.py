@@ -54,6 +54,11 @@ ASR_APP_ID = os.getenv("ECHOTALK_ASR_APP_ID", "").strip()
 ASR_SECRET_ID = os.getenv("ECHOTALK_ASR_SECRET_ID", "").strip()
 ASR_SECRET_KEY = os.getenv("ECHOTALK_ASR_SECRET_KEY", "").strip()
 
+# ---- 口语发音评测：科大讯飞 ISE 流式 WebSocket 凭据 ----
+XFYUN_APP_ID = os.getenv("ECHOTALK_XFYUN_APP_ID", os.getenv("XFYUN_APP_ID", "")).strip()
+XFYUN_API_KEY = os.getenv("ECHOTALK_XFYUN_API_KEY", os.getenv("XFYUN_API_KEY", "")).strip()
+XFYUN_API_SECRET = os.getenv("ECHOTALK_XFYUN_API_SECRET", os.getenv("XFYUN_API_SECRET", "")).strip()
+
 # ---- 嵌入（Hybrid RAG）配置：SiliconFlow OpenAI 兼容接口，BAAI/bge-m3 ----
 # 未配置 key 时嵌入链路自动停用，检索退化为纯关键词（ngram 全文）模式。
 EMBEDDING_API_KEY = os.getenv("ECHOTALK_SILICONFLOW_API_KEY", "").strip()

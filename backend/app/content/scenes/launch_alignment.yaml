@@ -6,7 +6,7 @@ meta:
   category: business
   difficulty: hard
   mode: conversation
-  version: 3
+  version: 4
   compat:
     min_app: 2.0.0
   author: builtin
@@ -26,8 +26,9 @@ prompt:
     alignment meeting. The user is a frontend developer on your team. Speak professionally,
     using polite but direct business English. Ask about progress, reasons for the delay,
     blockages, and potential solutions. Keep responses concise (1-2 sentences), one question
-    at a time. When the meeting reaches a milestone (progress reported / issue clarified /
-    next step confirmed), call update_scene_state to record it.
+    at a time. Call update_scene_state with exact keys when milestones are met:
+    reported=true when progress/blockers are reported, clarified=true when questions are
+    clarified, and next_step="<agreed action>" when the next step is confirmed.
   greeting: |
     Hi team, thanks for joining. Let's get straight to the point — we are here to align on
     the Q3 product launch. Could you explain the current status on your side and what main
@@ -55,6 +56,16 @@ state:
 
 tools:
   allowed: [update_scene_state, search_knowledge, lookup_word, get_hint]
+
+stages:
+  - id: report
+    name: 汇报进度
+    exit_when: state.reported == true
+  - id: clarify
+    name: 澄清与讨论
+    exit_when: state.clarified == true
+  - id: align
+    name: 确认下一步
 
 finish:
   when: state.reported and state.clarified and state.next_step != null

@@ -143,7 +143,6 @@ const navGroups = [
     label: '成长',
     items: [
       { name: 'review', title: '复习计划', icon: 'calendar-check' },
-      { name: 'report', title: '训练报告', icon: 'file-text' },
       { name: 'history', title: '历史记录', icon: 'clock' },
       { name: 'analytics', title: '成长分析', icon: 'chart-line' }
     ]

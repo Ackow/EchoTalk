@@ -33,9 +33,8 @@ const router = createRouter({
         { path: 'knowledge', name: 'knowledge', component: () => import('../views/Knowledge.vue'), meta: { title: '知识工作区', loadText: '正在准备知识工作区' } }, // 一期：场景资料管理；检索随阶段三开放
         { path: 'avatar', name: 'avatar', component: () => import('../views/AvatarSettings.vue'), meta: { title: '数字人角色', loadText: '正在加载角色设置' } }, // 游客可浏览试玩，保存偏好需登录（页面内限制）
         module('review', 'review', '复习计划', '听力错题、词汇与表达的复习队列。'),
-        module('report', 'report', '训练报告', '课后总结、纠错记录与发音结果。'),
         { path: 'history', name: 'history', component: () => import('../views/History.vue'), meta: { title: '历史记录', loadText: '正在加载历史记录' } },
-        module('analytics', 'analytics', '成长分析', '发音雷达、趋势与错因分布。')
+        { path: 'analytics', name: 'analytics', component: () => import('../views/Analytics.vue'), meta: { title: '成长分析', loadText: '正在加载成长分析' } }
       ]
     }
   ]

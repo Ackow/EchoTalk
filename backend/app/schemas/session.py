@@ -18,3 +18,11 @@ class SubmitTurn(BaseModel):
     text: str = Field(min_length=1, max_length=4000)
 
 
+class SubmitTurnStream(SubmitTurn):
+    """流式文字轮次请求：可选附带音色、音频暂存令牌，用于在首句生成完成时同步启动 TTS 与发音评估。"""
+
+    voice_style: str | None = Field(default=None, max_length=32)
+    include_audio: bool = True
+    audio_token: str | None = Field(default=None, max_length=64)
+
+

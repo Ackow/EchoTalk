@@ -264,7 +264,7 @@
                 <option value="" disabled>选择工具</option>
                 <option v-for="tool in TOOLS" :key="tool.id" :value="tool.id">{{ tool.name }}（{{ tool.id }}）</option>
               </select>
-              <input v-if="objective.checkMode === 'custom'" v-model="objective.check" spellcheck="false" placeholder="state.confirmed == true 或 tool_called('modify_order')" />
+              <input v-if="objective.checkMode === 'custom'" v-model="objective.check" spellcheck="false" placeholder="state.confirmed == true 或 tool_called('append_state_item')" />
               <button class="role-remove" type="button" :aria-label="`删除目标 ${objective.label || index + 1}`" @click="form.objectives.splice(index, 1)">
                 <AppIcon name="x" :size="13" />
               </button>
@@ -456,17 +456,18 @@ const STEPS = [
   { key: 'goal', label: '目标与完成' },
   { key: 'material', label: '资料与预览' },
 ]
-// 工具白名单：界面显示中文名，悬浮 tooltip 解释作用（提交给后端的仍是英文 id）
+// 工具白名单：仅列出后端 ToolRegistry 已真实实现的工具（提交给后端的仍是英文 id）
 const TOOLS = [
   { id: 'search_knowledge', name: '知识检索', desc: '在场景资料中检索相关内容，用于回答事实性问题' },
-  { id: 'lookup_word', name: '词汇查询', desc: '查询单词释义与例句，适合语言学习类场景' },
-  { id: 'get_learning_profile', name: '学习者画像', desc: '读取学习者的等级与偏好，动态调整对话难度' },
-  { id: 'calculate_order', name: '订单计算', desc: '计算点餐 / 购物场景中的价格与合计' },
-  { id: 'modify_order', name: '订单修改', desc: '修改当前订单内容，配合订单类训练目标使用' },
-  { id: 'update_scene_state', name: '状态更新', desc: '更新任务状态 state，驱动目标判定与完成条件' },
-  { id: 'get_hint', name: '获取提示', desc: '学习者卡住时给出一句话提示，不直接给出答案' },
-  { id: 'add_review_task', name: '加入复习', desc: '把本次的错误或生词加入复习计划' },
-  { id: 'next_interview_stage', name: '进入下一阶段', desc: '推进面试流程到下一环节（如技术面 → HR 面）' },
+  { id: 'update_scene_state', name: '状态更新', desc: '更新标量任务状态 state，驱动目标判定与完成条件' },
+  { id: 'append_state_item', name: '列表追加', desc: '向清单/订单/预订等数组状态追加条目（需用户原话证据）' },
+  { id: 'remove_state_item', name: '列表移除', desc: '按关键词从数组状态中移除已取消的条目' },
+  { id: 'adjust_state_number', name: '数值增减', desc: '对计数、积分、人数等数值状态做精确增减' },
+  { id: 'calculate_expression', name: '精确计算', desc: '安全计算价格合计、税费、数量与换算，避免口算误差' },
+  { id: 'lookup_word', name: '词汇查询', desc: '检索场景资料中的词汇用法，辅助解释词义与例句' },
+  { id: 'get_hint', name: '获取提示', desc: '读取当前场景目标与提示，在学习者卡住时给出一句引导' },
+  { id: 'next_interview_stage', name: '进入下一阶段', desc: '推进面试或多阶段对话到下一环节' },
+  { id: 'add_review_task', name: '加入复习', desc: '将本轮生词、表达或待改进点记入复习清单' },
 ]
 
 // 结束时机的四种模式（radio 卡片）

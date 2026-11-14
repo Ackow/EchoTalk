@@ -57,7 +57,20 @@ def embed_texts(texts: list[str]) -> list[list[float]]:
                         time.sleep(_RETRY_BACKOFF * (attempt + 1))
                         continue
                     resp.raise_for_status()
-                    data = resp.json()["data"]
+                    resp_json = resp.json()
+                    data = resp_json["data"]
+                    usage = resp_json.get("usage") or {}
+                    if usage:
+                        from app.services.token_usage_service import record_usage
+
+                        record_usage(
+                            category="embedding",
+                            model=config.EMBEDDING_MODEL,
+                            prompt_tokens=int(usage.get("prompt_tokens") or 0),
+                            completion_tokens=0,
+                            total_tokens=int(usage.get("total_tokens") or usage.get("prompt_tokens") or 0),
+                            call_count=1,
+                        )
                     break
                 except (httpx.HTTPError, KeyError, ValueError) as exc:
                     last_error = exc
