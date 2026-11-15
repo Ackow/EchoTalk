@@ -51,3 +51,8 @@ export const batchDeleteSessions = (ids) => http.post('/admin/sessions/batch-del
 
 // API Token 统计
 export const fetchTokenStats = (params) => http.get('/admin/token-stats', { params })
+
+// 听力资源管理
+export const fetchListeningUnits = () => http.get('/admin/listening/units')
+export const importListeningUnits = (payload) => http.post('/admin/listening/import', payload)
+export const deleteListeningUnit = (unitId) => http.delete(`/admin/listening/units/${unitId}`)

@@ -15,6 +15,7 @@ const menuItems = [
   { path: '/users', title: '用户管理', icon: 'User' },
   { path: '/avatars', title: '数字人管理', icon: 'Avatar' },
   { path: '/scenes', title: '场景管理', icon: 'Collection' },
+  { path: '/listening', title: '听力资源', icon: 'Headset' },
   { path: '/sessions', title: '对话记录', icon: 'ChatDotRound' },
   { path: '/tokens', title: 'Token 统计', icon: 'TrendCharts' },
 ]

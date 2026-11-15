@@ -15,5 +15,7 @@ from .avatar import AvatarPreference, AvatarPreset
 from .practice import PracticeSession
 from .practice import PracticeTurn
 from .usage import ApiTokenUsage
+from .review import ReviewItem
+from .listening import ListeningUnit, ListeningProgress, ListeningAttempt, UserXpState
 
-__all__ = ['User', 'AuthSession', 'Scene', 'SceneStats', 'SceneUserStat', 'Document', 'Chunk', 'PersonalDocument', 'PersonalChunk', 'ChunkEmbedding', 'PersonalChunkEmbedding', 'AvatarPreference', 'AvatarPreset', 'PracticeSession', 'PracticeTurn', 'ApiTokenUsage']
+__all__ = ['User', 'AuthSession', 'Scene', 'SceneStats', 'SceneUserStat', 'Document', 'Chunk', 'PersonalDocument', 'PersonalChunk', 'ChunkEmbedding', 'PersonalChunkEmbedding', 'AvatarPreference', 'AvatarPreset', 'PracticeSession', 'PracticeTurn', 'ApiTokenUsage', 'ReviewItem', 'ListeningUnit', 'ListeningProgress', 'ListeningAttempt', 'UserXpState']

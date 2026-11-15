@@ -1,0 +1,73 @@
+"""管理端业务逻辑子包：按功能域拆分为概览、用户、数字人、场景与会话管理。"""
+from app.services.admin.avatars import (
+    AVATAR_CATALOG,
+    VOICE_CATALOG,
+    _preset_to_dict,
+    batch_delete_avatar_preferences,
+    batch_delete_avatar_presets,
+    batch_update_avatar_presets_public,
+    delete_avatar_preference,
+    delete_avatar_preset,
+    get_avatar_catalog,
+    list_avatar_preferences,
+    list_avatar_presets,
+    update_avatar_preset,
+    upsert_avatar_preference,
+)
+from app.services.admin.dashboard import get_dashboard, get_token_stats
+from app.services.admin.scenes import (
+    batch_delete_scenes,
+    batch_update_scenes_status,
+    delete_scene,
+    get_scene_detail,
+    list_scenes,
+    update_scene,
+)
+from app.services.admin.sessions import (
+    batch_delete_sessions,
+    delete_session,
+    get_session_detail,
+    list_sessions,
+)
+from app.services.admin.users import (
+    _cleanup_users_relations,
+    batch_delete_users,
+    create_user,
+    delete_user,
+    list_users,
+    update_user,
+)
+
+__all__ = [
+    "AVATAR_CATALOG",
+    "VOICE_CATALOG",
+    "_cleanup_users_relations",
+    "_preset_to_dict",
+    "batch_delete_avatar_preferences",
+    "batch_delete_avatar_presets",
+    "batch_delete_scenes",
+    "batch_delete_sessions",
+    "batch_delete_users",
+    "batch_update_avatar_presets_public",
+    "batch_update_scenes_status",
+    "create_user",
+    "delete_avatar_preference",
+    "delete_avatar_preset",
+    "delete_scene",
+    "delete_session",
+    "delete_user",
+    "get_avatar_catalog",
+    "get_dashboard",
+    "get_scene_detail",
+    "get_session_detail",
+    "get_token_stats",
+    "list_avatar_preferences",
+    "list_avatar_presets",
+    "list_scenes",
+    "list_sessions",
+    "list_users",
+    "update_avatar_preset",
+    "update_scene",
+    "update_user",
+    "upsert_avatar_preference",
+]

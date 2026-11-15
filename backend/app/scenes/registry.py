@@ -229,6 +229,7 @@ def summary(row: Scene) -> dict[str, Any]:
         "status": row.status or ("published" if row.source == "builtin" else "private"),  # builtin 恒为公开
         "author_id": row.author_id,  # 「我的场景」筛选依据
         "author_name": row.author.username if row.author is not None else None,  # 卡片作者署名
+        "author_avatar_path": row.author.avatar_path if row.author is not None else None,  # 作者头像相对路径
         "cover_path": row.cover_path,  # 封面图相对路径（前端拼 URL）
         "tags": tags,
         "knowledge_count": knowledge_count,

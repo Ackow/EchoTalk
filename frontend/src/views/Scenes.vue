@@ -101,9 +101,10 @@
             <span v-for="tag in scene.tags.slice(0, 3)" :key="tag" class="tag-chip">{{ tag }}</span>
           </div>
 
-          <!-- 作者行：头像（首字母） + 署名 + 难度 -->
+          <!-- 作者行：官方场景显示品牌 Logo，其余使用 UserAvatar（无自定义头像时自动回落首字母） + 署名 + 难度 -->
           <div class="card-author">
-            <span class="avatar" :style="{ background: avatarColor(scene.author_name) }">{{ avatarInitial(scene.author_name) }}</span>
+            <img v-if="isOfficialAuthor(scene)" class="avatar-logo" :src="brandImage" alt="EchoTalk" />
+            <UserAvatar v-else :user="authorUser(scene)" :size="22" />
             <span class="author-name">{{ scene.author_name || 'EchoTalk 官方' }}</span>
             <span v-if="scene.difficulty" class="diff-chip" :class="diffClass(scene.difficulty)">{{ diffLabel(scene.difficulty) }}</span>
           </div>
@@ -210,7 +211,8 @@
                 </span>
               </div>
               <div class="card-author">
-                <span class="avatar" :style="{ background: avatarColor(detail.author_name) }">{{ avatarInitial(detail.author_name) }}</span>
+                <img v-if="isOfficialAuthor(detail)" class="avatar-logo" :src="brandImage" alt="EchoTalk" />
+                <UserAvatar v-else :user="authorUser(detail)" :size="22" />
                 <span class="author-name">{{ detail.author_name || 'EchoTalk 官方' }}</span>
                 <span class="author-date" v-if="detail.created_at">创建于 {{ formatDate(detail.created_at) }}</span>
               </div>
@@ -328,6 +330,8 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
+import brandImage from '../assets/echotalk-brand.png'
+import UserAvatar from '../components/UserAvatar.vue'
 import AppIcon from '../components/AppIcon.vue'
 import AppSelect from '../components/AppSelect.vue'
 import AppTabs from '../components/AppTabs.vue'
@@ -471,6 +475,8 @@ const avatarColor = (name) => {
   const sum = (name || '').split('').reduce((acc, char) => acc + char.charCodeAt(0), 0)
   return AVATAR_COLORS[sum % AVATAR_COLORS.length]
 }
+const isOfficialAuthor = (scene) => scene?.source === 'builtin' || !scene?.author_name
+const authorUser = (scene) => ({ id: scene.author_id, username: scene.author_name, avatar_path: scene.author_avatar_path })
 const avatarInitial = (name) => (name || 'E').charAt(0).toUpperCase()
 const formatDate = (iso) => {
   if (!iso) return ''
@@ -744,6 +750,7 @@ async function toggleFavorite(scene) {
 /* 作者行：margin-top:auto 与统计栏一起贴卡片底部，保证一排卡片底对齐 */
 .card-author { display: flex; align-items: center; gap: 7px; margin-top: auto; padding-top: 12px; }
 .avatar { display: grid; width: 22px; height: 22px; flex: 0 0 auto; place-items: center; border-radius: 50%; color: #fff; font-size: 11px; font-weight: 600; }
+.avatar-logo { width: 22px; height: 22px; flex: 0 0 auto; border-radius: 50%; object-fit: cover; }
 .author-name { color: var(--ink-soft); font-size: 12.5px; font-weight: 500; }
 .author-date { margin-left: auto; color: var(--muted); font-size: 12px; }
 .author-date { margin-left: 6px; }
@@ -795,7 +802,7 @@ async function toggleFavorite(scene) {
 @keyframes shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
 
 /* 详情弹窗 */
-.modal-backdrop { position: fixed; inset: 0; z-index: 40; display: grid; place-items: center; background: rgba(34, 37, 59, .28); animation: fade-in .18s ease; }
+.modal-backdrop { position: fixed; inset: 0; z-index: 40; display: grid; place-items: center; background: var(--scrim-bg, rgba(34, 37, 59, .28)); -webkit-backdrop-filter: var(--scrim-blur, blur(2px)); backdrop-filter: var(--scrim-blur, blur(2px)); animation: fade-in .18s ease; }
 .modal-card { width: min(380px, calc(100vw - 48px)); padding: 24px; border-radius: 14px; background: var(--surface); box-shadow: 0 18px 48px rgba(34, 37, 59, .18); animation: pop-in .22s cubic-bezier(.22, .8, .32, 1); }
 .modal-icon { display: grid; width: 38px; height: 38px; margin-bottom: 14px; place-items: center; border-radius: 10px; background: var(--brand-soft); color: var(--brand-deep, var(--brand)); }
 .modal-icon.danger { background: #fbf1f2; color: var(--danger); }

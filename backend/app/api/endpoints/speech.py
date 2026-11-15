@@ -3,8 +3,8 @@ from fastapi import APIRouter, Depends, File, UploadFile
 
 from app.api.deps import get_current_user
 from app.models.user import User
-from app.schemas.speech import SpeechStatus, TranscriptionResponse
-from app.services import asr_service
+from app.schemas.speech import ExplainRequest, ExplainResponse, SpeechStatus, TranscriptionResponse
+from app.services import asr_service, explain_service
 
 router = APIRouter(prefix="/speech", tags=["语音识别"])
 
@@ -23,3 +23,9 @@ async def transcribe(file: UploadFile = File(...), user: User = Depends(get_curr
     finally:
         await file.close()
     return await asr_service.transcribe(audio, user_id=user.id)
+
+
+@router.post("/explain", response_model=ExplainResponse)
+async def explain(payload: ExplainRequest, user: User = Depends(get_current_user)):
+    """划词或划句解释：返回音标、语境中文释义与简短口语提示。"""
+    return await explain_service.explain_selection(payload.text, payload.context)

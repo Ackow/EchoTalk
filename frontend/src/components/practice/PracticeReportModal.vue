@@ -305,7 +305,9 @@ onBeforeUnmount(disposeCharts)
 .report-backdrop {
   position: fixed; inset: 0; z-index: 60;
   display: grid; place-items: center; padding: 18px;
-  background: rgba(34, 37, 59, .32);
+  background: var(--scrim-bg, rgba(34, 37, 59, .28));
+  -webkit-backdrop-filter: var(--scrim-blur, blur(2px));
+  backdrop-filter: var(--scrim-blur, blur(2px));
 }
 .report-modal {
   display: flex; flex-direction: column;

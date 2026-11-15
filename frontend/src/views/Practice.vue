@@ -1,92 +1,21 @@
 <template>
   <section class="practice-page" :class="{ 'is-overlay-only': embeddedScene && phase === 'select' }">
-    <div v-if="phase === 'select' && !resuming && !embeddedScene" class="page-scroll">
-      <div class="pick-toolbar">
-        <AppTabs
-          v-model="pickCategory"
-          :options="pickCategories.map((c) => ({ value: c.key, label: c.label, count: countFor(c.key) }))"
-          aria-label="场景分类筛选"
-        />
-        <div class="toolbar-right">
-          <label class="search-box">
-            <AppIcon name="search" :size="14" />
-            <input v-model="keyword" type="search" placeholder="搜索场景名称或描述" />
-            <button v-if="keyword" class="search-clear" type="button" aria-label="清空搜索" @click="keyword = ''">
-              <AppIcon name="x" :size="12" />
-            </button>
-          </label>
-          <router-link :to="{ name: 'scenes' }" class="ghost-button"><AppIcon name="compass" :size="14" />探索全部场景</router-link>
-        </div>
-      </div>
-      <p v-if="!session.user" class="login-hint"><AppIcon name="info" :size="14" />开始练习前，请先<router-link :to="{ name: 'login' }">登录</router-link>，保存你的对话进度。</p>
-      <p v-if="error" class="page-error" role="alert"><AppIcon name="alert" :size="14" />{{ error }}</p>
-      <div v-if="!loadingScenes" class="scene-grid">
-        <article
-          v-for="(scene, index) in pagedScenes" :key="scene.id"
-          class="scene-card"
-          :class="{ busy: starting }"
-          role="button" tabindex="0"
-          :aria-disabled="starting"
-          :style="{ animationDelay: `${Math.min(index, 8) * 45}ms` }"
-          @click="chooseScene(scene)"
-          @keydown.enter.prevent="chooseScene(scene)"
-          @keydown.space.prevent="chooseScene(scene)"
-        >
-          <!-- 封面与场景探索页共用同一组件，色调/图标/标题层级保持一致 -->
-          <SceneCover :scene="scene" :category-label="coverLabel(scene.category)" mark-icon="arrow-right" />
-          <div class="card-body">
-            <div class="card-head">
-              <span class="mode-chip"><AppIcon :name="modeIcon(scene.mode)" :size="13" />{{ modeLabel(scene.mode) }}</span>
-              <span v-if="scene.difficulty" class="diff-chip" :class="diffClass(scene.difficulty)">{{ diffLabel(scene.difficulty) }}</span>
-            </div>
-            <p class="scene-desc">{{ scene.description || '在真实情境中练习英语表达。' }}</p>
-            <div class="scene-foot">
-              <span class="scene-meta">
-                <span v-if="scene.objective_count"><AppIcon name="target" :size="12" />{{ scene.objective_count }} 个目标</span>
-                <span v-if="scene.stage_count"><AppIcon name="chart-line" :size="12" />{{ scene.stage_count }} 阶段</span>
-                <span v-if="scene.knowledge_count"><AppIcon name="book-open" :size="12" />{{ scene.knowledge_count }} 份资料</span>
-              </span>
-              <span class="scene-go">{{ starting ? '准备中…' : '开始对话' }}<AppIcon name="arrow-right" :size="14" /></span>
-            </div>
-          </div>
-        </article>
-        <div v-if="!filteredScenes.length" class="scenes-empty">
-          <div class="empty-icon"><AppIcon name="messages" :size="20" /></div>
-          <h3>{{ keyword || pickCategory !== 'all' ? '没有匹配的场景' : '暂无可对话场景' }}</h3>
-          <p>{{ keyword || pickCategory !== 'all' ? '换个关键词或分类再试试。' : '到场景探索页创建或导入一个场景包，再回到这里开始对话。' }}</p>
-        </div>
-      </div>
-      <!-- 分页栏：对齐场景探索页，展示总数与页码（单页时上下页按钮禁用） -->
-      <nav v-if="!loadingScenes && filteredScenes.length" class="pagination" aria-label="场景分页">
-        <span class="page-info">共 {{ filteredScenes.length }} 个场景 · 第 {{ page }} / {{ totalPages }} 页</span>
-        <button class="page-btn" type="button" :disabled="page === 1" @click="page -= 1">
-          <AppIcon name="chevron-left" :size="14" />上一页
-        </button>
-        <button
-          v-for="p in totalPages"
-          :key="p"
-          class="page-btn page-num"
-          :class="{ active: p === page }"
-          type="button"
-          :aria-current="p === page ? 'page' : undefined"
-          @click="page = p"
-        >{{ p }}</button>
-        <button class="page-btn" type="button" :disabled="page === totalPages" @click="page += 1">
-          下一页<AppIcon name="arrow-right" :size="14" />
-        </button>
-      </nav>
-      <div v-if="loadingScenes" class="scene-grid" aria-busy="true" aria-label="正在加载场景">
-        <div v-for="n in 4" :key="n" class="scene-card skeleton">
-          <div class="sk-cover"></div>
-          <div class="sk-body">
-            <div class="sk-line w40"></div>
-            <div class="sk-line w80"></div>
-            <div class="sk-line w60"></div>
-            <div class="sk-line w70"></div>
-          </div>
-        </div>
-      </div>
-    </div>
+    <PracticeScenePicker
+      v-if="phase === 'select' && !resuming && !embeddedScene"
+      :scenes="scenes"
+      :loading-scenes="loadingScenes"
+      :starting="starting"
+      :error="error"
+      :signed-in="Boolean(session.user)"
+      :confirm-scene="confirmScene"
+      :latest-history="latestHistory"
+      :checking-history="checkingHistory"
+      :history-error="historyError"
+      @choose="chooseScene"
+      @cancel-confirm="confirmScene = null"
+      @confirm-start="confirmStart"
+      @resume-scene="startScene"
+    />
 
     <!-- 历史记录入口：会话恢复完成前不渲染场景选择页；全局遮罩显示时容器留白、不重复跑一份动画 -->
     <div v-else-if="resuming" class="practice-loading" aria-busy="true" aria-live="polite">
@@ -147,7 +76,7 @@
             </div>
           </div>
 
-          <div ref="chatBody" class="chat-body" role="log" aria-label="聊天记录" :aria-busy="sending">
+          <div ref="chatBody" class="chat-body" role="log" aria-label="聊天记录" :aria-busy="sending" @mouseup="lookupRef?.handleSelection(chatBody)" @scroll="lookupRef?.close()">
             <div class="conversation-start"><span></span><small>练习开始 · 放轻松，试着用英语表达</small><span></span></div>
             <article v-for="msg in messages" :key="msg.key" class="msg-row" :class="msg.role">
               <span v-if="msg.role === 'agent'" class="msg-avatar">{{ roleInitial }}</span>
@@ -304,270 +233,66 @@
             </article>
             <div v-if="sending && (!messages.length || messages[messages.length - 1]?.role !== 'agent' || !messages[messages.length - 1]?.text.trim())" class="thinking-message" role="status"><span class="msg-avatar">{{ roleInitial }}</span><span class="thinking-dots"><i></i><i></i><i></i></span><small>正在组织回复…</small></div>
 
-            <!-- 场景交互卡片：点咖啡待付款弹窗 / 完成后按场景类型展示专属结束交互 -->
-            <section v-if="paymentPromptVisible" class="ending-card is-checkout" aria-label="订单结账">
-              <div class="ending-head">
-                <span class="ending-badge"><AppIcon name="coffee" :size="13" />柜台结账</span>
-                <b v-if="quotedAmount" class="ending-amount">${{ quotedAmount }}</b>
-              </div>
-              <p class="ending-title">确认订单并完成付款，即可结束本次点单练习</p>
-              <ul v-if="orderDisplayItems.length" class="ending-items">
-                <li v-for="(item, idx) in orderDisplayItems" :key="idx">{{ item }}</li>
-              </ul>
-              <div class="pay-methods" role="radiogroup" aria-label="选择支付方式">
-                <button
-                  v-for="m in PAYMENT_METHODS"
-                  :key="m.id"
-                  type="button"
-                  class="pay-method-chip"
-                  :class="{ active: paymentMethod === m.id }"
-                  :disabled="paying"
-                  @click="paymentMethod = m.id"
-                ><AppIcon :name="m.icon" :size="14" /><span>{{ m.label }}</span></button>
-              </div>
-              <div class="ending-actions">
-                <button class="confirm-button" type="button" :disabled="paying" @click="confirmPayment">
-                  <span v-if="paying" class="ui-spinner send-spinner" aria-hidden="true" />
-                  <AppIcon v-else name="check" :size="14" />
-                  <span>{{ paying ? '支付中…' : `确认付款${quotedAmount ? ' $' + quotedAmount : ''}` }}</span>
-                </button>
-              </div>
-            </section>
-
-            <section v-else-if="rebookPromptVisible" class="ending-card is-checkout" aria-label="改签确认">
-              <div class="ending-head">
-                <span class="ending-badge"><AppIcon name="plane" :size="13" />改签行程确认</span>
-              </div>
-              <p class="ending-title">选择要确认的改签方案，即可生成电子改签单并结束练习</p>
-              <div class="pay-methods" role="radiogroup" aria-label="选择改签方案">
-                <button
-                  v-for="opt in REBOOK_OPTIONS"
-                  :key="opt.id"
-                  type="button"
-                  class="pay-method-chip"
-                  :class="{ active: rebookOption === opt.id }"
-                  :disabled="paying"
-                  @click="rebookOption = opt.id"
-                ><AppIcon name="plane" :size="13" /><span>{{ opt.label }}</span></button>
-              </div>
-              <div class="ending-actions">
-                <button class="confirm-button" type="button" :disabled="paying" @click="confirmRebooking">
-                  <span v-if="paying" class="ui-spinner send-spinner" aria-hidden="true" />
-                  <AppIcon v-else name="check" :size="14" />
-                  <span>{{ paying ? '确认中…' : '确认改签方案' }}</span>
-                </button>
-              </div>
-            </section>
-
-            <section v-else-if="meetingPromptVisible" class="ending-card is-checkout" aria-label="会议行动项确认">
-              <div class="ending-head">
-                <span class="ending-badge"><AppIcon name="file-text" :size="13" />会议收尾 · 行动项</span>
-              </div>
-              <p class="ending-title">确认下一步行动计划并结束本次对齐会议</p>
-              <div class="pay-methods" role="group" aria-label="快速填入下一步行动">
-                <button
-                  v-for="preset in MEETING_NEXT_PRESETS"
-                  :key="preset"
-                  type="button"
-                  class="pay-method-chip"
-                  :class="{ active: nextStepInput === preset }"
-                  :disabled="paying"
-                  @click="nextStepInput = preset"
-                >{{ preset }}</button>
-              </div>
-              <input v-model="nextStepInput" class="ending-input" type="text" placeholder="或输入自定义下一步行动（如：Send revised timeline by Friday）" :disabled="paying" />
-              <div class="ending-actions">
-                <button class="confirm-button" type="button" :disabled="paying" @click="confirmMeetingEnd">
-                  <span v-if="paying" class="ui-spinner send-spinner" aria-hidden="true" />
-                  <AppIcon v-else name="check" :size="14" />
-                  <span>{{ paying ? '提交中…' : '确认纪要并结束' }}</span>
-                </button>
-              </div>
-            </section>
-
-            <section v-else-if="wrapupPromptVisible" class="ending-card is-checkout" aria-label="结束本次练习">
-              <div class="ending-head">
-                <span class="ending-badge"><AppIcon :name="endingType === 'interview_result' ? 'briefcase' : 'sparkles'" :size="13" />{{ endingType === 'interview_result' ? '面试收尾' : '练习收尾' }}</span>
-              </div>
-              <p class="ending-title">{{ endingType === 'interview_result' ? '已进入面试最后阶段，可继续提问或直接结束本轮面试' : '当前已接近练习尾声，可继续交流或点击完成本次练习' }}</p>
-              <div v-if="endingType === 'interview_result'" class="pay-methods" role="radiogroup" aria-label="自评表现">
-                <button
-                  v-for="r in INTERVIEW_RATINGS"
-                  :key="r"
-                  type="button"
-                  class="pay-method-chip"
-                  :class="{ active: interviewRating === r }"
-                  :disabled="paying"
-                  @click="interviewRating = r"
-                >{{ r }}</button>
-              </div>
-              <div class="ending-actions">
-                <button class="confirm-button" type="button" :disabled="paying" @click="confirmGenericFinish">
-                  <span v-if="paying" class="ui-spinner send-spinner" aria-hidden="true" />
-                  <AppIcon v-else name="check" :size="14" />
-                  <span>{{ paying ? '结算中…' : (endingType === 'interview_result' ? '结束本轮面试' : '完成当前练习') }}</span>
-                </button>
-              </div>
-            </section>
-
-            <section v-else-if="finished" class="ending-card is-done" :class="`kind-${endingType}`" aria-label="场景结束">
-              <div class="ending-head">
-                <span class="ending-badge"><AppIcon :name="endingMeta.icon" :size="13" />{{ endingMeta.badge }}</span>
-                <b v-if="endingType === 'payment' && (stateInfo.scenario_state?.paid_amount || quotedAmount)" class="ending-amount">
-                  已付 ${{ stateInfo.scenario_state?.paid_amount || quotedAmount }}
-                </b>
-              </div>
-              <p class="ending-title">{{ endingMeta.title }}</p>
-              <p class="ending-sub">{{ finishText }}</p>
-              <ul v-if="endingType === 'payment' && orderDisplayItems.length" class="ending-items">
-                <li v-for="(item, idx) in orderDisplayItems" :key="idx">{{ item }}</li>
-              </ul>
-              <div v-else-if="endingType === 'boarding_pass' && stateInfo.scenario_state?.selected_option" class="ending-note">
-                <b>已选改签方案：</b>{{ stateInfo.scenario_state.selected_option }}
-              </div>
-              <div v-else-if="endingType === 'meeting_minutes' && stateInfo.scenario_state?.next_step" class="ending-note">
-                <b>下一步行动：</b>{{ stateInfo.scenario_state.next_step }}
-              </div>
-              <div v-else-if="endingType === 'interview_result' && stateInfo.scenario_state?.self_rating" class="ending-note">
-                <b>本轮自评：</b>{{ stateInfo.scenario_state.self_rating }}
-              </div>
-              <div class="ending-stats">
-                <span>目标完成 {{ completedGoals }} / {{ stateInfo.goals?.length || 0 }}</span>
-                <span>·</span>
-                <span>共 {{ stateInfo.turn_count || 0 }} 轮对话</span>
-                <template v-if="endingType === 'payment' && stateInfo.scenario_state?.payment_method">
-                  <span>·</span>
-                  <span>{{ paymentMethodLabel(stateInfo.scenario_state.payment_method) }}</span>
-                </template>
-              </div>
-              <div class="ending-actions">
-                <button class="ghost-button" type="button" :disabled="reportLoading" @click="openSessionReport">
-                  <span v-if="reportLoading" class="ui-spinner" aria-hidden="true" />
-                  <AppIcon v-else name="file-text" :size="14" />
-                  <span>{{ reportLoading ? '生成报告中…' : '查看练习报告' }}</span>
-                </button>
-                <button class="ghost-button" type="button" :disabled="starting" @click="backToSelect">返回列表</button>
-                <button class="confirm-button" type="button" :disabled="starting" @click="restartCurrentScene">
-                  <span v-if="starting" class="ui-spinner send-spinner" aria-hidden="true" />
-                  <AppIcon v-else name="rotate" :size="14" />
-                  <span>{{ starting ? '准备中…' : '再来一次' }}</span>
-                </button>
-              </div>
-            </section>
+            <PracticeEndingCard
+              :finished="finished"
+              :paying="paying"
+              :starting="starting"
+              :report-loading="reportLoading"
+              :finish-text="finishText"
+              :completed-goals="completedGoals"
+              :goals-count="stateInfo.goals?.length || 0"
+              :turn-count="stateInfo.turn_count || 0"
+              :stage="stateInfo.stage || ''"
+              :stages="sceneMeta?.package?.stages || []"
+              :scene-id="sessionInfo?.scene_id || ''"
+              :scene-mode="sceneMeta?.package?.meta?.mode || ''"
+              :scenario-state="stateInfo.scenario_state || {}"
+              :messages="messages"
+              @action="runSessionAction"
+              @open-report="openSessionReport"
+              @back-to-select="backToSelect"
+              @restart="restartCurrentScene"
+            />
           </div>
 
-          <footer class="composer-area">
-            <p v-if="playbackNotice" class="playback-notice" role="status"><AppIcon name="volume" :size="13" />{{ playbackNotice }}</p>
-            <p v-if="error" class="chat-error" role="alert"><AppIcon name="alert" :size="14" />{{ error }}</p>
-
-            <!-- AI 帮助回复建议条 -->
-            <div v-if="replySuggestions.length" class="ai-suggest-tray" role="region" aria-label="AI 参考回复">
-              <div class="ai-suggest-head">
-                <span><AppIcon name="sparkles" :size="13" />AI 参考回复（点击填入，可编辑或朗读）</span>
-                <div class="ai-suggest-actions">
-                  <button type="button" class="ai-mini-btn" :disabled="suggesting" @click="requestReplyAssist">{{ suggesting ? '生成中…' : '换一批' }}</button>
-                  <button type="button" class="ai-mini-close" title="关闭" @click="replySuggestions = []"><AppIcon name="x" :size="13" /></button>
-                </div>
-              </div>
-              <div class="ai-suggest-list">
-                <button
-                  v-for="(item, idx) in replySuggestions"
-                  :key="idx"
-                  type="button"
-                  class="ai-suggest-chip"
-                  @click="applySuggestion(item.en)"
-                >
-                  <b>{{ item.en }}</b>
-                  <span v-if="item.zh">{{ item.zh }}</span>
-                </button>
-              </div>
-            </div>
-
-            <!-- 语音优先：单行紧凑条，待机 / 录音中 / 转写确认三态共用 .composer 外壳 -->
-            <template v-if="inputMode === 'voice'">
-              <!-- 暂存语音：可试听、重录后再发送 -->
-              <div v-if="transcribedText" class="composer voice-result is-staged" role="status">
-                <button
-                  type="button"
-                  class="ai-voice-capsule user-voice-capsule staged-capsule"
-                  :class="{ playing: playingKey === '__pending__' }"
-                  @click="playingKey === '__pending__' ? stopAudio() : playPendingVoice()"
-                >
-                  <i v-if="playingKey === '__pending__'" class="capsule-progress" :style="{ width: `${Math.min(100, playbackTime / (playbackDuration || pendingVoiceDuration || 2) * 100)}%` }" aria-hidden="true"></i>
-                  <svg class="voice-wave-icon" width="16" height="18" viewBox="0 0 16 18" fill="none" aria-hidden="true"><circle cx="3" cy="9" r="1.35" fill="currentColor"/><path d="M6 5.8a4.5 4.5 0 0 1 0 6.4M8.5 3.3a8 8 0 0 1 0 11.4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
-                  <span class="capsule-duration">{{ playingKey === '__pending__' ? '试听中…' : `试听 ${Math.max(1, Math.ceil(pendingVoiceDuration || estimateSeconds(transcribedText)))}"` }}</span>
-                </button>
-                <div class="voice-result-actions">
-                  <button class="icon-button" type="button" title="重新录制" :disabled="voiceBusy" @click="retryRecording"><AppIcon name="rotate" :size="15" /></button>
-                  <button class="icon-button" type="button" title="放弃录音" :disabled="voiceBusy" @click="discardPendingVoice"><AppIcon name="x" :size="15" /></button>
-                  <button class="send-button" type="button" :disabled="sending || finished" @click="sendTranscribed">
-                    <span v-if="sending" class="ui-spinner send-spinner" aria-hidden="true" />
-                    <AppIcon v-else name="send" :size="14" />
-                    <span>{{ sending ? '发送中' : '发送' }}</span>
-                  </button>
-                </div>
-              </div>
-              <!-- 录音中 / 识别中 -->
-              <div v-else-if="voiceBusy" class="composer voice-bar live" role="status" aria-live="polite">
-                <button v-if="voiceStatus === 'recording'" class="mic-orb stop" type="button" title="结束并转写" @click="stopRecording"><AppIcon name="square" :size="15" /><i class="orb-pulse" aria-hidden="true"></i></button>
-                <span v-else class="mic-orb static"><span class="ui-spinner" aria-hidden="true" /></span>
-                <div class="voice-bar-info">
-                  <b>{{ voiceStatusLabel }}<template v-if="voiceStatus === 'recording'"> · {{ String(recordingSeconds).padStart(2, '0') }} / 60 秒</template></b>
-                  <span v-if="voiceStatus === 'recording'" class="live-hint">说英语，点左侧按钮结束<span class="live-wave" aria-hidden="true"><i v-for="n in 7" :key="n" :style="{ height: levelBar(n - 1) }"></i></span></span>
-                  <span v-else>{{ voiceStatus === 'transcribing' ? '正在识别，请稍候…' : '正在整理录音…' }}</span>
-                </div>
-                <button class="icon-button" type="button" :disabled="voiceStatus === 'transcribing'" title="取消录音" @click="cancelRecording"><AppIcon name="x" :size="15" /></button>
-              </div>
-              <!-- 待机：录音区合并为单一整块触发按钮，右侧独立放置文字模式切换 -->
-              <div v-else class="composer voice-bar idle">
-                <button
-                  class="voice-trigger"
-                  type="button"
-                  :disabled="sending || finished || asrAvailable === false || !recordingSupported"
-                  :title="voiceCtaText"
-                  aria-label="开始语音输入"
-                  @click="startRecording"
-                >
-                  <span class="mic-orb" aria-hidden="true"><AppIcon name="mic" :size="17" /><i class="orb-ring"></i></span>
-                  <span class="voice-bar-info">
-                    <b>{{ voiceCtaText }}</b>
-                    <span>{{ voiceHintText }}</span>
-                  </span>
-                </button>
-                <button class="foot-toggle in-bar" type="button" :disabled="sending || finished || suggesting" @click="requestReplyAssist">
-                  <span v-if="suggesting" class="ui-spinner" aria-hidden="true" />
-                  <AppIcon v-else name="sparkles" :size="13" />
-                  <span>{{ suggesting ? '思考中…' : 'AI 帮回复' }}</span>
-                </button>
-                <button class="foot-toggle in-bar" type="button" :disabled="voiceBusy" @click="toggleInputMode"><AppIcon name="pencil" :size="13" />文字输入</button>
-              </div>
-              <div v-if="voiceBusy || transcribedText" class="composer-foot">
-                <span>{{ voiceHintText }}</span>
-                <button class="foot-toggle" type="button" :disabled="voiceBusy" @click="toggleInputMode"><AppIcon name="pencil" :size="12" />改用文字输入</button>
-              </div>
-            </template>
-
-            <!-- 文字模式：右侧加麦克风图标，随时切回语音 -->
-            <template v-else>
-              <div class="composer">
-                <textarea ref="composerBox" v-model="draft" class="composer-input" rows="2" maxlength="4000" :disabled="sending || finished" :placeholder="finished ? '本次练习已结束' : '用英语写下你的回答…'" aria-label="你的英语回答" @keydown.enter.exact="handleComposerEnter" @input="autoGrow"></textarea>
-                <button class="icon-button" type="button" title="改用语音输入" :disabled="voiceBusy" @click="toggleInputMode"><AppIcon name="mic" :size="15" /></button>
-                <button class="send-button" type="button" :disabled="sending || finished || !draft.trim()" @click="sendTurn">
-                  <span v-if="sending" class="ui-spinner send-spinner" aria-hidden="true" />
-                  <AppIcon v-else name="arrow-right" :size="18" />
-                  <span>{{ sending ? '发送中' : '发送' }}</span>
-                </button>
-              </div>
-              <div class="composer-foot">
-                <span class="keyboard-hint"><kbd>Enter</kbd> 发送<span>·</span><kbd>Shift + Enter</kbd> 换行</span>
-                <button class="foot-toggle in-bar ai-assist-btn" type="button" :disabled="sending || finished || suggesting" title="让 AI 帮你生成参考回复" @click="requestReplyAssist">
-                  <span v-if="suggesting" class="ui-spinner" aria-hidden="true" />
-                  <AppIcon v-else name="sparkles" :size="13" />
-                  <span>{{ suggesting ? '生成中…' : 'AI 帮回复' }}</span>
-                </button>
-              </div>
-            </template>
-          </footer>
+          <PracticeComposer
+            ref="composerRef"
+            v-model:draft="draft"
+            :playback-notice="playbackNotice"
+            :error="error"
+            :reply-suggestions="replySuggestions"
+            :suggesting="suggesting"
+            :input-mode="inputMode"
+            :transcribed-text="transcribedText"
+            :playing-key="playingKey"
+            :playback-time="playbackTime"
+            :playback-duration="playbackDuration"
+            :pending-voice-duration="pendingVoiceDuration"
+            :voice-busy="voiceBusy"
+            :voice-status="voiceStatus"
+            :voice-status-label="voiceStatusLabel"
+            :recording-seconds="recordingSeconds"
+            :recording-level="recordingLevel"
+            :sending="sending"
+            :finished="finished"
+            :asr-available="asrAvailable"
+            :recording-supported="recordingSupported"
+            :voice-cta-text="voiceCtaText"
+            :voice-hint-text="voiceHintText"
+            @request-assist="requestReplyAssist"
+            @clear-suggestions="replySuggestions = []"
+            @apply-suggestion="applySuggestion"
+            @play-pending="playPendingVoice"
+            @stop-audio="stopAudio"
+            @retry-recording="retryRecording"
+            @discard-pending="discardPendingVoice"
+            @send-transcribed="sendTranscribed"
+            @stop-recording="stopRecording"
+            @cancel-recording="cancelRecording"
+            @start-recording="startRecording"
+            @toggle-input-mode="toggleInputMode"
+            @send-turn="sendTurn"
+          />
         </section>
 
         <aside class="chat-side" aria-label="练习辅助">
@@ -625,43 +350,6 @@
       </div>
     </div>
 
-    <!-- 进入对话确认弹窗：确认后才创建会话 -->
-    <div v-if="confirmScene" class="modal-backdrop" @click.self="confirmScene = null">
-      <div class="modal-card" role="alertdialog" aria-modal="true" :aria-label="`开始场景 ${confirmScene.name}`">
-        <div class="modal-icon"><AppIcon name="messages" :size="18" /></div>
-        <h3>「{{ confirmScene.name }}」</h3>
-        <p v-if="checkingHistory">正在查找练习记录…</p>
-        <p v-else-if="historyError" class="history-error" role="alert">{{ historyError }}</p>
-        <p v-else-if="latestHistory">你有一条未结束的练习记录，要继续上次练习还是新开一场？</p>
-        <p v-else>将创建一条新的练习会话，与场景角色从开场白开始对话。</p>
-        <ul v-if="!latestHistory && !checkingHistory && !historyError" class="modal-facts">
-          <li v-if="confirmScene.objective_count"><span>训练目标</span><b>{{ confirmScene.objective_count }} 个</b></li>
-          <li v-if="confirmScene.stage_count"><span>对话阶段</span><b>{{ confirmScene.stage_count }} 个</b></li>
-          <li v-if="confirmScene.difficulty"><span>难度</span><b>{{ diffLabel(confirmScene.difficulty) }}</b></li>
-        </ul>
-        <div class="modal-actions">
-          <button class="ghost-button" type="button" :disabled="starting" @click="confirmScene = null">取消</button>
-          <button v-if="historyError" class="ghost-button" type="button" :disabled="checkingHistory" @click="chooseScene(confirmScene)">重试</button>
-          <template v-if="latestHistory">
-            <button class="ghost-button" type="button" :disabled="starting || checkingHistory || !!historyError" @click="confirmStart">
-              <span v-if="starting" class="ui-spinner" aria-hidden="true" />
-              <span>{{ starting ? '准备中…' : '新开练习' }}</span>
-            </button>
-            <button class="confirm-button" type="button" :disabled="starting || checkingHistory" @click="startScene(confirmScene, latestHistory.id)">
-              <span v-if="starting" class="ui-spinner send-spinner" aria-hidden="true" />
-              <AppIcon v-else name="arrow-right" :size="14" />
-              <span>继续练习</span>
-            </button>
-          </template>
-          <button v-else class="confirm-button" type="button" :disabled="starting || checkingHistory || !!historyError" @click="confirmStart">
-            <span v-if="starting" class="ui-spinner send-spinner" aria-hidden="true" />
-            <AppIcon v-else name="arrow-right" :size="14" />
-            <span>{{ starting ? '准备中…' : '确认开始' }}</span>
-          </button>
-        </div>
-      </div>
-    </div>
-
     <!-- 场景状态浮层：挂在 body 上，避免被对话卡圆角裁切 -->
     <Teleport to="body">
       <template v-if="stageOpen">
@@ -694,6 +382,13 @@
 
       <PracticeReportModal :open="reportOpen" :report="sessionReport" @close="reportOpen = false" />
     </Teleport>
+
+    <PracticeLookupPopover
+      ref="lookupRef"
+      :voice-style="voiceStyle"
+      :scene-name="sceneTitle"
+      :signed-in="Boolean(session.token)"
+    />
   </section>
 </template>
 
@@ -702,14 +397,17 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { marked } from 'marked'
 import AppIcon from '../components/AppIcon.vue'
-import AppTabs from '../components/AppTabs.vue'
 import AvatarStage from '../components/avatar/AvatarStage.vue'
+import PracticeComposer from '../components/practice/PracticeComposer.vue'
+import PracticeEndingCard from '../components/practice/PracticeEndingCard.vue'
 import PracticeKnowledge from '../components/practice/PracticeKnowledge.vue'
+import PracticeLookupPopover from '../components/practice/PracticeLookupPopover.vue'
 import PracticeReportModal from '../components/practice/PracticeReportModal.vue'
-import SceneCover from '../components/scene/SceneCover.vue'
+import PracticeScenePicker from '../components/practice/PracticeScenePicker.vue'
 import { getScene, listScenes } from '../api/scenes'
 import { applySessionAction, createSession, getSession, getSessionReport, getLatestSession, getGreetingAudio, getTurnAudio, getUserTurnAudio, submitTurnStream, suggestReply } from '../api/sessions'
 import { loadingVisible, usePageLoading } from '../app/loading'
+import { syncGlobalXpProfile } from '../app/xp'
 import { getSpeechStatus } from '../api/speech'
 import { useVoiceInput } from '../composables/useVoiceInput'
 import { FALLBACK_AVATARS, FALLBACK_VOICES, getAvatarPreference, listAvatars, saveAvatarPreference, VOICE_STYLE_ALIASES } from '../api/avatar'
@@ -736,12 +434,11 @@ const scenes = ref([])
 const loadingScenes = ref(false)
 const starting = ref(false)
 const error = ref('')
-const pickCategory = ref('all') // 选场景页分类筛选
-const keyword = ref('') // 选场景页搜索关键词
 const confirmScene = ref(null) // 进入对话前的确认弹窗（点确认才创建会话）
 const latestHistory = ref(null)
 const checkingHistory = ref(false)
 const historyError = ref('')
+const lookupRef = ref(null)
 let historyGeneration = 0
 
 const sessionInfo = ref(null) // 后端会话公开字段 { id, scene_id, greeting, state, version }
@@ -750,7 +447,7 @@ const messages = ref([]) // { key, role: 'user'|'agent', text }
 const draft = ref('')
 const sending = ref(false)
 const chatBody = ref(null)
-const composerBox = ref(null)
+const composerRef = ref(null)
 const asrAvailable = ref(null)
 const inputMode = ref('voice') // 语音优先：voice=麦克风主输入 / text=文字备选
 const transcribedText = ref('') // 语音转写结果：待用户确认后发送
@@ -941,115 +638,11 @@ const voiceHintText = computed(() => {
   if (finished.value) return '退出后可另选场景练习'
   return '最长 60 秒，录完可试听或重录'
 })
-// 录音中迷你声波：7 根柱子按基准波形 × 实时音量缩放
-const LEVEL_BARS = [0.35, 0.6, 0.9, 1, 0.75, 0.5, 0.65]
-function levelBar(i) {
-  const scaled = LEVEL_BARS[i % LEVEL_BARS.length] * (0.35 + recordingLevel.value * 1.3)
-  return `${Math.max(3, Math.min(15, Math.round(scaled * 15)))}px`
-}
 // 场景状态变量是场景包里的机器键名（update_scene_state 按此写入），只展示已登记中文名的键；未登记的键不直接暴露英文
 const STATE_LABELS = { polite_request: '礼貌请求', issue_explained: '问题说明', rebooked: '新行程', options_compared: '方案比较', reported: '进度汇报', clarified: '问题澄清', next_step: '下一步', confirmed: '订单确认', paid: '付款', order: '点单内容', greeted: '打招呼', price_asked: '问价', booked: '预订', payment_method: '支付方式', paid_amount: '实付金额' }
-const PAYMENT_METHODS = [
-  { id: 'card', icon: 'credit-card', label: '刷卡 Card' },
-  { id: 'apple_pay', icon: 'smartphone', label: 'Apple Pay' },
-  { id: 'cash', icon: 'banknote', label: '现金 Cash' },
-]
-const REBOOK_OPTIONS = [
-  { id: 'earliest', label: '最早航班 Earliest Flight' },
-  { id: 'next_day', label: '次日航班 Next-Day Flight' },
-  { id: 'refund', label: '全额退票 Full Refund' },
-]
-const MEETING_NEXT_PRESETS = [
-  'Confirm launch timeline & owners',
-  'Follow up on QA blockers',
-  'Sync updated scope by Friday',
-]
-const INTERVIEW_RATINGS = ['表现自信', '稳步推进', '仍需打磨']
-
-const paymentMethod = ref('card')
-const rebookOption = ref('earliest')
-const nextStepInput = ref(MEETING_NEXT_PRESETS[0])
-const interviewRating = ref(INTERVIEW_RATINGS[0])
 const paying = ref(false)
 const paymentMethodLabel = (id) => ({ card: '刷卡支付', apple_pay: 'Apple Pay', cash: '现金支付' }[id] || id)
 const renderMessageMd = (text) => marked.parse(String(text || '').trim(), { breaks: true, async: false }).trim()
-
-const orderDisplayItems = computed(() => {
-  const raw = stateInfo.value.scenario_state?.order
-  if (!Array.isArray(raw)) return []
-  return raw.map((item) => (typeof item === 'string' ? item : item?.name || item?.item || JSON.stringify(item)))
-})
-
-const quotedAmount = computed(() => {
-  const sc = stateInfo.value.scenario_state || {}
-  for (const key of ['paid_amount', 'total_amount', 'total_price', 'total', 'amount']) {
-    if (sc[key] !== undefined && sc[key] !== null && sc[key] !== '') {
-      const m = String(sc[key]).match(/\d+(?:\.\d{1,2})?/)
-      if (m) return Number(m[0]).toFixed(2)
-    }
-  }
-  const agentMsgs = [...messages.value].reverse().filter((m) => m.role === 'agent')
-  for (const msg of agentMsgs) {
-    const beforeTotal = msg.text.match(/\$\s*(\d+(?:\.\d{1,2})?)\s*(?:total|in total|altogether|all together)\b/i)
-    if (beforeTotal) return Number(beforeTotal[1]).toFixed(2)
-    const afterTotal = msg.text.match(/(?:total|comes to|that'll be|that will be|all together|altogether)[^$\n]{0,24}\$\s*(\d+(?:\.\d{1,2})?)/i)
-    if (afterTotal) return Number(afterTotal[1]).toFixed(2)
-    const allDollars = [...msg.text.matchAll(/\$\s*(\d+(?:\.\d{1,2})?)/g)]
-    if (allDollars.length) return Number(allDollars[allDollars.length - 1][1]).toFixed(2)
-  }
-  return ''
-})
-
-const paymentPromptVisible = computed(() => {
-  if (finished.value) return false
-  const sc = stateInfo.value.scenario_state || {}
-  if (!('paid' in sc) || sc.paid) return false
-  return stateInfo.value.stage === 'checkout' || Boolean(sc.confirmed) || (Boolean(quotedAmount.value) && (stateInfo.value.turn_count || 0) >= 2)
-})
-
-const rebookPromptVisible = computed(() => {
-  if (finished.value) return false
-  const sc = stateInfo.value.scenario_state || {}
-  if (!('rebooked' in sc) || sc.rebooked) return false
-  return stateInfo.value.stage === 'confirm' || (Boolean(sc.issue_explained) && Boolean(sc.options_compared)) || (stateInfo.value.turn_count || 0) >= 4
-})
-
-const meetingPromptVisible = computed(() => {
-  if (finished.value) return false
-  const sc = stateInfo.value.scenario_state || {}
-  if (!('next_step' in sc) || sc.next_step) return false
-  return (Boolean(sc.reported) && Boolean(sc.clarified)) || (stateInfo.value.turn_count || 0) >= 4
-})
-
-const isLastStage = computed(() => {
-  const stages = sceneMeta.value?.package?.stages || []
-  return stages.length > 0 && stateInfo.value.stage === stages[stages.length - 1].id
-})
-
-const wrapupPromptVisible = computed(() => {
-  if (finished.value || paymentPromptVisible.value || rebookPromptVisible.value || meetingPromptVisible.value) return false
-  if (endingType.value === 'payment' || endingType.value === 'boarding_pass' || endingType.value === 'meeting_minutes') return false
-  return isLastStage.value || (stateInfo.value.turn_count || 0) >= 5
-})
-
-const endingType = computed(() => {
-  const sc = stateInfo.value.scenario_state || {}
-  const id = sessionInfo.value?.scene_id || ''
-  const mode = sceneMeta.value?.package?.meta?.mode || ''
-  if ('paid' in sc || id === 'cafe_ordering') return 'payment'
-  if ('rebooked' in sc || id === 'airport_rebooking') return 'boarding_pass'
-  if ('next_step' in sc || id === 'launch_alignment') return 'meeting_minutes'
-  if (mode === 'interview' || id === 'tech_interview') return 'interview_result'
-  return 'summary'
-})
-
-const endingMeta = computed(() => ({
-  payment: { icon: 'coffee', badge: '电子小票 · 已结账', title: '点单与付款已完成，祝你享用！' },
-  boarding_pass: { icon: 'plane', badge: '改签确认单', title: '新行程已确认，祝你旅途顺利！' },
-  meeting_minutes: { icon: 'file-text', badge: '会议纪要', title: '关键事项与下一步行动已对齐！' },
-  interview_result: { icon: 'briefcase', badge: '面试结束', title: '本轮模拟面试已完成！' },
-  summary: { icon: 'sparkles', badge: '练习完成', title: '本场口语练习已顺利完成！' },
-}[endingType.value]))
 
 async function runSessionAction(action, payload) {
   if (!sessionInfo.value || paying.value) return
@@ -1065,26 +658,6 @@ async function runSessionAction(action, payload) {
     paying.value = false
   }
 }
-
-const confirmPayment = () => runSessionAction('pay', { method: paymentMethod.value, amount: quotedAmount.value || undefined })
-const confirmRebooking = () => runSessionAction('finish', {
-  state_updates: {
-    issue_explained: true,
-    options_compared: true,
-    rebooked: true,
-    selected_option: REBOOK_OPTIONS.find((o) => o.id === rebookOption.value)?.label || rebookOption.value,
-  },
-})
-const confirmMeetingEnd = () => runSessionAction('finish', {
-  state_updates: {
-    reported: true,
-    clarified: true,
-    next_step: nextStepInput.value.trim() || MEETING_NEXT_PRESETS[0],
-  },
-})
-const confirmGenericFinish = () => runSessionAction('finish', {
-  state_updates: endingType.value === 'interview_result' ? { self_rating: interviewRating.value } : {},
-})
 
 async function restartCurrentScene() {
   const scene = scenes.value.find((s) => s.id === sessionInfo.value?.scene_id) || props.embeddedScene || { id: sessionInfo.value?.scene_id, name: sceneTitle.value }
@@ -1120,41 +693,6 @@ const companionAvatar = computed(() => {
 const companionAvatarId = ref(null)
 
 const categoryLabel = (key) => CATEGORY_LABELS[key] || key || '通用'
-// 卡片封面沿用场景探索页的长文案，筛选 Tab 与对话页副标题仍用短文案
-const COVER_LABELS = { daily: '日常沟通', business: '职场沟通', career: '求职训练', academic: '学术场景', custom: '自定义' }
-const coverLabel = (key) => COVER_LABELS[key] || categoryLabel(key)
-const diffLabel = (key) => ({ entry: '入门', easy: '简单', normal: '普通', hard: '困难', expert: '专家' }[key] || key)
-const diffClass = (key) => ({ entry: 'entry', easy: 'easy', normal: 'normal', hard: 'hard', expert: 'expert' }[key] || 'normal')
-
-// 场景模式 → 图标与中文标签（对齐场景探索页的卡片徽标）
-const MODE_META = { conversation: { icon: 'messages', label: '对话' }, interview: { icon: 'briefcase', label: '面试' }, debate: { icon: 'messages', label: '辩论' } }
-const modeIcon = (mode) => MODE_META[mode]?.icon || 'messages'
-const modeLabel = (mode) => MODE_META[mode]?.label || mode
-
-// 选场景页：分类 Tab 按实际数据生成（全部 + 出现过的分类），带计数
-const pickCategories = computed(() => {
-  const seen = new Map()
-  for (const scene of scenes.value) seen.set(scene.category, (seen.get(scene.category) || 0) + 1)
-  return [{ key: 'all', label: '全部', count: scenes.value.length },
-    ...[...seen.keys()].map((key) => ({ key, label: categoryLabel(key), count: seen.get(key) }))]
-})
-const countFor = (key) => pickCategories.value.find((cat) => cat.key === key)?.count || 0
-// 分类 + 关键词过滤（名称、描述、标签）
-const filteredScenes = computed(() => {
-  const text = keyword.value.trim().toLowerCase()
-  return scenes.value.filter((scene) => {
-    if (pickCategory.value !== 'all' && scene.category !== pickCategory.value) return false
-    if (!text) return true
-    return [scene.name, scene.description, ...(scene.tags || [])].some((field) => String(field || '').toLowerCase().includes(text))
-  })
-})
-// 分页：客户端分页（对齐场景探索页，筛选/搜索变化时回到第一页）
-const PAGE_SIZE = 9
-const page = ref(1)
-const totalPages = computed(() => Math.max(1, Math.ceil(filteredScenes.value.length / PAGE_SIZE)))
-const pagedScenes = computed(() => filteredScenes.value.slice((page.value - 1) * PAGE_SIZE, page.value * PAGE_SIZE))
-watch([pickCategory, keyword], () => { page.value = 1 })
-watch(totalPages, (total) => { if (page.value > total) page.value = total })
 
 async function toggleOriginal(key, event) {
   // 按消息展开原文，沿用旧版语音消息与文本分开展示的交互。
@@ -1227,13 +765,6 @@ function onPanelAfterLeave(el) {
 watch(showOriginal, (val) => {
   if (val) void scrollToBottom(true)
 })
-
-function handleComposerEnter(event) {
-  // 输入法选词时的 Enter 不应发送尚未确认的文字。
-  if (event.isComposing || event.keyCode === 229) return
-  event.preventDefault()
-  sendTurn()
-}
 
 function pushMessage(role, text) {
   const msg = { key: `m${++msgSeq}`, role, text }
@@ -1392,7 +923,7 @@ async function startScene(scene, existingId = null) {
     confirmScene.value = null // 进入成功后收起确认弹窗
     await scrollToBottom()
     if (generation !== sessionGeneration) return
-    composerBox.value?.focus()
+    composerRef.value?.focusInput()
     if (!existingId && greetingMessage && autoPlayReplies.value) void playMessage(greetingMessage, { automatic: true })
   } catch (err) {
     if (phase.value === 'chat') error.value = err.message
@@ -1449,12 +980,6 @@ function finishAndExit() {
 
 // ---- 对话轮次 ---------------------------------------------------------------
 
-function autoGrow(event) {
-  const box = event.target
-  box.style.height = 'auto'
-  box.style.height = `${Math.min(box.scrollHeight, 132)}px`
-}
-
 function startRecording() {
   if (sending.value || finished.value || voiceBusy.value) return
   stopAudio()
@@ -1494,11 +1019,13 @@ function toggleInputMode() {
   transcribedText.value = ''
   clearPendingVoice()
   inputMode.value = inputMode.value === 'voice' ? 'text' : 'voice'
-  if (inputMode.value === 'text') nextTick(() => composerBox.value?.focus())
+  if (inputMode.value === 'text') nextTick(() => composerRef.value?.focusInput())
 }
 
 let activeStreamController = null
 let streamAudioQueue = []
+let streamPlayedOffset = 0
+let streamKnownDuration = 0
 let streamAudioEnded = false
 let streamPlaybackGen = 0
 const suggesting = ref(false)
@@ -1525,8 +1052,7 @@ async function applySuggestion(enText) {
   replySuggestions.value = []
   if (inputMode.value !== 'text') inputMode.value = 'text'
   await nextTick()
-  autoGrow()
-  composerBox.value?.focus()
+  composerRef.value?.focusInput()
 }
 
 function resetStreamAudioQueue() {
@@ -1536,6 +1062,8 @@ function resetStreamAudioQueue() {
   }
   streamAudioQueue = []
   streamAudioEnded = false
+  streamPlayedOffset = 0
+  streamKnownDuration = 0
 }
 
 function base64ToMp3Blob(b64) {
@@ -1550,7 +1078,11 @@ async function pumpStreamAudio(msgKey, expectedGen) {
   const next = streamAudioQueue.shift()
   if (!next) {
     if (streamAudioEnded) {
+      const displayed = messages.value.find((item) => item.key === msgKey)
+      if (displayed && streamPlayedOffset > 0) displayed.duration = streamPlayedOffset
       playingKey.value = ''
+      playbackTime.value = 0
+      playbackDuration.value = 0
       if (avatarState.value === 'speaking') avatarState.value = 'idle'
     }
     return
@@ -1561,11 +1093,25 @@ async function pumpStreamAudio(msgKey, expectedGen) {
   currentAudio = audio
   playingKey.value = msgKey
   avatarState.value = 'speaking'
-  audio.ontimeupdate = () => { playbackTime.value = currentAudio?.currentTime || 0 }
+  let chunkDuration = 0
+  const displayed = messages.value.find((item) => item.key === msgKey)
+  if (!playbackDuration.value) {
+    playbackDuration.value = estimateSeconds(displayed?.text || next.text || '')
+  }
+  audio.ontimeupdate = () => {
+    playbackTime.value = streamPlayedOffset + (currentAudio?.currentTime || 0)
+  }
   audio.onloadedmetadata = () => {
-    playbackDuration.value = Number.isFinite(currentAudio?.duration) ? currentAudio.duration : 0
+    chunkDuration = Number.isFinite(audio.duration) ? audio.duration : 0
+    if (chunkDuration > 0) {
+      streamKnownDuration += chunkDuration
+      const est = estimateSeconds(displayed?.text || '')
+      playbackDuration.value = Math.max(streamKnownDuration, est)
+    }
   }
   const finishChunk = () => {
+    const actual = Number.isFinite(audio.duration) && audio.duration > 0 ? audio.duration : (audio.currentTime || chunkDuration)
+    streamPlayedOffset += actual
     if (next.url?.startsWith('blob:')) URL.revokeObjectURL(next.url)
     if (currentAudio === audio) currentAudio = null
     if (expectedGen === streamPlaybackGen) void pumpStreamAudio(msgKey, expectedGen)
@@ -1658,7 +1204,7 @@ async function sendTurn(voiceMeta = null) {
   avatarState.value = 'thinking'
   error.value = ''
   draft.value = ''
-  if (composerBox.value) composerBox.value.style.height = 'auto'
+  composerRef.value?.resetHeight()
   const userMsg = pushMessage('user', text) // 乐观上屏，失败时按 key 撤回
   if (isVoiceTurn) {
     userMsg.isVoice = true
@@ -1740,6 +1286,7 @@ async function sendTurn(voiceMeta = null) {
         }
       },
     })
+    if (doneReceived) void syncGlobalXpProfile()
   } catch (err) {
     if (generation !== sessionGeneration || err?.name === 'AbortError') return
     if (!doneReceived) {
@@ -1819,10 +1366,12 @@ function stopAudio() {
 }
 
 function clearAudioCache() { audioCache.clear() }
+
 onBeforeUnmount(() => {
   sessionGeneration += 1
   activeStreamController?.abort()
   stopAudio()
+  lookupRef.value?.close()
   clearAudioCache()
 })
 </script>
@@ -1984,7 +1533,7 @@ button:focus-visible, a:focus-visible, summary:focus-visible { outline: 2px soli
 @keyframes shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
 
 /* ---- 进入对话确认弹窗（对齐场景探索页弹窗规范） ---- */
-.modal-backdrop { position: fixed; inset: 0; z-index: 40; display: grid; place-items: center; background: rgba(34, 37, 59, .28); animation: fade-in .18s ease; }
+.modal-backdrop { position: fixed; inset: 0; z-index: 40; display: grid; place-items: center; background: var(--scrim-bg, rgba(34, 37, 59, .28)); -webkit-backdrop-filter: var(--scrim-blur, blur(2px)); backdrop-filter: var(--scrim-blur, blur(2px)); animation: fade-in .18s ease; }
 .modal-card { width: min(380px, calc(100vw - 48px)); padding: 24px; border-radius: 14px; background: var(--surface); box-shadow: 0 18px 48px rgba(34, 37, 59, .18); animation: pop-in .22s cubic-bezier(.22, .8, .32, 1); }
 .modal-icon { display: grid; width: 38px; height: 38px; margin-bottom: 14px; place-items: center; border-radius: 10px; background: var(--brand-soft); color: var(--brand-deep); }
 .modal-card h3 { margin: 0 0 8px; font-size: 16.5px; font-weight: 600; }
@@ -2096,27 +1645,6 @@ button:focus-visible, a:focus-visible, summary:focus-visible { outline: 2px soli
 .md-body :deep(strong) { font-weight: 700; color: #2d294b; }
 .md-body :deep(ul), .md-body :deep(ol) { margin: 4px 0 6px; padding-left: 18px; }
 .md-body :deep(code) { padding: 1px 5px; border-radius: 4px; background: #f3f1fb; font-size: .9em; }
-.ending-card { margin: 8px 0 6px; padding: 14px 16px; border: 1.5px solid #dfd8f6; border-radius: 14px; background: linear-gradient(180deg, #fcfbff 0%, #f6f3fe 100%); display: flex; flex-direction: column; gap: 10px; }
-.ending-card.is-done { border-color: #cde6d6; background: linear-gradient(180deg, #fafdfb 0%, #f1f9f4 100%); }
-.ending-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-.ending-badge { display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px; border-radius: 999px; background: #ece6fc; color: #5b43b0; font-size: 12px; font-weight: 750; }
-.ending-card.is-done .ending-badge { background: #dff2e6; color: #2d6f49; }
-.ending-amount { font-size: 18px; font-weight: 800; color: #2d294b; font-variant-numeric: tabular-nums; }
-.ending-title { margin: 0; font-size: 14px; font-weight: 700; color: #2d294b; }
-.ending-sub { margin: -4px 0 0; font-size: 12.5px; color: #6b6485; }
-.ending-items { margin: 0; padding: 8px 12px 8px 26px; border-radius: 10px; background: rgba(255, 255, 255, 0.8); border: 1px solid #ece7f8; font-size: 13px; color: #393457; display: flex; flex-direction: column; gap: 4px; }
-.ending-note { padding: 8px 11px; border-radius: 9px; background: rgba(255, 255, 255, 0.85); border: 1px solid #d7ebde; font-size: 12.5px; color: #2d294b; }
-.ending-input { width: 100%; box-sizing: border-box; padding: 8px 11px; border: 1.5px solid #e1dbf4; border-radius: 9px; background: #fff; font: inherit; font-size: 13px; color: #2d294b; outline: none; }
-.ending-input:focus { border-color: #7c62d2; }
-.pay-methods { display: flex; flex-wrap: wrap; gap: 8px; }
-.pay-method-chip { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border: 1.5px solid #e1dbf4; border-radius: 999px; background: #fff; color: #595275; font-size: 12.5px; font-weight: 650; cursor: pointer; transition: all .15s; }
-.pay-method-chip:hover:not(:disabled) { border-color: #9e87e8; color: #4c359d; }
-.pay-method-chip.active { border-color: #7c62d2; background: #efeafc; color: #4c359d; }
-.ending-stats { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; font-size: 12px; color: #6b6485; }
-.ending-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 2px; }
-.composer-area { flex-shrink: 0; margin: 0 20px; padding: 13px 0 12px; border-top: 1px solid var(--line); }
-.composer { display: flex; align-items: flex-end; gap: 10px; padding: 10px; border: 1px solid #e6e6f0; border-radius: 11px; background: #fcfcfe; transition: border-color .15s; }.composer:focus-within { border-color: #a9a7e9; }.composer-input { display: block; flex: 1; min-width: 0; min-height: 42px; max-height: 132px; padding: 0 3px; outline: none; border: 0; resize: none; background: transparent; font: inherit; font-size: 14.5px; line-height: 1.7; color: #2d294b; }.composer-input::placeholder { color: #9c96b2; }.send-button { display: flex; align-items: center; justify-content: center; gap: 5px; height: 36px; padding: 0 15px; border: 1.5px solid #7960cc; border-bottom: 4px solid #6349b4; border-radius: 11px; color: white; background: #8b73dd; font-size: 13px; font-weight: 700; transition: background .15s, transform .12s; }.send-button:hover:not(:disabled) { background: #7d64d1; transform: translateY(-1px); }.send-button:active:not(:disabled) { transform: translateY(1px); border-bottom-width: 2px; }
-.composer-foot { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 7px; margin-top: 9px; color: #7c7693; font-size: 11.5px; }.recording-note { display: flex; align-items: center; gap: 4px; }.keyboard-hint { display: flex; align-items: center; gap: 5px; }.keyboard-hint>span { margin: 0 3px; }kbd { font-family: inherit; font-size: 10.5px; }.chat-error { display: flex; align-items: center; gap: 5px; margin: 0 0 10px; color: var(--danger); font-size: 13px; }
 /* 右栏：伙伴舞台固定紧凑高度，目标卡紧随其后自然排布，避免人物上下大面积留白 */
 .chat-side { display: flex; flex-direction: column; gap: 12px; min-height: 0; overflow-y: auto; }
 .companion-card, .support-card { border: 1px solid var(--line); background: white; border-radius: 14px; overflow: hidden; }

@@ -354,7 +354,9 @@ async function doLogout() {
   display: grid;
   place-items: center;
   padding: 40px;
-  background: rgba(34, 37, 59, .26); /* 不用毛玻璃：会把下层糊成灰块 */
+  background: var(--scrim-bg, rgba(34, 37, 59, .28));
+  -webkit-backdrop-filter: var(--scrim-blur, blur(2px));
+  backdrop-filter: var(--scrim-blur, blur(2px));
   animation: scrim-in .16s ease-out;
 }
 
@@ -379,9 +381,9 @@ async function doLogout() {
 
 /* 左侧分类栏 */
 .set-nav { display: flex; flex-direction: column; gap: 6px; padding: 16px 12px 12px; border-right: 1px solid #f1eef8; background: #faf8ff; }
-.set-nav-title { display: flex; align-items: center; gap: 8px; margin: 0 8px 10px; color: #393451; font-size: 15px; font-weight: 750; }
-.set-nav-list { display: flex; flex-direction: column; gap: 2px; }
-.set-nav-item { display: flex; height: 34px; align-items: center; gap: 9px; padding: 0 10px; border: 0; border-radius: 10px; background: transparent; color: #625e76; font-size: 13.5px; text-align: left; transition: background .15s, color .15s; }
+.set-nav-title { display: flex; align-items: center; gap: 8px; margin: 0 8px 10px; color: #393451; font-size: 16px; font-weight: 750; }
+.set-nav-list { display: flex; flex-direction: column; gap: 3px; }
+.set-nav-item { display: flex; height: 38px; align-items: center; gap: 9px; padding: 0 11px; border: 0; border-radius: 10px; background: transparent; color: #625e76; font-size: 14.5px; text-align: left; transition: background .15s, color .15s; }
 .set-nav-item:hover { background: #f3effc; color: #5946a7; }
 .set-nav-item.active { background: #eee9ff; color: #6c52c4; font-weight: 700; }
 

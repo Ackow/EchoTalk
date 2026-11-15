@@ -1,0 +1,2064 @@
+[
+  {
+    "id": "daily-cafe-pickup",
+    "channel": "daily",
+    "channelLabel": "日常对话 · 点餐取餐",
+    "level": "A2–B1 · 日常",
+    "title": "咖啡店取餐与临时改单",
+    "subtitle": "高频连读、礼貌请求与饮品规格确认",
+    "duration": "4 分钟",
+    "xp": 25,
+    "accent": "标准美音",
+    "exercises": [
+      {
+        "id": "daily-cafe-1",
+        "type": "word_bank",
+        "prompt": "听音频，拼出顾客礼貌换奶的表达",
+        "audioText": "Could I switch my latte to oat milk instead?",
+        "zhText": "请问可以把我的拿铁换成燕麦奶吗？",
+        "keywords": [
+          "switch",
+          "oat milk",
+          "instead"
+        ],
+        "tokens": [
+          "Could",
+          "I",
+          "switch",
+          "my",
+          "latte",
+          "to",
+          "oat",
+          "milk",
+          "instead?"
+        ],
+        "distractors": [
+          "change",
+          "for",
+          "please"
+        ],
+        "tip": "switch A to B 是点餐改单最地道的表达之一。",
+        "errorTag": "固定搭配"
+      },
+      {
+        "id": "daily-cafe-2",
+        "type": "cloze",
+        "prompt": "听写店员确认取餐位置的关键词",
+        "audioText": "Your order will be ready at the pickup counter in three minutes.",
+        "zhText": "您的餐点三分钟后会在取餐台准备好。",
+        "keywords": [
+          "pickup counter",
+          "three minutes"
+        ],
+        "template": "Your order will be ready at the ____ counter in ____ minutes.",
+        "blanks": [
+          "pickup",
+          "three"
+        ],
+        "tip": "注意 pickup counter（取餐台）的连读节奏。",
+        "errorTag": "场景词汇"
+      },
+      {
+        "id": "daily-cafe-3",
+        "type": "shadowing",
+        "prompt": "跟读模仿自然礼貌的收尾语气",
+        "audioText": "No rush at all, thank you so much!",
+        "zhText": "一点也不急，非常感谢！",
+        "keywords": [
+          "No rush",
+          "thank you"
+        ],
+        "tip": "No rush 读音轻快，thank you so much 重音落在 so。",
+        "errorTag": "语音语调"
+      }
+    ]
+  },
+  {
+    "id": "daily-airport-checkin",
+    "channel": "daily",
+    "channelLabel": "日常对话 · 机场出行",
+    "level": "B1 · 出行",
+    "title": "值机托运与登机口变更",
+    "subtitle": "数字登机口、行李限重与登机广播抓重点",
+    "duration": "4 分钟",
+    "xp": 25,
+    "accent": "标准美音",
+    "exercises": [
+      {
+        "id": "daily-air-1",
+        "type": "choice",
+        "prompt": "What does the agent ask the passenger to do?",
+        "audioText": "Your carry-on bag is slightly over the weight limit, so we need to check it at no extra charge.",
+        "zhText": "您的随身行李略微超重，我们需要为您免费托运。",
+        "keywords": [
+          "weight limit",
+          "check it",
+          "no extra charge"
+        ],
+        "options": [
+          {
+            "key": "A",
+            "text": "Pay an overweight baggage fee."
+          },
+          {
+            "key": "B",
+            "text": "Check the carry-on bag for free."
+          },
+          {
+            "key": "C",
+            "text": "Move to another boarding gate."
+          },
+          {
+            "key": "D",
+            "text": "Wait for the next flight."
+          }
+        ],
+        "answer": "B",
+        "tip": "at no extra charge = for free（免费）。",
+        "errorTag": "同义替换"
+      },
+      {
+        "id": "daily-air-2",
+        "type": "cloze",
+        "prompt": "听写登机广播中的时间与登机口",
+        "audioText": "Boarding for flight four zero two will begin at gate twelve shortly.",
+        "zhText": "402 次航班即将在 12 号登机口开始登机。",
+        "keywords": [
+          "Boarding",
+          "gate twelve"
+        ],
+        "template": "____ for flight four zero two will begin at ____ twelve shortly.",
+        "blanks": [
+          "Boarding",
+          "gate"
+        ],
+        "tip": "机场广播常把数字逐位读出，注意 gate 后紧跟数字。",
+        "errorTag": "数字时间"
+      }
+    ]
+  },
+  {
+    "id": "daily-standup-sync",
+    "channel": "daily",
+    "channelLabel": "职场沟通 · 站会同步",
+    "level": "B1–B2 · 职场",
+    "title": "每日站会：同步进度与阻塞点",
+    "subtitle": "职场高频衔接词与委婉汇报延期原因",
+    "duration": "4 分钟",
+    "xp": 25,
+    "accent": "标准美音",
+    "exercises": [
+      {
+        "id": "daily-work-1",
+        "type": "word_bank",
+        "prompt": "拼出团队成员说明阻塞原因的句子",
+        "audioText": "We are currently blocked by a missing API key from the vendor.",
+        "zhText": "我们目前被供应商缺失的 API 密钥卡住了。",
+        "keywords": [
+          "currently blocked",
+          "missing",
+          "vendor"
+        ],
+        "tokens": [
+          "We",
+          "are",
+          "currently",
+          "blocked",
+          "by",
+          "a",
+          "missing",
+          "API",
+          "key",
+          "from",
+          "the",
+          "vendor."
+        ],
+        "distractors": [
+          "waiting",
+          "because",
+          "client"
+        ],
+        "tip": "be blocked by... 是远程/研发团队站会最常用的受阻表达。",
+        "errorTag": "职场表达"
+      },
+      {
+        "id": "daily-work-2",
+        "type": "shadowing",
+        "prompt": "跟读总结下一步行动计划",
+        "audioText": "I will follow up with them right after this meeting.",
+        "zhText": "我会在这次会议结束后立刻跟进他们。",
+        "keywords": [
+          "follow up",
+          "right after"
+        ],
+        "tip": "follow up 连读清晰，right after 处注意 t 的轻拍音。",
+        "errorTag": "连读弱读"
+      }
+    ]
+  },
+  {
+    "id": "cet4-2025-06-1",
+    "channel": "cet",
+    "cetLevel": "cet4",
+    "cetSection": "news",
+    "channelLabel": "CET-4 · 2025-06",
+    "level": "四级精听",
+    "title": "CET-4 真题：2025年06月真题·第1套",
+    "subtitle": "精选 6 道核心听力题（含定位原句与同义替换解析）",
+    "duration": "6 分钟",
+    "xp": 40,
+    "accent": "标准美音",
+    "exercises": [
+      {
+        "id": "2025-06-1-l-1",
+        "type": "choice",
+        "prompt": "How did Tariq make corn taste better?",
+        "audioText": "Everything changed for 7-year-old Tariq when he slapped some butter on an ear of corn. He",
+        "zhText": "2025年06月真题·第1套",
+        "keywords": [
+          "Everything",
+          "changed",
+          "Tariq"
+        ],
+        "options": [
+          {
+            "key": "A",
+            "text": "By slapping some butter on it."
+          },
+          {
+            "key": "B",
+            "text": "By enhancing its nourishment."
+          },
+          {
+            "key": "C",
+            "text": "By growing it in South Dakota."
+          },
+          {
+            "key": "D",
+            "text": "By cooking it in vegetable oil."
+          }
+        ],
+        "answer": "A",
+        "tip": "he slapped some butter on an ear of corn ↔ By slapping some butter on it.",
+        "errorTag": "细节题"
+      },
+      {
+        "id": "2025-06-1-l-2",
+        "type": "choice",
+        "prompt": "Why were Tariq and his family invited to South Dakota?",
+        "audioText": "Tariq and his family were invited to South Dakota to attend the honorary ceremony at the",
+        "zhText": "2025年06月真题·第1套",
+        "keywords": [
+          "Tariq",
+          "family",
+          "invited"
+        ],
+        "options": [
+          {
+            "key": "A",
+            "text": "To introduce their corn to tourists."
+          },
+          {
+            "key": "B",
+            "text": "To attend an honorary ceremony."
+          },
+          {
+            "key": "C",
+            "text": "To share experience with other corn growers."
+          },
+          {
+            "key": "D",
+            "text": "To exhibit their corn at the state's Corn Palace."
+          }
+        ],
+        "answer": "B",
+        "tip": "to attend the honorary ceremony ↔ To attend an honorary ceremony.",
+        "errorTag": "目的题"
+      },
+      {
+        "id": "2025-06-1-l-3",
+        "type": "choice",
+        "prompt": "What did Jordan Jax and Tarod Goodman do according to a news release?",
+        "audioText": "Jordan Jax and Tarod Goodman, both 23, were arrested after evidence gathered in an",
+        "zhText": "2025年06月真题·第1套",
+        "keywords": [
+          "Jordan",
+          "Tarod",
+          "Goodman"
+        ],
+        "options": [
+          {
+            "key": "A",
+            "text": "Stole mail several times."
+          },
+          {
+            "key": "B",
+            "text": "Forged postal keys illegally."
+          },
+          {
+            "key": "C",
+            "text": "Attacked postmen on multiple occasions."
+          },
+          {
+            "key": "D",
+            "text": "Broke a number of postal collection boxes."
+          }
+        ],
+        "answer": "A",
+        "tip": "stole mail on multiple occasions ↔ Stole mail several times.",
+        "errorTag": "细节题"
+      },
+      {
+        "id": "2025-06-1-l-4",
+        "type": "choice",
+        "prompt": "What do Jordan Jax and Tarod Goodman face?",
+        "audioText": "Jax and Goodman each face up to five years in federal prison in the mail thefts and up to ten",
+        "zhText": "2025年06月真题·第1套",
+        "keywords": [
+          "Goodman",
+          "years",
+          "federal"
+        ],
+        "options": [
+          {
+            "key": "A",
+            "text": "A sentence for life."
+          },
+          {
+            "key": "B",
+            "text": "Loss of all their possessions."
+          },
+          {
+            "key": "C",
+            "text": "Twenty-three years' hard labor."
+          },
+          {
+            "key": "D",
+            "text": "Up to fifteen years in prison."
+          }
+        ],
+        "answer": "D",
+        "tip": "up to five years in federal prison ↔ Up to fifteen years in prison.",
+        "errorTag": "细节题"
+      },
+      {
+        "id": "2025-06-1-l-5",
+        "type": "choice",
+        "prompt": "Why has the clothing industry come under attack?",
+        "audioText": "Recently, the clothing industry has come under attack for creating a waste problem with",
+        "zhText": "2025年06月真题·第1套",
+        "keywords": [
+          "Recently",
+          "clothing",
+          "industry"
+        ],
+        "options": [
+          {
+            "key": "A",
+            "text": "It escapes regulation and misleads consumers."
+          },
+          {
+            "key": "B",
+            "text": "It ignores economically feasible recycling options."
+          },
+          {
+            "key": "C",
+            "text": "It creates waste and severely impacts the environment."
+          },
+          {
+            "key": "D",
+            "text": "It produces clothes affordable only to a tiny minority."
+          }
+        ],
+        "answer": "C",
+        "tip": "creating a waste problem ↔ It creates waste",
+        "errorTag": "细节题"
+      },
+      {
+        "id": "2025-06-1-l-6",
+        "type": "choice",
+        "prompt": "Why did the researchers put forth such policies as production tax?",
+        "audioText": "The researchers put forth policy contributions, ranging from sustainable disposal of leftover",
+        "zhText": "2025年06月真题·第1套",
+        "keywords": [
+          "researchers",
+          "forth",
+          "policy"
+        ],
+        "options": [
+          {
+            "key": "A",
+            "text": "To cut consumers' expenses in buying quality clothes."
+          },
+          {
+            "key": "B",
+            "text": "To enable the whole fast-fashion industry to be sustainable."
+          },
+          {
+            "key": "C",
+            "text": "To incentivize manufacturers to be more consumer-friendly."
+          },
+          {
+            "key": "D",
+            "text": "To urge manufacturers and consumers to reduce waste."
+          }
+        ],
+        "answer": "D",
+        "tip": "incentivize both manufacturers and consumers ↔ urge manufacturers and consumers",
+        "errorTag": "目的题"
+      }
+    ]
+  },
+  {
+    "id": "cet4-2024-12-1",
+    "channel": "cet",
+    "cetLevel": "cet4",
+    "cetSection": "news",
+    "channelLabel": "CET-4 · 2024-12",
+    "level": "四级精听",
+    "title": "CET-4 真题：2024年12月真题·第1套",
+    "subtitle": "精选 6 道核心听力题（含定位原句与同义替换解析）",
+    "duration": "6 分钟",
+    "xp": 40,
+    "accent": "标准美音",
+    "exercises": [
+      {
+        "id": "2024-12-1-l-1",
+        "type": "choice",
+        "prompt": "What do we learn about Sherry Christian?",
+        "audioText": "As part of the event, the city is celebrating its longest-serving driver on the force.",
+        "zhText": "2024年12月真题·第1套",
+        "keywords": [
+          "event",
+          "celebrating",
+          "longest"
+        ],
+        "options": [
+          {
+            "key": "A",
+            "text": "She is making a special effort to be recognized."
+          },
+          {
+            "key": "B",
+            "text": "She has been living in Fayetteville for 25 years."
+          },
+          {
+            "key": "C",
+            "text": "She has been driving a school bus ever since 2009."
+          },
+          {
+            "key": "D",
+            "text": "She is the longest-serving bus driver in Fayetteville."
+          }
+        ],
+        "answer": "D",
+        "tip": "the city is celebrating its longest-serving driver on the force ↔",
+        "errorTag": "细节题"
+      },
+      {
+        "id": "2024-12-1-l-2",
+        "type": "choice",
+        "prompt": "What did city officials of Fayetteville want bus drivers to be aware of?",
+        "audioText": "Officials said they want bus drivers to know how important they are to Fayetteville, serving",
+        "zhText": "2024年12月真题·第1套",
+        "keywords": [
+          "Officials",
+          "drivers",
+          "important"
+        ],
+        "options": [
+          {
+            "key": "A",
+            "text": "The importance of their service to the city."
+          },
+          {
+            "key": "B",
+            "text": "The number of riders they serve in the city."
+          },
+          {
+            "key": "C",
+            "text": "The new proclamation issued early this week."
+          },
+          {
+            "key": "D",
+            "text": "The significance of the event to take place March 18."
+          }
+        ],
+        "answer": "A",
+        "tip": "how important they are to Fayetteville ↔ The importance of their service to the city.",
+        "errorTag": "细节题"
+      },
+      {
+        "id": "2024-12-1-l-3",
+        "type": "choice",
+        "prompt": "What does the news report say the Wilton School Board has done?",
+        "audioText": "The Wilton School Board has proposed a 5.99% spending increase.",
+        "zhText": "2024年12月真题·第1套",
+        "keywords": [
+          "Wilton",
+          "School",
+          "Board"
+        ],
+        "options": [
+          {
+            "key": "A",
+            "text": "Budgeted $56.7 million for the coming school year."
+          },
+          {
+            "key": "B",
+            "text": "Requested to raise teachers' salaries by 3 percent."
+          },
+          {
+            "key": "C",
+            "text": "Proposed a spending increase by 5.99 percent."
+          },
+          {
+            "key": "D",
+            "text": "Kept raising funds for at least 8 budget cycles."
+          }
+        ],
+        "answer": "C",
+        "tip": "has proposed a 5.99% spending increase ↔ Proposed a spending increase by 5.99 percent.",
+        "errorTag": "细节题"
+      },
+      {
+        "id": "2024-12-1-l-4",
+        "type": "choice",
+        "prompt": "What will a decline in the total enrollment lead to?",
+        "audioText": "This represents 47 fewer students than the current year. Fewer students mean less federal and",
+        "zhText": "2024年12月真题·第1套",
+        "keywords": [
+          "represents",
+          "fewer",
+          "students"
+        ],
+        "options": [
+          {
+            "key": "A",
+            "text": "Decrease in salaries for school administrators."
+          },
+          {
+            "key": "B",
+            "text": "Reduction in federal and state funding."
+          },
+          {
+            "key": "C",
+            "text": "Firing of less qualified faculty members."
+          },
+          {
+            "key": "D",
+            "text": "Closing down of some less competitive schools."
+          }
+        ],
+        "answer": "B",
+        "tip": "less federal and state funding ↔ Reduction in federal and state funding.",
+        "errorTag": "细节题"
+      },
+      {
+        "id": "2024-12-1-l-5",
+        "type": "choice",
+        "prompt": "What do we learn about thundersnows from the report?",
+        "audioText": "The phenomenon happens when thunder and lightning mix with a heavy snowstorm—",
+        "zhText": "2024年12月真题·第1套",
+        "keywords": [
+          "phenomenon",
+          "happens",
+          "thunder"
+        ],
+        "options": [
+          {
+            "key": "A",
+            "text": "They often take place in the Scottish highlands."
+          },
+          {
+            "key": "B",
+            "text": "They usually happen in the middle of the night."
+          },
+          {
+            "key": "C",
+            "text": "Their damage can be as serious as that of bombs."
+          },
+          {
+            "key": "D",
+            "text": "Their loud claps can be confused with explosions."
+          }
+        ],
+        "answer": "D",
+        "tip": "loud claps that can be confused with explosions ↔",
+        "errorTag": "细节题"
+      },
+      {
+        "id": "2024-12-1-l-6",
+        "type": "choice",
+        "prompt": "What did the police do when they received the local residents' phone calls?",
+        "audioText": "The police were flooded with many calls from the public. And they sent out a message asking",
+        "zhText": "2024年12月真题·第1套",
+        "keywords": [
+          "police",
+          "flooded",
+          "calls"
+        ],
+        "options": [
+          {
+            "key": "A",
+            "text": "They sent out a message to calm them down."
+          },
+          {
+            "key": "B",
+            "text": "They promised to stop the construction work."
+          },
+          {
+            "key": "C",
+            "text": "They told them the military exercise was over."
+          },
+          {
+            "key": "D",
+            "text": "They set off to inspect the site of the plane crash."
+          }
+        ],
+        "answer": "A",
+        "tip": "sent out a message asking people to remain calm ↔ They sent out a message to calm them down.",
+        "errorTag": "细节题"
+      }
+    ]
+  },
+  {
+    "id": "cet4-2024-06-1",
+    "channel": "cet",
+    "cetLevel": "cet4",
+    "cetSection": "news",
+    "channelLabel": "CET-4 · 2024-06",
+    "level": "四级精听",
+    "title": "CET-4 真题：2024年06月真题·第1套",
+    "subtitle": "精选 6 道核心听力题（含定位原句与同义替换解析）",
+    "duration": "6 分钟",
+    "xp": 40,
+    "accent": "标准美音",
+    "exercises": [
+      {
+        "id": "2024-06-1-l-1",
+        "type": "choice",
+        "prompt": "Why did the six residents have to find another place to stay?",
+        "audioText": "Due to smoke and heat damage, the four apartments were declared uninhabitable, and the six",
+        "zhText": "2024年06月真题·第1套",
+        "keywords": [
+          "smoke",
+          "damage",
+          "apartments"
+        ],
+        "options": [
+          {
+            "key": "A",
+            "text": "Due to a fire alarm in their apartments."
+          },
+          {
+            "key": "B",
+            "text": "Because of the smoke and heat damage."
+          },
+          {
+            "key": "C",
+            "text": "Due to the water used to extinguish the flames."
+          },
+          {
+            "key": "D",
+            "text": "Because of the collapse of the three-story building."
+          }
+        ],
+        "answer": "B",
+        "tip": "Due to smoke and heat damage ↔ Because of the smoke and heat damage",
+        "errorTag": "细节题"
+      },
+      {
+        "id": "2024-06-1-l-2",
+        "type": "choice",
+        "prompt": "What does the news report say the Norwalk Fire Marshal is doing?",
+        "audioText": "The Norwalk Fire Marshal is investigating the cause and origin of the fire.",
+        "zhText": "2024年06月真题·第1套",
+        "keywords": [
+          "Norwalk",
+          "Marshal",
+          "investigating"
+        ],
+        "options": [
+          {
+            "key": "A",
+            "text": "Investigating the cause of the incident."
+          },
+          {
+            "key": "B",
+            "text": "Helping search for the suspect of the crime."
+          },
+          {
+            "key": "C",
+            "text": "Rescuing the businessmen trapped in the building."
+          },
+          {
+            "key": "D",
+            "text": "Checking town records for the property developer."
+          }
+        ],
+        "answer": "A",
+        "tip": "investigating the cause and origin of the fire ↔ Investigating the cause of the incident",
+        "errorTag": "细节题"
+      },
+      {
+        "id": "2024-06-1-l-3",
+        "type": "choice",
+        "prompt": "What have a number of past studies found about season of birth?",
+        "audioText": "A number of past studies have found the link between season of birth and mental",
+        "zhText": "2024年06月真题·第1套",
+        "keywords": [
+          "number",
+          "studies",
+          "found"
+        ],
+        "options": [
+          {
+            "key": "A",
+            "text": "It plays a less important role in one's health than nutrient intake."
+          },
+          {
+            "key": "B",
+            "text": "It impacts people's health to a lesser degree than sun exposure."
+          },
+          {
+            "key": "C",
+            "text": "It is associated with people's mental health conditions."
+          },
+          {
+            "key": "D",
+            "text": "It is linked with older adults' symptoms of depression."
+          }
+        ],
+        "answer": "C",
+        "tip": "the link between season of birth and mental health diagnoses ↔",
+        "errorTag": "细节题"
+      },
+      {
+        "id": "2024-06-1-l-4",
+        "type": "choice",
+        "prompt": "What did the new study find about the relationship between participants' month of birth and symptoms of depression?",
+        "audioText": "Overall, the new study found no significant relationship between participants' month of birth",
+        "zhText": "2024年06月真题·第1套",
+        "keywords": [
+          "Overall",
+          "study",
+          "found"
+        ],
+        "options": [
+          {
+            "key": "A",
+            "text": "It was indefinite."
+          },
+          {
+            "key": "B",
+            "text": "It was systematic."
+          },
+          {
+            "key": "C",
+            "text": "It was straightforward."
+          },
+          {
+            "key": "D",
+            "text": "It was insignificant."
+          }
+        ],
+        "answer": "D",
+        "tip": "no significant relationship ↔ It was insignificant.",
+        "errorTag": "细节题"
+      },
+      {
+        "id": "2024-06-1-l-5",
+        "type": "choice",
+        "prompt": "What do the researchers' tests show about the cloned dog?",
+        "audioText": "The clone has already performed better than traditionally bred dogs on several tests.",
+        "zhText": "2024年06月真题·第1套",
+        "keywords": [
+          "clone",
+          "already",
+          "performed"
+        ],
+        "options": [
+          {
+            "key": "A",
+            "text": "It has helped solve several murder cases."
+          },
+          {
+            "key": "B",
+            "text": "It has become a star office dog in Beijing."
+          },
+          {
+            "key": "C",
+            "text": "It has surpassed its mother in performance."
+          },
+          {
+            "key": "D",
+            "text": "It has done better than naturally born dogs."
+          }
+        ],
+        "answer": "D",
+        "tip": "traditionally bred dogs ↔ naturally born dogs",
+        "errorTag": "细节题"
+      },
+      {
+        "id": "2024-06-1-l-6",
+        "type": "choice",
+        "prompt": "What is the scientists' purpose in cloning police dogs?",
+        "audioText": "The ultimate goal of scientists is to produce clones of talented police dogs that can be trained",
+        "zhText": "2024年06月真题·第1套",
+        "keywords": [
+          "ultimate",
+          "scientists",
+          "produce"
+        ],
+        "options": [
+          {
+            "key": "A",
+            "text": "To speed up investigation into criminal cases."
+          },
+          {
+            "key": "B",
+            "text": "To test the feasibility of cloning technology."
+          },
+          {
+            "key": "C",
+            "text": "To cut down training expenses."
+          },
+          {
+            "key": "D",
+            "text": "To reduce their training time."
+          }
+        ],
+        "answer": "D",
+        "tip": "trained in months instead of years ↔ reduce their training time",
+        "errorTag": "目的题"
+      }
+    ]
+  },
+  {
+    "id": "cet4-2023-12-1",
+    "channel": "cet",
+    "cetLevel": "cet4",
+    "cetSection": "news",
+    "channelLabel": "CET-4 · 2023-12",
+    "level": "四级精听",
+    "title": "CET-4 真题：2023年12月真题·第1套",
+    "subtitle": "精选 6 道核心听力题（含定位原句与同义替换解析）",
+    "duration": "6 分钟",
+    "xp": 40,
+    "accent": "标准美音",
+    "exercises": [
+      {
+        "id": "2023-12-1-l-1",
+        "type": "choice",
+        "prompt": "What may be the reason that friends are similar to each other according to the recent research?",
+        "audioText": "It may be because your brains operate in harmony with each other.",
+        "zhText": "2023年12月真题·第1套",
+        "keywords": [
+          "because",
+          "brains",
+          "operate"
+        ],
+        "options": [
+          {
+            "key": "A",
+            "text": "Their brains work in harmony."
+          },
+          {
+            "key": "B",
+            "text": "They are generally the same age."
+          },
+          {
+            "key": "C",
+            "text": "Their interests are quite similar."
+          },
+          {
+            "key": "D",
+            "text": "They have the same ethnic background."
+          }
+        ],
+        "answer": "A",
+        "tip": "your brains operate in harmony with each other ↔ Their brains work in harmony.",
+        "errorTag": "细节题"
+      },
+      {
+        "id": "2023-12-1-l-2",
+        "type": "choice",
+        "prompt": "What does the news report say about the relationship between friends?",
+        "audioText": "The relationship probably goes two ways. We are drawn to people who think like us; we then",
+        "zhText": "2023年12月真题·第1套",
+        "keywords": [
+          "relationship",
+          "probably",
+          "drawn"
+        ],
+        "options": [
+          {
+            "key": "A",
+            "text": "It can be touching."
+          },
+          {
+            "key": "B",
+            "text": "It is hard to predict."
+          },
+          {
+            "key": "C",
+            "text": "It can work both ways."
+          },
+          {
+            "key": "D",
+            "text": "It resembles family ties."
+          }
+        ],
+        "answer": "C",
+        "tip": "The relationship probably goes two ways ↔ It can work both ways.",
+        "errorTag": "细节题"
+      },
+      {
+        "id": "2023-12-1-l-3",
+        "type": "choice",
+        "prompt": "What did both Alan Robinson and Walter MacDonald attempt to do on DNA matching websites?",
+        "audioText": "So recently, they made separate attempts on DNA matching websites to discover more about",
+        "zhText": "2023年12月真题·第1套",
+        "keywords": [
+          "recently",
+          "separate",
+          "attempts"
+        ],
+        "options": [
+          {
+            "key": "A",
+            "text": "Search for their half-brothers."
+          },
+          {
+            "key": "B",
+            "text": "Identify their biological fathers."
+          },
+          {
+            "key": "C",
+            "text": "Find out more about their ancestry."
+          },
+          {
+            "key": "D",
+            "text": "See whether they are actually related."
+          }
+        ],
+        "answer": "C",
+        "tip": "to discover more about their ancestry ↔ Find out more about their ancestry.",
+        "errorTag": "细节题"
+      },
+      {
+        "id": "2023-12-1-l-4",
+        "type": "choice",
+        "prompt": "What did the news report say about Alan Robinson and Walter MacDonald?",
+        "audioText": "The pair were born to the same mother 15 months apart.",
+        "zhText": "2023年12月真题·第1套",
+        "keywords": [
+          "mother",
+          "months",
+          "apart"
+        ],
+        "options": [
+          {
+            "key": "A",
+            "text": "They were both given up for adoption."
+          },
+          {
+            "key": "B",
+            "text": "They were born to the same mother."
+          },
+          {
+            "key": "C",
+            "text": "They flew 737 airplanes as pilots."
+          },
+          {
+            "key": "D",
+            "text": "They were both 60 years of age."
+          }
+        ],
+        "answer": "B",
+        "tip": "born to the same mother ↔ They were born to the same mother.",
+        "errorTag": "细节题"
+      },
+      {
+        "id": "2023-12-1-l-5",
+        "type": "choice",
+        "prompt": "Why did one of the male tourists feel sad?",
+        "audioText": "He felt so sad to see such a gorgeous place littered with so much trash.",
+        "zhText": "2023年12月真题·第1套",
+        "keywords": [
+          "gorgeous",
+          "place",
+          "littered"
+        ],
+        "options": [
+          {
+            "key": "A",
+            "text": "One of his friends was caught littering."
+          },
+          {
+            "key": "B",
+            "text": "Other tourists refused to join in the cleanup."
+          },
+          {
+            "key": "C",
+            "text": "The beautiful beach was spoiled with lots of trash."
+          },
+          {
+            "key": "D",
+            "text": "The kilometer-long beach was practically deserted."
+          }
+        ],
+        "answer": "C",
+        "tip": "such a gorgeous place littered with so much trash ↔",
+        "errorTag": "细节题"
+      },
+      {
+        "id": "2023-12-1-l-6",
+        "type": "choice",
+        "prompt": "Who put the good deed video on the internet?",
+        "audioText": "A man passing by decided to video their good deed and put it on the internet.",
+        "zhText": "2023年12月真题·第1套",
+        "keywords": [
+          "passing",
+          "decided",
+          "video"
+        ],
+        "options": [
+          {
+            "key": "A",
+            "text": "A passerby."
+          },
+          {
+            "key": "B",
+            "text": "A local woman."
+          },
+          {
+            "key": "C",
+            "text": "The beach authorities."
+          },
+          {
+            "key": "D",
+            "text": "One of the five tourists."
+          }
+        ],
+        "answer": "A",
+        "tip": "A man passing by ↔ A passerby",
+        "errorTag": "细节题"
+      }
+    ]
+  },
+  {
+    "id": "cet4-2023-06-1",
+    "channel": "cet",
+    "cetLevel": "cet4",
+    "cetSection": "news",
+    "channelLabel": "CET-4 · 2023-06",
+    "level": "四级精听",
+    "title": "CET-4 真题：2023年06月真题·第1套",
+    "subtitle": "精选 6 道核心听力题（含定位原句与同义替换解析）",
+    "duration": "6 分钟",
+    "xp": 40,
+    "accent": "标准美音",
+    "exercises": [
+      {
+        "id": "2023-06-1-l-1",
+        "type": "choice",
+        "prompt": "What do we learn from the report about the 55-year-old woman?",
+        "audioText": "A woman was charged with allegedly violating a Rhode Island city law against feeding",
+        "zhText": "2023年06月真题·第1套",
+        "keywords": [
+          "woman",
+          "charged",
+          "allegedly"
+        ],
+        "options": [
+          {
+            "key": "A",
+            "text": "She was involved in a conflict with bird lovers."
+          },
+          {
+            "key": "B",
+            "text": "She was charged with mistreating animals."
+          },
+          {
+            "key": "C",
+            "text": "She was on bad terms with her neighbors."
+          },
+          {
+            "key": "D",
+            "text": "She was accused of violating a city law."
+          }
+        ],
+        "answer": "D",
+        "tip": "was charged with allegedly violating a Rhode Island city law ↔",
+        "errorTag": "细节题"
+      },
+      {
+        "id": "2023-06-1-l-2",
+        "type": "choice",
+        "prompt": "What did the director of the city administration say at the end of the news report?",
+        "audioText": "Anthony Moretti, director of the city administration, said he saw more than 20 rats near the",
+        "zhText": "2023年06月真题·第1套",
+        "keywords": [
+          "Anthony",
+          "Moretti",
+          "director"
+        ],
+        "options": [
+          {
+            "key": "A",
+            "text": "It will take time to solve the rat problem."
+          },
+          {
+            "key": "B",
+            "text": "All wild animals should be well protected."
+          },
+          {
+            "key": "C",
+            "text": "The woman was not to blame for the situation."
+          },
+          {
+            "key": "D",
+            "text": "No one should go unpunished for violating law."
+          }
+        ],
+        "answer": "A",
+        "tip": "it will take months to get the problem under control ↔ It will take time to solve the rat problem.",
+        "errorTag": "细节题"
+      },
+      {
+        "id": "2023-06-1-l-3",
+        "type": "choice",
+        "prompt": "What does NASA require the paid volunteers to do?",
+        "audioText": "The paid volunteers will work in an environment similar to Mars.",
+        "zhText": "2023年06月真题·第1套",
+        "keywords": [
+          "volunteers",
+          "environment",
+          "similar"
+        ],
+        "options": [
+          {
+            "key": "A",
+            "text": "Communicate with astronauts in Mars Dune Alpha."
+          },
+          {
+            "key": "B",
+            "text": "Work in an environment resembling Mars."
+          },
+          {
+            "key": "C",
+            "text": "Build a Martian habitat in Houston."
+          },
+          {
+            "key": "D",
+            "text": "Send in applications before Friday."
+          }
+        ],
+        "answer": "B",
+        "tip": "will work in an environment similar to Mars ↔ Work in an environment resembling Mars",
+        "errorTag": "细节题"
+      },
+      {
+        "id": "2023-06-1-l-4",
+        "type": "choice",
+        "prompt": "What will the participants in the project eat?",
+        "audioText": "Food will all be ready-to-eat space food. Some plants will be grown, but not potatoes like in",
+        "zhText": "2023年06月真题·第1套",
+        "keywords": [
+          "ready",
+          "space",
+          "plants"
+        ],
+        "options": [
+          {
+            "key": "A",
+            "text": "Ready-made food."
+          },
+          {
+            "key": "B",
+            "text": "Food that is organic."
+          },
+          {
+            "key": "C",
+            "text": "Food they grow."
+          },
+          {
+            "key": "D",
+            "text": "Potatoes mostly."
+          }
+        ],
+        "answer": "A",
+        "tip": "ready-to-eat space food ↔ Ready-made food",
+        "errorTag": "细节题"
+      },
+      {
+        "id": "2023-06-1-l-5",
+        "type": "choice",
+        "prompt": "What do the news reports say about the Japanese mayor Takashi Kawamura?",
+        "audioText": "A Japanese mayor apologized Thursday for biting the Olympic gold medal of a",
+        "zhText": "2023年06月真题·第1套",
+        "keywords": [
+          "Japanese",
+          "mayor",
+          "apologized"
+        ],
+        "options": [
+          {
+            "key": "A",
+            "text": "He apologized for scratching an athlete's gold medal."
+          },
+          {
+            "key": "B",
+            "text": "He was asked to present a gold medal to Miu Goto."
+          },
+          {
+            "key": "C",
+            "text": "He bit a softball player's Olympic gold medal."
+          },
+          {
+            "key": "D",
+            "text": "He attracted public attention at a media event."
+          }
+        ],
+        "answer": "C",
+        "tip": "biting the Olympic gold medal of a softball player ↔ bit a softball player's Olympic gold medal",
+        "errorTag": "细节题"
+      },
+      {
+        "id": "2023-06-1-l-6",
+        "type": "choice",
+        "prompt": "What did mayor Takashi Kawamura offer to do?",
+        "audioText": "The mayor said the medal was undamaged, though he offered to pay for the cost of a",
+        "zhText": "2023年06月真题·第1套",
+        "keywords": [
+          "mayor",
+          "medal",
+          "undamaged"
+        ],
+        "options": [
+          {
+            "key": "A",
+            "text": "Have another picture taken with the Olympic medalist."
+          },
+          {
+            "key": "B",
+            "text": "Apologize to the International Olympic Committee."
+          },
+          {
+            "key": "C",
+            "text": "Get the damaged medal repaired."
+          },
+          {
+            "key": "D",
+            "text": "Pay for the cost of a new medal."
+          }
+        ],
+        "answer": "D",
+        "tip": "offered to pay for the cost of a new one ↔ Pay for the cost of a new medal.",
+        "errorTag": "细节题"
+      }
+    ]
+  },
+  {
+    "id": "cet4-2022-12-1",
+    "channel": "cet",
+    "cetLevel": "cet4",
+    "cetSection": "news",
+    "channelLabel": "CET-4 · 2022-12",
+    "level": "四级精听",
+    "title": "CET-4 真题：2022年12月真题·第1套",
+    "subtitle": "精选 6 道核心听力题（含定位原句与同义替换解析）",
+    "duration": "6 分钟",
+    "xp": 40,
+    "accent": "标准美音",
+    "exercises": [
+      {
+        "id": "2022-12-1-l-1",
+        "type": "choice",
+        "prompt": "What happened at one of Australia's largest gold mines?",
+        "audioText": "Operations at one of Australia's largest gold mines had to be temporarily suspended on Friday",
+        "zhText": "2022年12月真题·第1套",
+        "keywords": [
+          "Operations",
+          "Australia",
+          "largest"
+        ],
+        "options": [
+          {
+            "key": "A",
+            "text": "Part of its dam wall collapsed."
+          },
+          {
+            "key": "B",
+            "text": "It released a lot of harmful gases."
+          },
+          {
+            "key": "C",
+            "text": "It was destroyed by an earthquake."
+          },
+          {
+            "key": "D",
+            "text": "Some miners were trapped underground."
+          }
+        ],
+        "answer": "A",
+        "tip": "a partial wall collapse at one of the mine's dams ↔ Part of its dam wall collapsed.",
+        "errorTag": "细节题"
+      },
+      {
+        "id": "2022-12-1-l-2",
+        "type": "choice",
+        "prompt": "What did the spokesperson say about the incident?",
+        "audioText": "A company spokesperson said the operations at the site had been halted while the",
+        "zhText": "2022年12月真题·第1套",
+        "keywords": [
+          "company",
+          "spokesperson",
+          "operations"
+        ],
+        "options": [
+          {
+            "key": "A",
+            "text": "It posed a safety threat to the miners."
+          },
+          {
+            "key": "B",
+            "text": "It caused damage too heavy to assess."
+          },
+          {
+            "key": "C",
+            "text": "It brought the mine's operations to a halt."
+          },
+          {
+            "key": "D",
+            "text": "It was followed by two more earthquakes."
+          }
+        ],
+        "answer": "C",
+        "tip": "the operations at the site had been halted ↔ It brought the mine's operations to a halt.",
+        "errorTag": "细节题"
+      },
+      {
+        "id": "2022-12-1-l-3",
+        "type": "choice",
+        "prompt": "What did the hospital do for the delivery of the babies?",
+        "audioText": "The doctors prepared from early in the morning to help deliver five tiny citizens. They were",
+        "zhText": "2022年12月真题·第1套",
+        "keywords": [
+          "doctors",
+          "prepared",
+          "early"
+        ],
+        "options": [
+          {
+            "key": "A",
+            "text": "It prepared beds for all the six new citizens."
+          },
+          {
+            "key": "B",
+            "text": "It assigned a team of doctors for each expected baby."
+          },
+          {
+            "key": "C",
+            "text": "It made ample preparations for various possibilities."
+          },
+          {
+            "key": "D",
+            "text": "It brought in the most advanced instruments."
+          }
+        ],
+        "answer": "B",
+        "tip": "five teams of doctors, one for each baby ↔ a team of doctors for each expected baby",
+        "errorTag": "细节题"
+      },
+      {
+        "id": "2022-12-1-l-4",
+        "type": "choice",
+        "prompt": "What did the doctor say about the newborns?",
+        "audioText": "The doctor said the babies were in healthy condition, but could not go home immediately.",
+        "zhText": "2022年12月真题·第1套",
+        "keywords": [
+          "doctor",
+          "babies",
+          "healthy"
+        ],
+        "options": [
+          {
+            "key": "A",
+            "text": "They had to undergo 2-3 physical checkups."
+          },
+          {
+            "key": "B",
+            "text": "They were all of normal size except the sixth."
+          },
+          {
+            "key": "C",
+            "text": "They could go home together with their mother a day later."
+          },
+          {
+            "key": "D",
+            "text": "They needed to stay in the hospital for a couple of months."
+          }
+        ],
+        "answer": "D",
+        "tip": "needed to stay in the hospital for two to three months ↔",
+        "errorTag": "细节题"
+      },
+      {
+        "id": "2022-12-1-l-5",
+        "type": "choice",
+        "prompt": "What do we learn from the news report about the Spanish island Palmador?",
+        "audioText": "A Spanish island called Palmador has been bought by a family from Europe for 18 million",
+        "zhText": "2022年12月真题·第1套",
+        "keywords": [
+          "Spanish",
+          "island",
+          "called"
+        ],
+        "options": [
+          {
+            "key": "A",
+            "text": "It is owned by the local government."
+          },
+          {
+            "key": "B",
+            "text": "It has been turned into a public park."
+          },
+          {
+            "key": "C",
+            "text": "It has been bought by an American."
+          },
+          {
+            "key": "D",
+            "text": "It is a perfect tourist destination."
+          }
+        ],
+        "answer": "D",
+        "tip": "often described as heaven on earth by holidaymakers ↔ a perfect tourist destination",
+        "errorTag": "细节题"
+      },
+      {
+        "id": "2022-12-1-l-6",
+        "type": "choice",
+        "prompt": "What do holidaymakers come to Palmador to enjoy?",
+        "audioText": "For decades tourists have been flocking to Palmador, which is located off the southeast coast",
+        "zhText": "2022年12月真题·第1套",
+        "keywords": [
+          "decades",
+          "tourists",
+          "flocking"
+        ],
+        "options": [
+          {
+            "key": "A",
+            "text": "Its seafood."
+          },
+          {
+            "key": "B",
+            "text": "Its unusual coastline."
+          },
+          {
+            "key": "C",
+            "text": "Its unspoiled beaches."
+          },
+          {
+            "key": "D",
+            "text": "Its architecture."
+          }
+        ],
+        "answer": "C",
+        "tip": "its unspoiled beaches and crystal clear waters ↔ Its unspoiled beaches",
+        "errorTag": "细节题"
+      }
+    ]
+  },
+  {
+    "id": "cet6-2024-06-curated",
+    "channel": "cet",
+    "cetLevel": "cet6",
+    "cetSection": "conversation",
+    "channelLabel": "CET-6 · 2024 精选",
+    "level": "六级精听",
+    "title": "2024年06月 CET-6 精选 · 学术与职场长对话",
+    "subtitle": "精选让步转折、隐含立场与同义替换考点",
+    "duration": "5 分钟",
+    "xp": 40,
+    "accent": "标准美音",
+    "exercises": [
+      {
+        "id": "cet6-2406-1",
+        "type": "choice",
+        "prompt": "What does the woman imply about the lab’s current timeline?",
+        "audioText": "Admittedly the dataset looks promising, yet cleaning those raw logs will easily eat up half of July.",
+        "zhText": "诚然这组数据看起来很有前景，但清洗原始日志起码会占掉七月一半的时间。",
+        "keywords": [
+          "Admittedly",
+          "yet",
+          "eat up half of July"
+        ],
+        "options": [
+          {
+            "key": "A",
+            "text": "The project can be wrapped up ahead of schedule."
+          },
+          {
+            "key": "B",
+            "text": "Data preparation will take much longer than expected."
+          },
+          {
+            "key": "C",
+            "text": "The raw logs should be discarded immediately."
+          },
+          {
+            "key": "D",
+            "text": "They have enough time for extra experiments."
+          }
+        ],
+        "answer": "B",
+        "tip": "让步结构 Admittedly..., yet... 的重心在 yet 之后，eat up half of July 对应比预期更耗时。",
+        "errorTag": "转折干扰项"
+      },
+      {
+        "id": "cet6-2406-2",
+        "type": "choice",
+        "prompt": "Why does the speaker question the new urban transit proposal?",
+        "audioText": "While expanding subway lines sounds appealing on paper, ridership outside peak hours rarely justifies the massive maintenance cost.",
+        "zhText": "虽然扩建地铁线路在纸面上很吸引人，但非高峰时段的客流量很少能支撑高昂的维护成本。",
+        "keywords": [
+          "on paper",
+          "peak hours",
+          "maintenance cost"
+        ],
+        "options": [
+          {
+            "key": "A",
+            "text": "Subway stations are too crowded during rush hours."
+          },
+          {
+            "key": "B",
+            "text": "The operating cost may outweigh off-peak demand."
+          },
+          {
+            "key": "C",
+            "text": "Citizens prefer driving to taking public transit."
+          },
+          {
+            "key": "D",
+            "text": "Construction will be delayed by poor planning."
+          }
+        ],
+        "answer": "B",
+        "tip": "rarely justifies the massive maintenance cost 对应成本高于非高峰需求。",
+        "errorTag": "因果对比"
+      }
+    ]
+  },
+  {
+    "id": "cet6-2023-12-curated",
+    "channel": "cet",
+    "cetLevel": "cet6",
+    "cetSection": "lecture",
+    "channelLabel": "CET-6 · 2023 精选",
+    "level": "六级精听",
+    "title": "2023年12月 CET-6 精选 · 睡眠与认知讲座",
+    "subtitle": "精选学术讲座对照结论与高频核心词听写",
+    "duration": "5 分钟",
+    "xp": 40,
+    "accent": "标准美音",
+    "exercises": [
+      {
+        "id": "cet6-2312-1",
+        "type": "choice",
+        "prompt": "What did the sleep study reveal about short afternoon naps?",
+        "audioText": "While a brief afternoon nap boosts alertness, it cannot fully replace uninterrupted deep sleep for long-term memory consolidation.",
+        "zhText": "虽然午后短暂小睡能提升警觉度，但它无法完全替代不间断的深度睡眠来巩固长期记忆。",
+        "keywords": [
+          "alertness",
+          "cannot fully replace",
+          "deep sleep"
+        ],
+        "options": [
+          {
+            "key": "A",
+            "text": "Naps are as effective as eight hours of night sleep."
+          },
+          {
+            "key": "B",
+            "text": "Naps improve alertness but do not replace deep sleep."
+          },
+          {
+            "key": "C",
+            "text": "Short naps damage long-term memory formation."
+          },
+          {
+            "key": "D",
+            "text": "People should avoid napping in the afternoon."
+          }
+        ],
+        "answer": "B",
+        "tip": "While A, B 结构中主句的 cannot fully replace 是核心答案落点。",
+        "errorTag": "转折干扰项"
+      },
+      {
+        "id": "cet6-2312-2",
+        "type": "cloze",
+        "prompt": "听写讲座中的核心学术搭配",
+        "audioText": "Deep sleep plays a crucial role in transferring short-term memories.",
+        "zhText": "深度睡眠在转移短期记忆方面起着至关重要的作用。",
+        "keywords": [
+          "crucial role",
+          "transferring"
+        ],
+        "template": "Deep sleep plays a ____ role in ____ short-term memories.",
+        "blanks": [
+          "crucial",
+          "transferring"
+        ],
+        "tip": "注意固定搭配 play a crucial role in，以及 transferring 的双写 r。",
+        "errorTag": "高频搭配"
+      }
+    ]
+  },
+  {
+    "id": "radio-us-airspace-reopens-after-fl-1",
+    "channel": "radio",
+    "cetLevel": null,
+    "cetSection": null,
+    "channelLabel": "BBC 国际新闻电台",
+    "level": "常速新闻",
+    "title": "US airspace reopens after flights grounded for several hours",
+    "subtitle": "On Friday, the US made the rare decision to ground flights nationwide, leaving tens of t…",
+    "duration": "5 分钟",
+    "xp": 30,
+    "accent": "标准英音",
+    "exercises": [
+      {
+        "type": "choice",
+        "prompt": "What caused the nationwide grounding of flights in the US?",
+        "audioText": "On Friday, the US made the rare decision to ground flights nationwide, leaving tens of thousands of people stranded. An overloaded air traffic control system triggered communications failures across the country.",
+        "options": [
+          {
+            "key": "A",
+            "text": "A confirmed cyberattack on aviation systems"
+          },
+          {
+            "key": "B",
+            "text": "An overloaded air traffic control system"
+          },
+          {
+            "key": "C",
+            "text": "Severe winter weather across the country"
+          },
+          {
+            "key": "D",
+            "text": "A strike by air traffic controllers"
+          }
+        ],
+        "answer": "B",
+        "tip": "听力中明确提到 'An overloaded air traffic control system triggered communications failures'，说明原因是空管系统超负荷。白宫表示没有网络攻击的证据，因此 A 是干扰项；C、D 均未在内容中出现。",
+        "errorTag": "主旨细节",
+        "id": "radio-us-airspace-reopens-after-fl-1-ex1",
+        "audioUrl": "http://open.live.bbc.co.uk/mediaselector/6/redir/version/2.0/mediaset/audio-nondrm-download-rss-low/proto/http/vpid/p0pmzy3x.mp3"
+      },
+      {
+        "type": "cloze",
+        "prompt": "听写节目核心表达",
+        "audioText": "Flights resumed after four hours, but getting the aviation network back to normal will take time.",
+        "template": "Flights ____ after four hours, but getting the aviation network back to normal will take time.",
+        "blanks": [
+          "resumed"
+        ],
+        "tip": "resumed 意为“恢复、重新开始”，与后文 'back to normal'（恢复正常）语义呼应。听写时注意词尾 -sumed 的弱读与连读，不要误写成 assume 或 consumed。",
+        "errorTag": "关键词听写",
+        "id": "radio-us-airspace-reopens-after-fl-1-ex2"
+      }
+    ]
+  },
+  {
+    "id": "radio-microsoft-outage-millions-af-2",
+    "channel": "radio",
+    "cetLevel": null,
+    "cetSection": null,
+    "channelLabel": "BBC 国际新闻电台",
+    "level": "常速新闻",
+    "title": "Microsoft outage: Millions affected in over 70 countries",
+    "subtitle": "A global Microsoft outage hits schools, doctors and businesses. The tech giant is scramb…",
+    "duration": "5 分钟",
+    "xp": 30,
+    "accent": "标准英音",
+    "exercises": [
+      {
+        "type": "choice",
+        "prompt": "What did Microsoft say about the cause of the outage?",
+        "audioText": "A global Microsoft outage hit schools, doctors and businesses. Microsoft says it has found no evidence that malicious activity caused the problems.",
+        "options": [
+          {
+            "key": "A",
+            "text": "Malicious activity definitely caused the outage."
+          },
+          {
+            "key": "B",
+            "text": "It found no evidence that malicious activity caused the problems."
+          },
+          {
+            "key": "C",
+            "text": "The outage affected only North America."
+          },
+          {
+            "key": "D",
+            "text": "Hackers used fake video calls to cause the outage."
+          }
+        ],
+        "answer": "B",
+        "tip": "主旨细节题：听力中明确说 Microsoft 没有发现恶意活动导致问题的证据。注意不要被其他新闻中的黑客内容干扰。",
+        "errorTag": "主旨细节",
+        "id": "radio-microsoft-outage-millions-af-2-ex1",
+        "audioUrl": "http://open.live.bbc.co.uk/mediaselector/6/redir/version/2.0/mediaset/audio-nondrm-download-rss-low/proto/http/vpid/p0pmwqby.mp3"
+      },
+      {
+        "type": "cloze",
+        "prompt": "听写节目核心表达",
+        "audioText": "The tech giant is scrambling to fix the issue.",
+        "template": "The tech giant is ____ to fix the issue.",
+        "blanks": [
+          "scrambling"
+        ],
+        "tip": "关键词听写：scrambling 表示“手忙脚乱地设法解决”，注意拼写和现在进行时形式。",
+        "errorTag": "关键词听写",
+        "id": "radio-microsoft-outage-millions-af-2-ex2"
+      }
+    ]
+  },
+  {
+    "id": "radio-putin-lets-europe-join-ukrai-3",
+    "channel": "radio",
+    "cetLevel": null,
+    "cetSection": null,
+    "channelLabel": "BBC 国际新闻电台",
+    "level": "常速新闻",
+    "title": "Putin lets Europe join Ukraine peace talks",
+    "subtitle": "Ukraine's President Zelensky has welcomed efforts by Jared Kushner and Steve Witkoff, to…",
+    "duration": "5 分钟",
+    "xp": 30,
+    "accent": "标准英音",
+    "exercises": [
+      {
+        "type": "choice",
+        "prompt": "What did Zelensky welcome in the peace talks?",
+        "audioText": "Ukraine's President Zelensky has welcomed efforts by Jared Kushner and Steve Witkoff to secure European involvement at the next round of peace talks with Russia. He said it made sense for Europeans to be involved as Ukraine would eventually be an EU member.",
+        "options": [
+          {
+            "key": "A",
+            "text": "European involvement in the next round of peace talks"
+          },
+          {
+            "key": "B",
+            "text": "Ukraine joining NATO immediately"
+          },
+          {
+            "key": "C",
+            "text": "Direct talks between Italy and Russia"
+          },
+          {
+            "key": "D",
+            "text": "New US military aid for Ukraine"
+          }
+        ],
+        "answer": "A",
+        "tip": "音频提到泽连斯基欢迎相关努力，以确保欧洲参与下一轮与俄罗斯的和平谈判，因此选 A。",
+        "errorTag": "主旨细节",
+        "id": "radio-putin-lets-europe-join-ukrai-3-ex1",
+        "audioUrl": "http://open.live.bbc.co.uk/mediaselector/6/redir/version/2.0/mediaset/audio-nondrm-download-rss-low/proto/http/vpid/p0pmr8dk.mp3"
+      },
+      {
+        "type": "cloze",
+        "prompt": "听写节目核心表达",
+        "audioText": "Mr Zelensky said it made sense for Europeans to be involved as Ukraine would eventually be an EU member.",
+        "template": "Mr Zelensky said it made sense for ____ to be involved as Ukraine would eventually be an EU member.",
+        "blanks": [
+          "Europeans"
+        ],
+        "tip": "核心表达是 Europeans，指欧洲人；注意听清复数形式。",
+        "errorTag": "关键词听写",
+        "id": "radio-putin-lets-europe-join-ukrai-3-ex2"
+      }
+    ]
+  },
+  {
+    "id": "talks-the-digital-detectives-prese-1",
+    "channel": "talks",
+    "cetLevel": null,
+    "cetSection": null,
+    "channelLabel": "TED 公开演讲与访谈",
+    "level": "真实访谈",
+    "title": "The digital detectives preserving the truth of war | Hadi Al Khatib",
+    "subtitle": "A lot of today’s war footage is shot on phones and posted to platforms that were never m…",
+    "duration": "5 分钟",
+    "xp": 30,
+    "accent": "多口音演讲",
+    "exercises": [
+      {
+        "type": "choice",
+        "prompt": "What is the main purpose of Hadi Al Khatib's project Mnemonic?",
+        "audioText": "Hadi Al Khatib founded Mnemonic to save war photos and videos before they vanish and turn social media posts into evidence that holds up in court.",
+        "options": [
+          {
+            "key": "A",
+            "text": "To preserve war footage and use it as legal evidence"
+          },
+          {
+            "key": "B",
+            "text": "To create social media platforms for sharing war videos"
+          },
+          {
+            "key": "C",
+            "text": "To entertain people with phone footage from war zones"
+          },
+          {
+            "key": "D",
+            "text": "To remove all disturbing war content from the internet"
+          }
+        ],
+        "answer": "A",
+        "tip": "主旨题：Mnemonic 的核心目标是保存战争影像，并将其转化为可在法庭上使用的证据。",
+        "errorTag": "主旨细节",
+        "id": "talks-the-digital-detectives-prese-1-ex1",
+        "audioUrl": "https://sphinx.acast.com/p/open/s/67587e77c705e441797aff96/e/6af5f8aa43d8776fbbb21b36/media.mp3"
+      },
+      {
+        "type": "cloze",
+        "prompt": "听写节目核心表达",
+        "audioText": "His team turns people’s social media posts into evidence of crimes that holds up in court.",
+        "template": "His team turns people’s social media posts into ____ of crimes that holds up in court.",
+        "blanks": [
+          "evidence"
+        ],
+        "tip": "关键词是 evidence，表示“证据”；注意 turn...into... 表示“把……转化为……”。",
+        "errorTag": "关键词听写",
+        "id": "talks-the-digital-detectives-prese-1-ex2"
+      }
+    ]
+  },
+  {
+    "id": "talks-could-this-ancient-greek-ide-2",
+    "channel": "talks",
+    "cetLevel": null,
+    "cetSection": null,
+    "channelLabel": "TED 公开演讲与访谈",
+    "level": "真实访谈",
+    "title": "Could this ancient Greek idea make us better citizens? | Scott Reich",
+    "subtitle": "More than 2,000 years ago in ancient Athens, young citizens were required to complete “e…",
+    "duration": "5 分钟",
+    "xp": 30,
+    "accent": "多口音演讲",
+    "exercises": [
+      {
+        "type": "choice",
+        "prompt": "What is the main idea of the talk?",
+        "audioText": "More than 2,000 years ago in ancient Athens, young citizens completed “ephebeia,” a two-year civic service program. Scott Reich believes this practice reminds us that citizens aren’t born—they’re trained.",
+        "options": [
+          {
+            "key": "A",
+            "text": "Civic virtue is inherited at birth."
+          },
+          {
+            "key": "B",
+            "text": "Ancient Athens trained young citizens through a two-year civic service program."
+          },
+          {
+            "key": "C",
+            "text": "Scott Reich wants to replace all US schools with ancient Greek classes."
+          },
+          {
+            "key": "D",
+            "text": "Ephebeia taught young citizens how to avoid defending their democracy."
+          }
+        ],
+        "answer": "B",
+        "tip": "音频提到 ephebeia 是两年公民服务项目，训练青年了解法律和保卫民主；Reich 强调公民需要培养，而非天生。",
+        "errorTag": "主旨细节",
+        "id": "talks-could-this-ancient-greek-ide-2-ex1",
+        "audioUrl": "https://sphinx.acast.com/p/open/s/67587e77c705e441797aff96/e/6af5f82c43d8776fbbb21b35/media.mp3"
+      },
+      {
+        "type": "cloze",
+        "prompt": "听写节目核心表达",
+        "audioText": "Author and historian Scott Reich believes this practice reflects something crucial we often forget: citizens aren’t born — they’re trained.",
+        "template": "Author and historian Scott Reich believes this practice reflects something crucial we often forget: citizens aren’t ____ — they’re trained.",
+        "blanks": [
+          "born"
+        ],
+        "tip": "核心表达是 citizens aren’t born—they’re trained（公民不是天生的，而是训练出来的），空格处听写 born。",
+        "errorTag": "关键词听写",
+        "id": "talks-could-this-ancient-greek-ide-2-ex2"
+      }
+    ]
+  },
+  {
+    "id": "talks-how-we-ll-actually-ditch-fos-3",
+    "channel": "talks",
+    "cetLevel": null,
+    "cetSection": null,
+    "channelLabel": "TED 公开演讲与访谈",
+    "level": "真实访谈",
+    "title": "How we’ll actually ditch fossil fuels — by the numbers | Michael Liebreich",
+    "subtitle": "Have you heard the clean energy transition is failing? Energy analyst Michael Liebreich …",
+    "duration": "5 分钟",
+    "xp": 30,
+    "accent": "多口音演讲",
+    "exercises": [
+      {
+        "type": "choice",
+        "prompt": "What is Michael Liebreich's main point about the clean energy transition?",
+        "audioText": "Energy analyst Michael Liebreich says to look again. Using a four-line spreadsheet model of the global energy system, he shows why fossil fuels will inevitably get squeezed out over time, with no bans required.",
+        "options": [
+          {
+            "key": "A",
+            "text": "The clean energy transition is failing."
+          },
+          {
+            "key": "B",
+            "text": "Fossil fuels will inevitably be squeezed out over time without bans."
+          },
+          {
+            "key": "C",
+            "text": "Governments must ban fossil fuels immediately."
+          },
+          {
+            "key": "D",
+            "text": "The shift looks exactly as many people expected."
+          }
+        ],
+        "answer": "B",
+        "tip": "主旨细节题：听力中明确说化石燃料会逐渐被挤出，而且不需要禁令，因此选 B。",
+        "errorTag": "主旨细节",
+        "id": "talks-how-we-ll-actually-ditch-fos-3-ex1",
+        "audioUrl": "https://sphinx.acast.com/p/open/s/67587e77c705e441797aff96/e/6af5e8e843d8776fbbb21b34/media.mp3"
+      },
+      {
+        "type": "cloze",
+        "prompt": "听写节目核心表达",
+        "audioText": "The shift is well underway, he explains: it just looks different than many of us expected.",
+        "template": "The shift is well underway, he explains: it just looks ____ than many of us expected.",
+        "blanks": [
+          "different"
+        ],
+        "tip": "关键词听写：核心表达是 looks different than many of us expected，注意 different 的拼写。",
+        "errorTag": "关键词听写",
+        "id": "talks-how-we-ll-actually-ditch-fos-3-ex2"
+      }
+    ]
+  },
+  {
+    "id": "talks-how-to-repair-harm-in-relati-4",
+    "channel": "talks",
+    "cetLevel": null,
+    "cetSection": null,
+    "channelLabel": "TED 公开演讲与访谈",
+    "level": "真实访谈",
+    "title": "How to repair harm — in relationships and nations | Aria Florant",
+    "subtitle": "Aria Florant cofounded a nonprofit to help accelerate the reparations movement in the US…",
+    "duration": "5 分钟",
+    "xp": 30,
+    "accent": "多口音演讲",
+    "exercises": [
+      {
+        "type": "choice",
+        "prompt": "What does Aria Florant say about true repair?",
+        "audioText": "Most people think reparations are all about money, but true repair goes far beyond the financial.",
+        "options": [
+          {
+            "key": "A",
+            "text": "It is mainly about money."
+          },
+          {
+            "key": "B",
+            "text": "It goes far beyond money."
+          },
+          {
+            "key": "C",
+            "text": "It only works between nations."
+          },
+          {
+            "key": "D",
+            "text": "It requires no process."
+          }
+        ],
+        "answer": "B",
+        "tip": "主旨细节题：讲话者强调真正的修复远不止金钱层面。",
+        "errorTag": "主旨细节",
+        "id": "talks-how-to-repair-harm-in-relati-4-ex1",
+        "audioUrl": "https://sphinx.acast.com/p/open/s/67587e77c705e441797aff96/e/6af38974ac84158342c9ed3d/media.mp3"
+      },
+      {
+        "type": "cloze",
+        "prompt": "听写节目核心表达",
+        "audioText": "Aria Florant lays out a four-step process for repairing harm.",
+        "template": "Aria Florant lays out a ____ process for repairing harm.",
+        "blanks": [
+          "four-step"
+        ],
+        "tip": "关键词听写：注意 four-step 表示“四步的”，修饰 process。",
+        "errorTag": "关键词听写",
+        "id": "talks-how-to-repair-harm-in-relati-4-ex2"
+      }
+    ]
+  },
+  {
+    "id": "talks-your-phone-is-disgusting-her-5",
+    "channel": "talks",
+    "cetLevel": null,
+    "cetSection": null,
+    "channelLabel": "TED 公开演讲与访谈",
+    "level": "真实访谈",
+    "title": "Your phone is disgusting. Here's how to clean it | Lotti Tajouri",
+    "subtitle": "What’s dirtier: your phone or your hands? Molecular biologist Lotti Tajouri says there’s…",
+    "duration": "5 分钟",
+    "xp": 30,
+    "accent": "多口音演讲",
+    "exercises": [
+      {
+        "type": "choice",
+        "prompt": "What is the speaker's main point about phones and hygiene?",
+        "audioText": "What’s dirtier: your phone or your hands? Molecular biologist Lotti Tajouri says there’s a gaping hole in our hygiene routine.",
+        "options": [
+          {
+            "key": "A",
+            "text": "Phones are cleaner than hands if wiped daily."
+          },
+          {
+            "key": "B",
+            "text": "Phones are a neglected part of hygiene and can harbor microbes."
+          },
+          {
+            "key": "C",
+            "text": "Handwashing is unnecessary because phones are the problem."
+          },
+          {
+            "key": "D",
+            "text": "Bacteria cannot survive on warm, humid phones."
+          }
+        ],
+        "answer": "B",
+        "tip": "主旨是手机常被忽视，却是细菌和病毒的温床，因此应纳入日常清洁习惯。",
+        "errorTag": "主旨细节",
+        "id": "talks-your-phone-is-disgusting-her-5-ex1",
+        "audioUrl": "https://sphinx.acast.com/p/open/s/67587e77c705e441797aff96/e/6af23934e1219d878fcb3b47/media.mp3"
+      },
+      {
+        "type": "cloze",
+        "prompt": "听写节目核心表达",
+        "audioText": "We scrub our hands clean, then reach right for the phone — a warm, humid and mobile home for bacteria and viruses.",
+        "template": "We scrub our hands clean, then reach right for the phone — a warm, ____ and mobile home for bacteria and viruses.",
+        "blanks": [
+          "humid"
+        ],
+        "tip": "humid 表示“潮湿的”，与 warm、mobile 一起描述手机为微生物提供适宜环境。",
+        "errorTag": "关键词听写",
+        "id": "talks-your-phone-is-disgusting-her-5-ex2"
+      }
+    ]
+  }
+]

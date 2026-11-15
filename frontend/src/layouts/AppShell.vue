@@ -50,11 +50,20 @@
             type="button"
             :aria-expanded="menuOpen"
             aria-haspopup="menu"
+            :title="`距离下一段位还需 ${currentRank.nextNeed} XP`"
             @click="menuOpen = !menuOpen"
           > <!-- 点击账户卡片弹出上方浮层菜单 -->
             <template v-if="session.user">
               <UserAvatar :user="session.user" /> <!-- 有自定义头像显示图片，否则用户名首字母 -->
-              <div class="account-name"><b>{{ session.user?.username }}</b></div>
+              <div class="account-name">
+                <div class="account-top-row">
+                  <b>{{ session.user?.username }}</b>
+                  <span class="rank-badge" :style="{ background: currentRank.color }">Lv.{{ currentRank.level }}</span>
+                </div>
+                <div class="rank-sub-row">
+                  <span class="rank-name">{{ currentRank.name }} · {{ currentRank.subRank }}</span>
+                </div>
+              </div>
             </template>
             <template v-else>
               <div class="avatar"><AppIcon name="user" :size="15" /></div>
@@ -65,6 +74,11 @@
           <transition name="pop">
             <div v-if="menuOpen" class="account-popover" role="menu">
               <template v-if="session.user">
+                <button class="popover-item pop-rank-entry" type="button" role="menuitem" @click="openRankDialog">
+                  <AppIcon name="target" :size="14" />
+                  <span class="pop-entry-label">段位与任务</span>
+                  <span class="pop-entry-xp">{{ totalXp }} XP</span>
+                </button>
                 <button class="popover-item" type="button" role="menuitem" @click="openSettings">
                   <AppIcon name="settings" :size="14" />设置
                 </button>
@@ -104,6 +118,7 @@
     </section>
 
     <SettingsDialog v-if="settingsOpen" @close="settingsOpen = false" />
+    <RankDialog v-if="rankOpen" @close="rankOpen = false" />
   </main>
 </template>
 
@@ -113,10 +128,12 @@ import { useRoute, useRouter } from 'vue-router'
 import AppIcon from '../components/AppIcon.vue'
 import UserAvatar from '../components/UserAvatar.vue'
 import SettingsDialog from '../components/settings/SettingsDialog.vue'
+import RankDialog from '../components/settings/RankDialog.vue'
 import brandImage from '../assets/echotalk-brand.png'
 import { logout } from '../api/auth'
 import { clearSession, session } from '../auth/session'
 import { sidebarHidden } from '../app/prefs'
+import { currentRank, totalXp } from '../app/xp'
 
 // 导航结构对齐设计稿 14.2：三大类 + 模块子项；未接入模块路由到统一的规划中占位页。
 const navGroups = [
@@ -126,8 +143,6 @@ const navGroups = [
       { name: 'workspace', title: '今日训练', icon: 'sun' },
       { name: 'practice', title: '语音对话', icon: 'mic' },
       { name: 'listening', title: '听力工作室', icon: 'headphones' },
-      { name: 'cet', title: '四六级训练', icon: 'graduation-cap' },
-      { name: 'interview', title: '模拟面试', icon: 'briefcase' },
       { name: 'debate', title: '多角色辩论', icon: 'messages' }
     ]
   },
@@ -155,6 +170,7 @@ const isMac = window.electronAPI?.platform === 'darwin' // macOS 保留红绿灯
 const error = ref('') // 退出失败时的错误提示
 const menuOpen = ref(false) // 账户浮层菜单开关
 const settingsOpen = ref(false) // 设置弹窗开关
+const rankOpen = ref(false) // 段位与任务弹窗开关
 
 function toggleSidebar() {
   // 显示/隐藏整个侧边栏：偏好由 app/prefs 统一持久化，设置弹窗里改同一份状态。
@@ -184,6 +200,11 @@ function openSettings() {
   settingsOpen.value = true
 }
 
+function openRankDialog() {
+  menuOpen.value = false
+  rankOpen.value = true
+}
+
 async function handleLogout() {
   // 后端先撤销令牌；成功后回到登录页切换或重新登录。
   menuOpen.value = false
@@ -198,3 +219,60 @@ async function handleLogout() {
   await router.replace({ name: 'login' })
 }
 </script>
+
+<style scoped>
+.account-top-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.account-top-row b {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rank-badge {
+  flex: 0 0 auto;
+  padding: 1px 5px;
+  border-radius: 5px;
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.rank-sub-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  margin-top: 2px;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.rank-name {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rank-xp {
+  flex: 0 0 auto;
+  font-variant-numeric: tabular-nums;
+}
+
+.pop-entry-label {
+  white-space: nowrap;
+}
+
+.pop-entry-xp {
+  margin-left: auto;
+  font-size: 11.5px;
+  color: var(--muted);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+</style>

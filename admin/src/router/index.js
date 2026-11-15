@@ -42,6 +42,12 @@ const router = createRouter({
           meta: { title: '场景管理', icon: 'Collection' },
         },
         {
+          path: 'listening',
+          name: 'listening',
+          component: () => import('../views/ListeningResources.vue'),
+          meta: { title: '听力资源管理', icon: 'Headset' },
+        },
+        {
           path: 'sessions',
           name: 'sessions',
           component: () => import('../views/Sessions.vue'),

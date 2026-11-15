@@ -8,3 +8,5 @@ export function transcribeRecording(blob, signal) {
   data.append('file', blob, 'recording.wav')
   return http.post('/speech/transcriptions', data, { timeout: 45000, signal })
 }
+
+export const explainSelection = (text, context = '') => http.post('/speech/explain', { text, context }, { timeout: 20000 })

@@ -22,6 +22,6 @@ def create_chat_model():
         base_url=os.getenv("ECHOTALK_CHAT_API_BASE", "https://api.openai.com/v1"),
         timeout=45,
         max_retries=1,
-        max_tokens=700,
+        max_tokens=2048,
         stream_usage=True,
     )

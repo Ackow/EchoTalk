@@ -20,6 +20,8 @@ from app.api.endpoints.scenes import router as scenes_router
 from app.api.endpoints.tts import router as tts_router
 from app.api.endpoints.sessions import router as sessions_router
 from app.api.endpoints.speech import router as speech_router
+from app.api.endpoints.review import router as review_router
+from app.api.endpoints.listening import router as listening_router
 from app.core.config import CORS_ORIGINS
 from app.core.database import engine, SessionLocal
 from app.core.errors import register_exception_handlers
@@ -35,11 +37,15 @@ def sync_builtin_scenes() -> None:
     """启动时同步内置场景包种子与数字人预设（表未初始化时仅告警，不影响服务启动）。"""
     from app.api.endpoints.avatars import sync_builtin_avatars
     from app.models.avatar import AvatarPreset
+    from app.models.listening import ListeningAttempt, ListeningProgress, ListeningUnit, UserXpState
     from app.scenes.registry import sync_seeds
+    from app.services.listening_service import sync_builtin_listening
 
     try:
         from sqlalchemy import inspect as sa_inspect
         AvatarPreset.__table__.create(bind=engine, checkfirst=True)
+        for tbl in (ListeningUnit, ListeningProgress, ListeningAttempt, UserXpState):
+            tbl.__table__.create(bind=engine, checkfirst=True)
         existing_turn_cols = {c["name"] for c in sa_inspect(engine).get_columns("practice_turns")}
         with engine.begin() as conn:
             if "pronunciation_score" not in existing_turn_cols:
@@ -49,10 +55,13 @@ def sync_builtin_scenes() -> None:
         with SessionLocal() as db:
             count = sync_seeds(db)
             avatar_count = sync_builtin_avatars(db)
+            listening_count = sync_builtin_listening(db)
         if count:
             logger.info("内置场景包种子同步完成：%d 个", count)
         if avatar_count:
             logger.info("内置数字人预设同步完成：%d 个", avatar_count)
+        if listening_count:
+            logger.info("内置听力单元同步完成：%d 个", listening_count)
     except Exception:
         logger.warning("内置场景包种子同步跳过（请先运行 python init_db.py 初始化表）", exc_info=True)
 
@@ -88,6 +97,8 @@ app.include_router(avatar_catalog_router, prefix="/api")  # 数字人角色目�
 app.include_router(tts_router, prefix="/api")  # TTS 语音合成路由（/api/tts/*）
 app.include_router(sessions_router, prefix="/api")  # 有状态文字对话框架
 app.include_router(speech_router, prefix="/api")  # 浏览器录音的英文 ASR 转写
+app.include_router(review_router, prefix="/api")  # 复习计划队列与间隔重复
+app.include_router(listening_router, prefix="/api")  # 听力工作室、四六级与 XP 体系
 app.include_router(admin_router, prefix="/api")  # 管理端路由（/api/admin/*）
 
 

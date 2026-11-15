@@ -1419,7 +1419,7 @@ onBeforeUnmount(() => {
 .md-view :deep(a) { color: var(--brand); }
 
 /* ===== 分块内容弹窗 ===== */
-.modal-backdrop { position: fixed; inset: 0; z-index: 90; display: grid; place-items: center; padding: 24px; background: rgba(28, 30, 45, .42); backdrop-filter: blur(2px); }
+.modal-backdrop { position: fixed; inset: 0; z-index: 90; display: grid; place-items: center; padding: 24px; background: var(--scrim-bg, rgba(34, 37, 59, .28)); -webkit-backdrop-filter: var(--scrim-blur, blur(2px)); backdrop-filter: var(--scrim-blur, blur(2px)); }
 .modal-card { display: flex; flex-direction: column; width: min(720px, 100%); max-height: min(80vh, 680px); border: 1px solid var(--line); border-radius: 14px; background: var(--surface); box-shadow: 0 24px 64px rgba(20, 22, 38, .3); overflow: hidden; }
 .modal-head { display: flex; align-items: center; gap: 10px; padding: 13px 16px; border-bottom: 1px solid var(--line); flex: 0 0 auto; }
 .modal-head h3 { margin: 0; font-size: 13.5px; color: var(--ink); overflow-wrap: anywhere; }

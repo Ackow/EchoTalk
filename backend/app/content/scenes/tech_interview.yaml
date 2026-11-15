@@ -6,7 +6,7 @@ meta:
   category: career
   difficulty: expert
   mode: interview
-  version: 4
+  version: 5
   compat:
     min_app: 2.0.0
   author: builtin
@@ -35,7 +35,7 @@ prompt:
     candidate's resume / JD / project docs; follow up on specific claims from their last answer.
     When the candidate finishes a stage (typically after 1-2 turns), call next_interview_stage
     to advance through: intro -> project_deep_dive -> tradeoffs -> behavioral -> candidate_questions.
-  greeting: |
+  greeting: >
     Hi, I'm Sarah. Thanks for joining today — let's start with a brief self-introduction,
     and then we'll walk through your experience. Whenever you're ready.
   params: []

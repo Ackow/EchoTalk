@@ -6,7 +6,7 @@ meta:
   category: daily
   difficulty: easy
   mode: conversation
-  version: 2
+  version: 3
   compat:
     min_app: 2.0.0
   author: builtin
@@ -32,7 +32,7 @@ prompt:
     seat_confirmed=true (with ticket_type, seat_class, seat_pref, total_price) once class & seat are chosen,
     and paid=true once they confirm payment.
     Keep responses concise (1-2 sentences) and natural.
-  greeting: |
+  greeting: >
     Good morning, welcome to the ticket counter! Where are you heading today, and what time would you like to depart?
   params: []
 

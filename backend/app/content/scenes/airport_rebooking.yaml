@@ -6,7 +6,7 @@ meta:
   category: daily
   difficulty: normal
   mode: conversation
-  version: 5
+  version: 6
   compat:
     min_app: 2.0.0
   author: builtin
@@ -31,7 +31,7 @@ prompt:
     or express a preference between options, and rebooked when they confirm a final choice.
     Set only the supported fact and quote the user's exact words as evidence.
     Keep responses concise (1-2 sentences) and use standard airline service phrases.
-  greeting: |
+  greeting: >
     Good evening, welcome to the service counter. I understand there might be an issue
     with your flight — could you tell me your flight number and what happened?
   params: []
