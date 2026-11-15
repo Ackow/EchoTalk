@@ -18,6 +18,7 @@ REGISTERED_TOOLS = {
     "calculate_order",
     "modify_order",
     "update_scene_state",
+    "adjust_state_number",
     "append_state_item",
     "remove_state_item",
     "calculate_expression",

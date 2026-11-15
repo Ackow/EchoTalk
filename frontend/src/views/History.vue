@@ -30,10 +30,11 @@
         </div>
       </div>
 
-      <!-- 工具行：状态筛选 + 场景筛选 -->
+      <!-- 工具行：状态筛选 + 模式/场景筛选 -->
       <div class="history-toolbar">
         <AppTabs v-model="statusFilter" :options="STATUS_TABS" aria-label="练习状态筛选" />
         <div class="toolbar-right">
+          <AppSelect v-model="modeFilter" :options="MODE_OPTIONS" label="模块" aria-label="按模块筛选" />
           <AppSelect v-model="sceneFilter" :options="sceneOptions" label="场景" aria-label="按场景筛选" />
           <span class="history-count">共 {{ total }} 条记录</span>
         </div>
@@ -90,7 +91,7 @@
               <time :datetime="item.last_active_at">{{ formatWhen(item.last_active_at) }}</time>
               <div class="row-actions">
                 <button
-                  v-if="item.turn_count > 0"
+                  v-if="item.turn_count > 0 && (!item.record_type || item.record_type === 'conversation')"
                   class="row-report-btn"
                   type="button"
                   :disabled="reportLoadingId === item.id"
@@ -162,6 +163,12 @@ const STATUS_TABS = [
   { value: 'active', label: '进行中' },
   { value: 'finished', label: '已完成' },
 ]
+const MODE_OPTIONS = [
+  { value: 'all', label: '全部模块' },
+  { value: 'conversation', label: '语音对话' },
+  { value: 'listening', label: '听力工作室' },
+  { value: 'debate', label: '多角色对话' },
+]
 
 const router = useRouter()
 const signedIn = ref(Boolean(session.token))
@@ -169,6 +176,7 @@ const items = ref([])
 const total = ref(0)
 const page = ref(1)
 const statusFilter = ref('')
+const modeFilter = ref('all')
 const sceneFilter = ref('')
 const sceneOptions = ref([{ value: '', label: '全部场景' }])
 const stats = ref({ sessions: 0, turns: 0, finished: 0 })
@@ -181,7 +189,7 @@ const reportError = ref('')
 const finishLoading = usePageLoading() // 首屏记录返回前沿用路由遮罩，翻页/筛选只走列表骨架
 
 const totalPages = computed(() => Math.max(1, Math.ceil(total.value / PAGE_SIZE)))
-const filtered = computed(() => Boolean(statusFilter.value || sceneFilter.value))
+const filtered = computed(() => Boolean(statusFilter.value || sceneFilter.value || modeFilter.value !== 'all'))
 const finishRate = computed(() => stats.value.sessions ? Math.round((stats.value.finished / stats.value.sessions) * 100) : 0)
 
 // 页码窗口：最多 5 个，始终包含首尾附近，避免记录多时页码铺满一行
@@ -213,6 +221,14 @@ function formatWhen(iso) {
 }
 
 function openSession(item) {
+  if (item.record_type === 'debate') {
+    router.push({ name: 'debate', query: { session: item.id } })
+    return
+  }
+  if (item.record_type === 'listening') {
+    router.push({ name: 'listening', query: { unit: item.scene_id } })
+    return
+  }
   router.push({ name: 'practice', query: { session: item.id } }) // 对话页按 session 恢复历史会话
 }
 
@@ -239,6 +255,7 @@ function preloadPractice() {
 
 function resetFilters() {
   statusFilter.value = ''
+  modeFilter.value = 'all'
   sceneFilter.value = ''
 }
 
@@ -250,6 +267,7 @@ async function load() {
     const { data } = await listSessions({
       page: page.value, page_size: PAGE_SIZE,
       status: statusFilter.value || undefined,
+      mode: modeFilter.value !== 'all' ? modeFilter.value : undefined,
       scene_id: sceneFilter.value || undefined,
     })
     items.value = data.items || []
@@ -274,7 +292,7 @@ async function loadScenes() {
 }
 
 // 筛选变化回到第一页；分页变化只重新取数
-watch([statusFilter, sceneFilter], () => { page.value = 1; load() })
+watch([statusFilter, modeFilter, sceneFilter], () => { page.value = 1; load() })
 watch(page, load)
 onMounted(() => {
   if (!signedIn.value) { finishLoading(); return } // 游客没有可查的记录：直接撤遮罩，展示登录引导

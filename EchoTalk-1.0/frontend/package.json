@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "build:backend": "cd ../backend && python -m PyInstaller -y echotalk-backend.spec",
+    "build:backend": "cd ../../backend && python -m PyInstaller -y echotalk-backend.spec",
     "preview": "vite preview",
     "electron:start": "electron .",
     "electron:dev": "concurrently -k \"npm run dev\" \"wait-on http://127.0.0.1:5173 && npm run electron:start\"",

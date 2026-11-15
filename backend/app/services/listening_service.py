@@ -3,6 +3,8 @@ from __future__ import annotations
 
 from collections import Counter
 from datetime import datetime, timezone
+import json
+from pathlib import Path
 import uuid
 
 from sqlalchemy import func, or_, select
@@ -196,23 +198,37 @@ def sync_builtin_listening(db: Session) -> int:
             db.delete(legacy)
 
     count = 0
-    for item in BUILTIN_LISTENING_UNITS:
-        existing = db.get(ListeningUnit, item["id"])
+    bundle_units: list[dict] = []
+    bundle_path = Path(__file__).resolve().parents[2] / "data" / "curated_listening_bundle.json"
+    if bundle_path.exists():
+        try:
+            raw = json.loads(bundle_path.read_text(encoding="utf-8"))
+            bundle_units = raw.get("units", raw) if isinstance(raw, dict) else (raw if isinstance(raw, list) else [])
+        except Exception:
+            bundle_units = []
+
+    seen_ids: set[str] = set()
+    for item in [*BUILTIN_LISTENING_UNITS, *bundle_units]:
+        unit_id = item.get("id")
+        if not unit_id or unit_id in seen_ids:
+            continue
+        seen_ids.add(unit_id)
+        existing = db.get(ListeningUnit, unit_id)
         if existing is None:
             db.add(
                 ListeningUnit(
-                    id=item["id"],
+                    id=unit_id,
                     channel=item["channel"],
-                    cet_level=item.get("cet_level"),
-                    cet_section=item.get("cet_section"),
-                    channel_label=item["channel_label"],
-                    level=item["level"],
+                    cet_level=item.get("cet_level") if "cet_level" in item else item.get("cetLevel"),
+                    cet_section=item.get("cet_section") if "cet_section" in item else item.get("cetSection"),
+                    channel_label=item.get("channel_label") or item.get("channelLabel") or "",
+                    level=item.get("level") or "",
                     title=item["title"],
-                    subtitle=item["subtitle"],
-                    duration=item["duration"],
-                    xp=item["xp"],
-                    accent=item["accent"],
-                    exercises_json=item["exercises"],
+                    subtitle=item.get("subtitle") or "",
+                    duration=item.get("duration") or "5 分钟",
+                    xp=int(item.get("xp") or 25),
+                    accent=item.get("accent") or "标准英语",
+                    exercises_json=item.get("exercises") or [],
                     is_builtin=True,
                 )
             )

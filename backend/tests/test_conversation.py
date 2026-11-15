@@ -32,7 +32,7 @@ from app.services.scene_runtime import advance, initial_state
 
 
 def meeting_package():
-    path = Path(__file__).resolve().parents[1] / "app/content/scenes/launch_alignment.yaml"
+    path = Path(__file__).resolve().parent / "fixtures/launch_alignment.yaml"
     return ScenePackage.model_validate(yaml.safe_load(path.read_text(encoding="utf-8")))
 
 

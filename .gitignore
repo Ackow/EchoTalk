@@ -98,8 +98,9 @@ VoiceModelTest/LFM2.5-Audio-1.5B-4bit/
 # WorkBuddy 工作区数据（会话日志等）
 .workbuddy/
 
-# --- 运行时用户数据（场景封面/知识资料上传） ---
+# --- 运行时用户数据（场景封面/知识资料上传/听力音频缓存） ---
 backend/storage/
+backend/data/listening_audio_cache/
 
 # 浏览器自动化工具的临时快照
 .playwright-mcp/

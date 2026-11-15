@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 
 from app.core.errors import AppError
 from app.core.timeutil import utcnow
-from app.models import Chunk, Document, Scene, User
+from app.models import Chunk, Document, Scene, SceneStats, SceneUserStat, User
 from app.scenes import knowledge as knowledge_svc
 from app.scenes import graph as graph_svc
 from app.scenes import packaging, registry, social
@@ -187,11 +187,13 @@ def duplicate_scene(db: Session, user: User, scene_id: str) -> dict[str, Any]:
 
 
 def delete_scene(db: Session, user: User, scene_id: str) -> str:
-    """删除自定义场景：资料源文件与 documents/chunks 一并清除。"""
+    """删除自定义场景：资料源文件与 documents/chunks/互动记录一并清除。"""
     row = load_scene(db, scene_id)
     ensure_writable(row, user)
     db.query(Chunk).filter(Chunk.scene_id == scene_id).delete()
     db.query(Document).filter(Document.scene_id == scene_id).delete()
+    db.query(SceneUserStat).filter(SceneUserStat.scene_id == scene_id).delete()
+    db.query(SceneStats).filter(SceneStats.scene_id == scene_id).delete()
     db.delete(row)
     knowledge_svc.remove_scene_files(scene_id)
     registry.invalidate_cache(scene_id)
@@ -236,11 +238,9 @@ def import_package(
 
 
 def export_package(db: Session, scene_id: str, user: User | None) -> bytes:
-    """导出 v2 ZIP；非作者导出计入下载量（作者本人不计）。"""
+    """导出 v2 ZIP。"""
     row = load_scene(db, scene_id)
     ensure_visible(row, user)
-    if user is None or user.id != row.author_id:
-        social.count_download(db, row.id)
     return packaging.export_zip(db, row)
 
 
@@ -597,3 +597,93 @@ def favorite(db: Session, user: User, scene_id: str) -> dict[str, Any]:
     row = load_scene(db, scene_id)
     ensure_visible(row, user)
     return social.toggle_favorite(db, row.id, user.id)
+
+
+async def generate_scene_draft(idea: str, difficulty: str = "normal") -> dict[str, Any]:
+    """根据用户的一句话场景想法，由 AI 生成符合 ScenePackage 结构的场景设计草稿。"""
+    import json
+    from app.agents.model_gateway import create_chat_model
+
+    clean_idea = idea.strip()
+    if not clean_idea:
+        raise AppError("请输入场景想法或关键词", code="EMPTY_SCENE_IDEA", status_code=400)
+
+    fallback = {
+        "name": clean_idea[:24],
+        "category": "daily",
+        "difficulty": difficulty if difficulty in ("entry", "easy", "normal", "hard", "expert") else "normal",
+        "mode": "conversation",
+        "description": f"围绕「{clean_idea}」展开的真实英文口语实战训练，帮助你在自然交流中完成沟通目标。",
+        "opening": f"Hello! Welcome. Let's get started with {clean_idea}. How can I help you today?",
+        "role": {
+            "display_name": "Alex",
+            "title": "场景沟通伙伴",
+            "persona": f"专业、耐心的英语母语者，熟悉「{clean_idea}」场景流程，会根据用户表达灵活追问。",
+            "style": "自然友好、简洁明了，每次回复控制在 2–3 句并主动引导下一步。",
+        },
+        "rules": [
+            "始终用自然地道的美式或英式英语回复",
+            "每次回复不超过 3 句话，保持对话节奏",
+            "若学习者表达简短，温和追问关键细节",
+        ],
+        "objectives": [
+            {"id": "obj_1", "label": "清晰说明核心诉求", "description": "用完整英文句式表达自己的需求或问题"},
+            {"id": "obj_2", "label": "回应对方追问并确认细节", "description": "准确回答关键条件（时间、偏好或限制）"},
+            {"id": "obj_3", "label": "礼貌收尾并确认结果", "description": "完成沟通并礼貌致谢结束对话"},
+        ],
+        "stages": [
+            {"id": "stage_1", "name": "破冰与需求说明"},
+            {"id": "stage_2", "name": "细节协商与追问"},
+            {"id": "stage_3", "name": "确认方案与收尾"},
+        ],
+        "domain_keywords": ["clarify", "confirm", "schedule", "prefer", "appreciate"],
+    }
+
+    try:
+        llm = create_chat_model()
+    except AppError:
+        return fallback
+
+    prompt = f"""You are a curriculum designer for an English speaking practice app.
+User's scene idea: "{clean_idea}"
+Target difficulty: "{difficulty}" (entry/easy/normal/hard/expert)
+
+Return ONLY valid JSON (no markdown fences) with these exact keys:
+{{
+  "name": "Concise Chinese scene title (<= 16 chars)",
+  "category": "one of: daily, travel, business, career, academic, campus, interview",
+  "difficulty": "{difficulty}",
+  "mode": "conversation or interview",
+  "description": "1-2 Chinese sentences describing the scenario and learning value",
+  "opening": "1-2 natural English sentences as the AI role's opening line",
+  "role": {{
+    "display_name": "English first name like Emma / Ryan",
+    "title": "Chinese role title (e.g. 酒店前台 / 技术面试官)",
+    "persona": "Chinese description of character background & attitude",
+    "style": "Chinese description of speaking style & pacing"
+  }},
+  "rules": ["3 concise Chinese rules for the AI partner"],
+  "objectives": [
+    {{"id": "obj_1", "label": "Chinese short goal", "description": "Chinese criterion"}},
+    {{"id": "obj_2", "label": "Chinese short goal", "description": "Chinese criterion"}},
+    {{"id": "obj_3", "label": "Chinese short goal", "description": "Chinese criterion"}}
+  ],
+  "stages": [
+    {{"id": "stage_1", "name": "Chinese stage 1"}},
+    {{"id": "stage_2", "name": "Chinese stage 2"}},
+    {{"id": "stage_3", "name": "Chinese stage 3"}}
+  ],
+  "domain_keywords": ["5 relevant English keywords"]
+}}"""
+
+    try:
+        resp = await llm.ainvoke(prompt)
+        raw = str(getattr(resp, "content", "") or "").strip()
+        if raw.startswith("```"):
+            raw = raw.strip("`").lstrip("json").strip()
+        parsed = json.loads(raw)
+        if isinstance(parsed, dict) and parsed.get("name") and parsed.get("opening"):
+            return parsed
+    except Exception:
+        pass
+    return fallback

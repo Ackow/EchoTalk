@@ -1,15 +1,15 @@
-"""场景发布与社区统计：本地私有为默认，发布后全员可见可下载（v1.2 增补需求）。
+"""场景发布与社区统计：本地私有为默认，发布后全员可见并可收藏加入训练台。
 
-- 发布是轻量分享：把已有的包标记为 published，其他用户浏览/导出 ZIP 自行导入。
-- 统计：点赞/收藏按用户去重（scene_user_stats），下载按导出次数累计（scene_stats）。
+- 统计：喜欢/收藏按用户去重（scene_user_stats），训练量按 PracticeSession 聚合。
 """
 from typing import Any
 
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.core.errors import AppError
 from app.core.timeutil import utcnow
-from app.models import Scene, SceneStats, SceneUserStat
+from app.models import PracticeSession, Scene, SceneStats, SceneUserStat
 
 
 # ---- 可见性 ----------------------------------------------------------------
@@ -61,6 +61,13 @@ def stats_map(db: Session, scene_ids: list[str], user_id: int | None) -> dict[st
         return {}
     stats_rows = db.query(SceneStats).filter(SceneStats.scene_id.in_(scene_ids)).all()
     stats_by_id = {s.scene_id: s for s in stats_rows}
+    play_rows = (
+        db.query(PracticeSession.scene_id, func.count(PracticeSession.id))
+        .filter(PracticeSession.scene_id.in_(scene_ids))
+        .group_by(PracticeSession.scene_id)
+        .all()
+    )
+    plays_by_id = {sid: int(cnt or 0) for sid, cnt in play_rows}
     mine: dict[str, SceneUserStat] = {}
     if user_id is not None:
         rows = (
@@ -75,7 +82,7 @@ def stats_map(db: Session, scene_ids: list[str], user_id: int | None) -> dict[st
         interaction = mine.get(scene_id)
         result[scene_id] = {
             "likes": stats.likes if stats else 0,
-            "downloads": stats.downloads if stats else 0,
+            "plays": plays_by_id.get(scene_id, 0),
             "favorites": stats.favorites if stats else 0,
             "liked": bool(interaction.liked) if interaction else False,
             "favorited": bool(interaction.favorited) if interaction else False,
@@ -109,13 +116,6 @@ def toggle_favorite(db: Session, scene_id: str, user_id: int) -> dict[str, Any]:
         stats.favorites += 1
     db.commit()
     return {"favorited": bool(record.favorited), "favorites": stats.favorites}
-
-
-def count_download(db: Session, scene_id: str) -> None:
-    """导出即计数：作者本人的导出不计入下载量。"""
-    stats = get_or_create_stats(db, scene_id)
-    stats.downloads += 1
-    db.commit()
 
 
 def _get_or_create_interaction(db: Session, scene_id: str, user_id: int) -> SceneUserStat:

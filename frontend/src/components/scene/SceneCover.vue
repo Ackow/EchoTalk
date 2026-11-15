@@ -1,7 +1,7 @@
 <template>
   <!-- 场景封面：分类色调 + 专属矢量插画/上传封面图；加载失败回落内置插画 -->
   <div class="scene-cover" :class="[`tone-${tone}`, { 'has-image': hasImage, 'has-art': !hasImage && customArt }]">
-    <img v-if="hasImage" :src="coverUrl(scene.id)" :alt="`${scene.name}场景封面`" @error="imageFailed = true" />
+    <img v-if="hasImage" :src="scene.cover_image_url || coverUrl(scene.id)" :alt="`${scene.name}场景封面`" @error="imageFailed = true" />
     <svg v-else-if="customArt === 'train'" class="scene-cover-svg" viewBox="0 0 360 150" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
       <rect width="360" height="150" fill="#eef1ff" />
       <path d="M22,126 L22,52 C22,14 114,14 114,52 L114,126 Z" fill="#fef9ec" stroke="#d5daf2" stroke-width="2.5" />
@@ -61,7 +61,7 @@ const props = defineProps({
 })
 
 const imageFailed = ref(false) // 封面图 404 时回落色调底，不污染父级数据
-const hasImage = computed(() => Boolean(props.scene.cover_path) && !imageFailed.value)
+const hasImage = computed(() => Boolean(props.scene.cover_path || props.scene.cover_image_url) && !imageFailed.value)
 const icon = computed(() => sceneIcon(props.scene)) // 图标与色调映射收敛到 constants/sceneMeta
 const tone = computed(() => sceneTone(props.scene))
 const customArt = computed(() => {

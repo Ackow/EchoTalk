@@ -142,8 +142,8 @@ const navGroups = [
     items: [
       { name: 'workspace', title: '今日训练', icon: 'sun' },
       { name: 'practice', title: '语音对话', icon: 'mic' },
-      { name: 'listening', title: '听力工作室', icon: 'headphones' },
-      { name: 'debate', title: '多角色辩论', icon: 'messages' }
+      { name: 'debate', title: '多角色对话', icon: 'messages' },
+      { name: 'listening', title: '听力工作室', icon: 'headphones' }
     ]
   },
   {

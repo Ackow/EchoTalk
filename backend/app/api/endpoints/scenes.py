@@ -54,6 +54,18 @@ async def validate_package(request: Request):
     return {"valid": True}
 
 
+@router.post("/generate-draft")
+async def generate_scene_draft(
+    request: Request,
+    user: User = Depends(get_current_user),
+):
+    """根据一句想法由 AI 生成场景设计草稿参数。"""
+    body = await read_package_body(request)
+    idea = str(body.get("idea") or "").strip()
+    difficulty = str(body.get("difficulty") or "normal").strip()
+    return {"draft": await scene_service.generate_scene_draft(idea, difficulty)}
+
+
 @router.post("/import")
 async def import_scene(
     file: UploadFile = File(...),

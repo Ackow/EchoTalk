@@ -22,6 +22,7 @@ from app.api.endpoints.sessions import router as sessions_router
 from app.api.endpoints.speech import router as speech_router
 from app.api.endpoints.review import router as review_router
 from app.api.endpoints.listening import router as listening_router
+from app.api.endpoints.debate import router as debate_router
 from app.core.config import CORS_ORIGINS
 from app.core.database import engine, SessionLocal
 from app.core.errors import register_exception_handlers
@@ -37,6 +38,7 @@ def sync_builtin_scenes() -> None:
     """启动时同步内置场景包种子与数字人预设（表未初始化时仅告警，不影响服务启动）。"""
     from app.api.endpoints.avatars import sync_builtin_avatars
     from app.models.avatar import AvatarPreset
+    from app.models.debate import DebateSession, DebateTopic, DebateTopicReaction, DebateTurn
     from app.models.listening import ListeningAttempt, ListeningProgress, ListeningUnit, UserXpState
     from app.scenes.registry import sync_seeds
     from app.services.listening_service import sync_builtin_listening
@@ -44,14 +46,33 @@ def sync_builtin_scenes() -> None:
     try:
         from sqlalchemy import inspect as sa_inspect
         AvatarPreset.__table__.create(bind=engine, checkfirst=True)
-        for tbl in (ListeningUnit, ListeningProgress, ListeningAttempt, UserXpState):
+        for tbl in (ListeningUnit, ListeningProgress, ListeningAttempt, UserXpState, DebateTopic, DebateTopicReaction, DebateSession, DebateTurn):
             tbl.__table__.create(bind=engine, checkfirst=True)
-        existing_turn_cols = {c["name"] for c in sa_inspect(engine).get_columns("practice_turns")}
+        inspector = sa_inspect(engine)
+        existing_turn_cols = {c["name"] for c in inspector.get_columns("practice_turns")}
+        existing_debate_cols = {c["name"] for c in inspector.get_columns("debate_topics")}
         with engine.begin() as conn:
             if "pronunciation_score" not in existing_turn_cols:
                 conn.execute(text("ALTER TABLE practice_turns ADD COLUMN pronunciation_score JSON NULL"))
             if "grammar_correction" not in existing_turn_cols:
                 conn.execute(text("ALTER TABLE practice_turns ADD COLUMN grammar_correction JSON NULL"))
+            debate_migrations = {
+                "background_context": "TEXT NULL",
+                "key_expressions": "JSON NULL",
+                "default_style": "VARCHAR(24) NOT NULL DEFAULT 'balanced'",
+                "opponent_name": "VARCHAR(64) NOT NULL DEFAULT 'Sonia'",
+                "opponent_title": "VARCHAR(64) NOT NULL DEFAULT '对手辩手'",
+                "opponent_persona": "TEXT NULL",
+                "opponent_voice": "VARCHAR(32) NOT NULL DEFAULT 'sonia'",
+                "opponent_avatar_id": "VARCHAR(32) NOT NULL DEFAULT 'sarah_2d'",
+                "knowledge_doc_ids": "JSON NULL",
+                "status": "VARCHAR(24) NOT NULL DEFAULT 'private'",
+                "likes_count": "INT NOT NULL DEFAULT 0",
+                "favorites_count": "INT NOT NULL DEFAULT 0",
+            }
+            for col_name, col_ddl in debate_migrations.items():
+                if col_name not in existing_debate_cols:
+                    conn.execute(text(f"ALTER TABLE debate_topics ADD COLUMN {col_name} {col_ddl}"))
         with SessionLocal() as db:
             count = sync_seeds(db)
             avatar_count = sync_builtin_avatars(db)
@@ -99,6 +120,7 @@ app.include_router(sessions_router, prefix="/api")  # 有状态文字对话框�
 app.include_router(speech_router, prefix="/api")  # 浏览器录音的英文 ASR 转写
 app.include_router(review_router, prefix="/api")  # 复习计划队列与间隔重复
 app.include_router(listening_router, prefix="/api")  # 听力工作室、四六级与 XP 体系
+app.include_router(debate_router, prefix="/api")  # 多角色辩论接口
 app.include_router(admin_router, prefix="/api")  # 管理端路由（/api/admin/*）
 
 

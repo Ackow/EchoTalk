@@ -1,6 +1,7 @@
 <template>
-  <div class="page-scroll">
-    <div class="pick-toolbar">
+  <div class="page-scroll" :class="{ 'is-embedded-only': embeddedOnly }">
+    <template v-if="!embeddedOnly">
+      <div class="pick-toolbar">
       <AppTabs
         v-model="pickCategory"
         :options="pickCategories.map((c) => ({ value: c.key, label: c.label, count: countFor(c.key) }))"
@@ -55,8 +56,15 @@
 
       <div v-if="!filteredScenes.length" class="scenes-empty">
         <div class="empty-icon"><AppIcon name="messages" :size="20" /></div>
-        <h3>{{ keyword || pickCategory !== 'all' ? '没有匹配的场景' : '暂无可对话场景' }}</h3>
-        <p>{{ keyword || pickCategory !== 'all' ? '换个关键词或分类再试试。' : '到场景探索页创建或导入一个场景包，再回到这里开始对话。' }}</p>
+        <h3>{{ keyword || pickCategory !== 'all' ? '没有匹配的场景' : '训练台暂无对话场景' }}</h3>
+        <p>{{ keyword || pickCategory !== 'all' ? '换个关键词或分类再试试。' : '在场景探索页收藏内置/社区场景，或新建你的专属场景后，即可在这里开始练习。' }}</p>
+        <router-link
+          v-if="!keyword && pickCategory === 'all'"
+          :to="{ name: 'scenes', query: { tab: 'conversation' } }"
+          class="confirm-button empty-cta"
+        >
+          <AppIcon name="compass" :size="14" />前往场景探索收藏场景
+        </router-link>
       </div>
     </div>
 
@@ -90,6 +98,7 @@
         </div>
       </div>
     </div>
+    </template>
 
     <!-- 进入对话确认弹窗 -->
     <div v-if="confirmScene" class="modal-backdrop" @click.self="emit('cancel-confirm')">
@@ -142,6 +151,7 @@ const MODE_META = { conversation: { icon: 'messages', label: '对话' }, intervi
 const PAGE_SIZE = 9
 
 const props = defineProps({
+  embeddedOnly: { type: Boolean, default: false },
   scenes: { type: Array, default: () => [] },
   loadingScenes: { type: Boolean, default: false },
   starting: { type: Boolean, default: false },
@@ -231,6 +241,7 @@ watch(totalPages, (total) => { if (page.value > total) page.value = total })
 .empty-icon { display: grid; width: 54px; height: 54px; place-items: center; border: 0; border-radius: 18px; background: #f0eaff; color: #8067d1; }
 .scenes-empty h3 { margin: 14px 0 6px; font-size: 16px; font-weight: 600; }
 .scenes-empty p { margin: 0; max-width: 400px; color: var(--muted); font-size: 13.5px; line-height: 1.65; text-wrap: pretty; }
+.empty-cta { margin-top: 16px; text-decoration: none; }
 .pagination { display: flex; flex-wrap: wrap; flex: 0 0 auto; justify-content: flex-end; align-items: center; gap: 6px; margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--line); }
 .page-info { color: var(--muted); font-size: 12.5px; margin-right: 8px; }
 .page-btn { display: inline-flex; align-items: center; gap: 4px; height: 31px; padding: 0 11px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--ink-soft); font-size: 13px; transition: border-color .15s, color .15s, background .15s; }
@@ -248,6 +259,8 @@ watch(totalPages, (total) => { if (page.value > total) page.value = total })
 .sk-line.w70 { width: 70%; }
 @keyframes shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
 
+.page-scroll.is-embedded-only { display: contents; }
+.page-scroll.is-embedded-only .modal-backdrop { z-index: 60; }
 .modal-backdrop { position: fixed; inset: 0; z-index: 40; display: grid; place-items: center; background: var(--scrim-bg, rgba(34, 37, 59, .28)); -webkit-backdrop-filter: var(--scrim-blur, blur(2px)); backdrop-filter: var(--scrim-blur, blur(2px)); animation: fade-in .18s ease; }
 .modal-card { width: min(380px, calc(100vw - 48px)); padding: 24px; border: 1.5px solid #ebe7f5; border-bottom: 5px solid #e5def1; border-radius: 20px; background: var(--surface); box-shadow: 0 18px 48px rgba(34, 37, 59, .18); animation: pop-in .22s cubic-bezier(.22, .8, .32, 1); }
 .modal-icon { display: grid; width: 38px; height: 38px; margin-bottom: 14px; place-items: center; border-radius: 14px; background: #f0eaff; color: #7158c4; }

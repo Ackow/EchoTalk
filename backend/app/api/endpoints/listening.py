@@ -20,7 +20,7 @@ from app.services.listening_service import (
     list_units_with_stats,
     record_attempt,
 )
-from app.services.tts_service import synthesize
+from app.services.tts_service import TEXT_MAX, normalize_style, synthesize
 
 router = APIRouter(tags=["listening"])
 
@@ -127,17 +127,46 @@ def get_listening_profile(
     return get_xp_profile(db, current_user.id)
 
 
+def _split_tts_chunks(text: str, limit: int = TEXT_MAX) -> list[str]:
+    """按句末标点将长文本拆分为不超过 limit 的片段，避免超出单次 TTS 长度限制。"""
+    if len(text) <= limit:
+        return [text]
+    import re
+    sentences = [s.strip() for s in re.split(r"(?<=[。！？.!?])\s+", text) if s.strip()]
+    chunks: list[str] = []
+    current = ""
+    for sent in sentences:
+        if len(sent) > limit:
+            if current:
+                chunks.append(current)
+                current = ""
+            for i in range(0, len(sent), limit):
+                chunks.append(sent[i : i + limit])
+            continue
+        candidate = f"{current} {sent}".strip() if current else sent
+        if len(candidate) <= limit:
+            current = candidate
+        else:
+            if current:
+                chunks.append(current)
+            current = sent
+    if current:
+        chunks.append(current)
+    return chunks or [text[:limit]]
+
+
 @router.get("/listening/audio")
 async def stream_listening_audio(
-    text: str = Query(..., min_length=1, max_length=1000),
+    text: str = Query(..., min_length=1, max_length=2000),
     rate: float = Query(1.0, ge=0.5, le=1.5),
-    style: str = Query("calm", max_length=40),
+    style: str = Query("emma", max_length=40),
 ) -> Response:
     clean_text = text.strip()
     if not clean_text:
         raise HTTPException(status_code=400, detail="text 不能为空")
 
-    cache_key = hashlib.sha256(f"{style}|{rate:.2f}|{clean_text}".encode("utf-8")).hexdigest()
+    resolved_style = normalize_style(style) or "emma"
+    cache_key = hashlib.sha256(f"{resolved_style}|{rate:.2f}|{clean_text}".encode("utf-8")).hexdigest()
     _AUDIO_CACHE_DIR.mkdir(parents=True, exist_ok=True)
     cache_file = _AUDIO_CACHE_DIR / f"{cache_key}.mp3"
 
@@ -145,7 +174,10 @@ async def stream_listening_audio(
         audio_bytes = cache_file.read_bytes()
     else:
         try:
-            audio_bytes = await synthesize(text=clean_text, style=style, speech_rate=rate)
+            parts = []
+            for part in _split_tts_chunks(clean_text, TEXT_MAX):
+                parts.append(await synthesize(text=part, style=resolved_style, speech_rate=rate))
+            audio_bytes = b"".join(parts)
         except Exception as exc:
             raise HTTPException(status_code=502, detail=f"音频合成失败：{exc}") from exc
         if audio_bytes:

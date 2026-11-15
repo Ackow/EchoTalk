@@ -23,6 +23,20 @@ EchoTalk 是面向大学生及成年人的英语情景对话和 AI 陪练产品�
 - 正文和控件保证可读性、足够的颜色对比度、键盘焦点、适当的点击区域；适配窄窗口与长文本，不制造嵌套滚动或遮挡。
 - 保留 Electron 的窗口拖拽区、macOS 窗口按钮间距及控件可点击性；更改应用壳或登录页时检查桌面端行为。
 
+## 布局、令牌与组件规范
+
+- **页面外边距与滚动**：挂载在 `AppShell` 内容区的页面根节点必须自带四周留白与纵向弹性布局（参考 `Scenes.vue`：`flex: 1; min-height: 0; display: flex; flex-direction: column; padding: 22px 28px 28px; overflow-y: auto;`），禁止内容贴顶或贴左右边缘；全屏对话/辩论工作台内部通过 `flex: 1; min-height: 0;` 撑满剩余高度，不留大块底部空白。
+- **核心色板与触感控件**：
+  - 主品牌紫：`#8b73dd`（深底边/强调 `#6951b8` / `#654ab8`，浅紫胶囊 `#f4f0ff` / `#eee9ff`），主文字 `#35304e`，次级文字 `#625e76`，弱提示 `#88849c`。
+  - 卡片容器：`border: 1.5px solid #ebe7f5; border-bottom: 4px solid #e3dcf2; border-radius: 18px; background: #ffffff;`（内容区或次级模块用 `14px–16px` 圆角），避免大面积强渐变或无边界的纯扁平长条堆叠。
+  - 主按钮：`height: 32px–36px; border: 1.5px solid #8067d1; border-bottom: 3px solid #6951b8; border-radius: 10px; background: #8b73dd; color: #ffffff; font-weight: 700;`
+  - 次级/描边按钮：`border: 1.5px solid #e6e1f2; border-bottom: 3px solid #ddd6ec; border-radius: 10px; background: #ffffff; color: #5a5572; font-weight: 600;`
+- **统一弹窗遮罩**：所有全屏弹窗遮罩必须复用 `styles.css` 全局变量：`background: var(--scrim-bg, rgba(34, 37, 59, .28)); -webkit-backdrop-filter: var(--scrim-blur, blur(2px)); backdrop-filter: var(--scrim-blur, blur(2px));`。
+- **组件与语音输入复用**：
+  - 分类切换用 `AppTabs`，图标用 `AppIcon`，禁止自己另造不统一的 Tab 或内联图标。
+  - 对话/辩论输入区直接复用 `PracticeComposer` + `useVoiceInput`，不套外层双边框；检查 ASR 可用性时读取 `getSpeechStatus()` 返回的 `data?.configured`。
+  - 对话/辩论气泡采用头像 + 角色元信息 + 圆角白/浅紫气泡排布，避免把每条发言铺成整行日志框。
+
 ## 验证
 
 按修改范围运行前端构建，并在可用时检查页面实际显示、交互与至少一个较窄窗口。没有验证真实账号、语音服务或打包程序时，不声称这些流程已验证。

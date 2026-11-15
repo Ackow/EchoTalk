@@ -28,15 +28,16 @@ def create_session(payload: CreateSession, user: User = Depends(get_current_user
 
 @router.get("")
 def list_sessions(
-    scene_id: str | None = Query(default=None, min_length=2, max_length=50),
+    scene_id: str | None = Query(default=None, min_length=2, max_length=80),
     status: str | None = Query(default=None, pattern="^(active|finished)$"),
+    mode: str | None = Query(default=None, pattern="^(all|conversation|listening|debate)$"),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=12, ge=1, le=50),
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """分页读取当前用户的历史练习记录，附带全局统计。"""
-    return session_service.list_sessions(db, user.id, scene_id=scene_id, status=status, page=page, page_size=page_size)
+    """分页读取当前用户的历史练习记录（对话、听力、辩论），附带全局统计。"""
+    return session_service.list_sessions(db, user.id, scene_id=scene_id, status=status, mode=mode, page=page, page_size=page_size)
 
 
 @router.get("/latest")

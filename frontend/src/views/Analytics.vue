@@ -83,12 +83,16 @@
 
           <div class="kpi-card">
             <div class="kpi-top">
-              <span>任务目标完成率</span>
-              <span class="kpi-icon amber"><AppIcon name="target" :size="15" /></span>
+              <span>听力与辩论表现</span>
+              <span class="kpi-icon amber"><AppIcon name="headphones" :size="15" /></span>
             </div>
-            <strong>{{ data.summary.task_completion_rate !== null ? `${data.summary.task_completion_rate}%` : '—' }}</strong>
-            <small v-if="data.summary.goals_total">已完成 {{ data.summary.goals_done }} / {{ data.summary.goals_total }} 个目标</small>
-            <small v-else>当前场景暂无目标项</small>
+            <strong>
+              {{ data.summary.listening_accuracy !== null && data.summary.listening_accuracy !== undefined ? `${data.summary.listening_accuracy}%` : (data.summary.debate_avg_win_rate !== null && data.summary.debate_avg_win_rate !== undefined ? `${data.summary.debate_avg_win_rate}%` : (data.summary.task_completion_rate !== null ? `${data.summary.task_completion_rate}%` : '—')) }}
+            </strong>
+            <small>
+              听力 {{ data.summary.listening_count || 0 }} 题 · 辩论 {{ data.summary.debate_count || 0 }} 场
+              <template v-if="data.summary.debate_avg_win_rate !== null && data.summary.debate_avg_win_rate !== undefined">（均胜率 {{ data.summary.debate_avg_win_rate }}%）</template>
+            </small>
           </div>
         </div>
 

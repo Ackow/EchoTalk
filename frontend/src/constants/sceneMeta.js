@@ -3,7 +3,7 @@
 // 分类长文案（列表页、历史记录用）；短文案见各页自己的筛选标签
 export const CATEGORY_LABELS = {
   daily: '日常沟通', travel: '出行场景', business: '职场沟通', career: '求职训练',
-  academic: '学术场景', campus: '校园生活', interview: '模拟面试', debate: '辩论讨论', custom: '自定义',
+  academic: '学术场景', campus: '校园生活', interview: '模拟面试', debate: '多角色辩论', listening: '听力工作室', custom: '自定义',
 }
 export const categoryLabel = (key) => CATEGORY_LABELS[key] || key || '通用'
 
@@ -18,7 +18,7 @@ export const diffClass = (value) => diffInfo(value).cls
 
 // 图标：场景专属 > 分类 > 对话模式 > 兜底
 const SCENE_VISUALS = { airport_rebooking: 'plane', cafe_ordering: 'coffee', launch_alignment: 'messages', tech_interview: 'briefcase' }
-const CATEGORY_VISUALS = { daily: 'messages', business: 'messages', career: 'briefcase', academic: 'graduation-cap', travel: 'plane', campus: 'graduation-cap', custom: 'compass' }
+const CATEGORY_VISUALS = { daily: 'messages', business: 'messages', career: 'briefcase', academic: 'graduation-cap', travel: 'plane', campus: 'graduation-cap', listening: 'headphones', debate: 'sparkles', custom: 'compass' }
 const MODE_VISUALS = { conversation: 'messages', interview: 'briefcase', debate: 'messages' }
 export const sceneIcon = (scene = {}) =>
   SCENE_VISUALS[scene.id] || CATEGORY_VISUALS[scene.category] || MODE_VISUALS[scene.mode] || 'messages'

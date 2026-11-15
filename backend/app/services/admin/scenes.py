@@ -74,7 +74,6 @@ def list_scenes(
             "author_name": s.author.username if s.author else "系统内置",
             "cover_url": f"/api/scenes/{s.id}/cover" if s.cover_path else None,
             "likes": st.likes if st else 0,
-            "downloads": st.downloads if st else 0,
             "favorites": st.favorites if st else 0,
             "document_count": doc_counts.get(s.id, 0),
             "session_count": session_counts.get(s.id, 0),
@@ -112,7 +111,6 @@ def get_scene_detail(db: Session, scene_id: str) -> dict:
         "package_json": scene.package_json,
         "stats": {
             "likes": stats.likes if stats else 0,
-            "downloads": stats.downloads if stats else 0,
             "favorites": stats.favorites if stats else 0,
             "session_count": session_count,
         },

@@ -87,7 +87,7 @@
                 v-if="item.source_session_id"
                 class="source-link"
                 type="button"
-                @click="openSourceSession(item.source_session_id)"
+                @click="openSourceSession(item)"
               >
                 回看原对话<AppIcon name="arrow-up-right" :size="12" />
               </button>
@@ -290,6 +290,7 @@ const KIND_META = {
   pronunciation: '发音纠偏',
   grammar: '语法改进',
   listening: '听力错题',
+  debate: '多角色表达',
 }
 const KIND_OPTIONS = [
   { value: 'all', label: '全部类型' },
@@ -297,6 +298,7 @@ const KIND_OPTIONS = [
   { value: 'pronunciation', label: '发音纠偏' },
   { value: 'grammar', label: '语法改进' },
   { value: 'listening', label: '听力错题' },
+  { value: 'debate', label: '多角色表达' },
 ]
 
 const items = ref([])
@@ -387,7 +389,13 @@ async function load() {
   }
 }
 
-function openSourceSession(sessionId) {
+function openSourceSession(item) {
+  const sessionId = typeof item === 'string' ? item : item?.source_session_id
+  if (!sessionId) return
+  if (typeof item === 'object' && (item?.source_type === 'debate' || item?.kind === 'debate')) {
+    router.push({ name: 'debate', query: { session: sessionId } })
+    return
+  }
   router.push({ name: 'practice', query: { session: sessionId } })
 }
 

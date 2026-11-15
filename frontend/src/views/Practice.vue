@@ -1,7 +1,8 @@
 <template>
   <section class="practice-page" :class="{ 'is-overlay-only': embeddedScene && phase === 'select' }">
     <PracticeScenePicker
-      v-if="phase === 'select' && !resuming && !embeddedScene"
+      v-if="phase === 'select' && !resuming"
+      :embedded-only="Boolean(embeddedScene)"
       :scenes="scenes"
       :loading-scenes="loadingScenes"
       :starting="starting"
@@ -82,62 +83,44 @@
               <span v-if="msg.role === 'agent'" class="msg-avatar">{{ roleInitial }}</span>
               <div class="message-content">
                 <span class="message-author">{{ msg.role === 'agent' ? activeRole?.display_name || '交流伙伴' : '你' }}</span>
-                <template v-if="msg.role === 'user'">
-                  <template v-if="msg.isVoice">
-                    <div class="bubble-row is-user-voice">
+                <VoiceBubbleRow
+                  v-if="msg.role === 'user'"
+                  role="user"
+                  :is-user="true"
+                  :is-voice="Boolean(msg.isVoice)"
+                  :text="msg.text"
+                  :duration="msg.duration || 0"
+                  :capsule-width="capsuleWidth(msg)"
+                  :playing="playingKey === msg.key"
+                  :is-static="!msg.audioUrl && !msg.hasUserAudio"
+                  :progress="playbackTime / (playbackDuration || msg.duration || estimateSeconds(msg.text)) * 100"
+                  :show-original="showOriginal"
+                  :expanded="expandedMessages.has(msg.key)"
+                  :play-aria-label="playingKey === msg.key ? '停止播放我的语音' : '播放我的语音'"
+                  @toggle-play="playingKey === msg.key ? stopAudio() : playUserVoice(msg)"
+                  @toggle-original="toggleOriginal(msg.key, $event)"
+                >
+                  <template #after-bubble>
+                    <div v-if="msg.pronunciationScore || msg.grammarCorrection" class="user-feedback-wrap">
                       <button
-                        v-if="!showOriginal"
-                        class="original-toggle"
                         type="button"
-                        :aria-expanded="expandedMessages.has(msg.key)"
-                        @click="toggleOriginal(msg.key, $event)"
-                      ><AppIcon name="file-text" :size="13" />{{ expandedMessages.has(msg.key) ? '收起' : '原文' }}</button>
-                      <button
-                        class="ai-voice-capsule user-voice-capsule"
-                        :class="{ playing: playingKey === msg.key, 'is-static': !msg.audioUrl && !msg.hasUserAudio }"
-                        :style="{ width: capsuleWidth(msg) }"
-                        type="button"
-                        :aria-label="playingKey === msg.key ? '停止播放我的语音' : '播放我的语音'"
-                        @click="playingKey === msg.key ? stopAudio() : playUserVoice(msg)"
+                        class="fb-collapse-pill"
+                        :class="{ 'is-open': expandedFeedback.has(msg.key) }"
+                        :aria-expanded="expandedFeedback.has(msg.key)"
+                        @click="toggleFeedback(msg.key)"
                       >
-                        <i v-if="playingKey === msg.key" class="capsule-progress" :style="{ width: `${Math.min(100, playbackTime / (playbackDuration || msg.duration || estimateSeconds(msg.text)) * 100)}%` }" aria-hidden="true"></i>
-                        <svg class="voice-wave-icon" width="16" height="18" viewBox="0 0 16 18" fill="none" aria-hidden="true"><circle cx="3" cy="9" r="1.35" fill="currentColor"/><path d="M6 5.8a4.5 4.5 0 0 1 0 6.4M8.5 3.3a8 8 0 0 1 0 11.4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
-                        <span class="capsule-duration">{{ msg.duration ? `${Math.max(1, Math.ceil(msg.duration))}"` : `${estimateSeconds(msg.text)}"` }}</span>
-                      </button>
-                    </div>
-                    <transition
-                      name="panel"
-                      @enter="onPanelEnter"
-                      @after-enter="onPanelAfterEnter"
-                      @leave="onPanelLeave"
-                      @after-leave="onPanelAfterLeave"
-                    >
-                      <div v-show="(showOriginal || expandedMessages.has(msg.key)) && msg.text.trim()" class="original-panel is-user">
-                        <p class="bubble-text">{{ msg.text }}</p>
-                      </div>
-                    </transition>
-                  </template>
-                  <div v-else class="bubble"><p class="bubble-text">{{ msg.text }}</p></div>
-                  <div v-if="msg.pronunciationScore || msg.grammarCorrection" class="user-feedback-wrap">
-                    <button
-                      type="button"
-                      class="fb-collapse-pill"
-                      :class="{ 'is-open': expandedFeedback.has(msg.key) }"
-                      :aria-expanded="expandedFeedback.has(msg.key)"
-                      @click="toggleFeedback(msg.key)"
-                    >
-                      <template v-if="msg.pronunciationScore">
-                        <AppIcon name="mic" :size="12" />
-                        <span>发音 <b :class="scoreTier(msg.pronunciationScore.total_score)">{{ Math.round(msg.pronunciationScore.total_score) }}</b></span>
-                        <span v-if="msg.pronunciationScore.intonation_score != null" class="fb-sep" aria-hidden="true">·</span>
-                        <span v-if="msg.pronunciationScore.intonation_score != null">语调 <b :class="scoreTier(msg.pronunciationScore.intonation_score)">{{ Math.round(msg.pronunciationScore.intonation_score) }}</b></span>
-                        <span v-if="msg.pronunciationScore.speech_rate_wpm != null" class="fb-sep" aria-hidden="true">·</span>
-                        <span v-if="msg.pronunciationScore.speech_rate_wpm != null">{{ msg.pronunciationScore.speech_rate_wpm }} WPM</span>
-                        <span v-if="msg.grammarCorrection?.has_error" class="fb-dot-hint" title="有表达建议" />
-                      </template>
-                      <template v-else-if="msg.grammarCorrection?.has_error">
-                        <AppIcon name="sparkles" :size="12" />
-                        <span>{{ msg.grammarCorrection.issue_type === 'naturalness' ? '更地道表达建议' : '表达纠正建议' }}</span>
+                        <template v-if="msg.pronunciationScore">
+                          <AppIcon name="mic" :size="12" />
+                          <span>发音 <b :class="scoreTier(msg.pronunciationScore.total_score)">{{ Math.round(msg.pronunciationScore.total_score) }}</b></span>
+                          <span v-if="msg.pronunciationScore.intonation_score != null" class="fb-sep" aria-hidden="true">·</span>
+                          <span v-if="msg.pronunciationScore.intonation_score != null">语调 <b :class="scoreTier(msg.pronunciationScore.intonation_score)">{{ Math.round(msg.pronunciationScore.intonation_score) }}</b></span>
+                          <span v-if="msg.pronunciationScore.speech_rate_wpm != null" class="fb-sep" aria-hidden="true">·</span>
+                          <span v-if="msg.pronunciationScore.speech_rate_wpm != null">{{ msg.pronunciationScore.speech_rate_wpm }} WPM</span>
+                          <span v-if="msg.grammarCorrection?.has_error" class="fb-dot-hint" title="有表达建议" />
+                        </template>
+                        <template v-else-if="msg.grammarCorrection?.has_error">
+                          <AppIcon name="sparkles" :size="12" />
+                          <span>{{ msg.grammarCorrection.issue_type === 'naturalness' ? '更地道表达建议' : '表达纠正建议' }}</span>
                       </template>
                       <template v-else>
                         <AppIcon name="check" :size="12" />
@@ -205,29 +188,28 @@
                         </div>
                       </div>
                     </transition>
-                  </div>
-                </template>
-                <!-- agent 消息：参照 1.0 的语音胶囊展现——深灰胶囊常驻，原文面板平滑展开，胶囊不消失 -->
-                <template v-else>
-                  <div class="bubble-row">
-                    <button class="ai-voice-capsule" :class="{ playing: playingKey === msg.key, 'is-busy': ttsBusyKey === msg.key }" :style="{ width: capsuleWidth(msg) }" type="button" :disabled="ttsBusyKey === msg.key" :aria-label="playingKey === msg.key ? '停止播放回复' : '播放回复语音'" @click="playingKey === msg.key ? stopAudio() : playMessage(msg)">
-                      <i v-if="playingKey === msg.key" class="capsule-progress" :style="{ width: `${Math.min(100, playbackTime / (playbackDuration || estimateSeconds(msg.text)) * 100)}%` }" aria-hidden="true"></i>
-                      <span v-if="ttsBusyKey === msg.key" class="tts-bars" aria-hidden="true"><i /><i /><i /></span>
-                      <svg v-else class="voice-wave-icon" width="16" height="18" viewBox="0 0 16 18" fill="none" aria-hidden="true"><circle cx="3" cy="9" r="1.35" fill="currentColor"/><path d="M6 5.8a4.5 4.5 0 0 1 0 6.4M8.5 3.3a8 8 0 0 1 0 11.4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
-                      <span class="capsule-duration">{{ ttsBusyKey === msg.key ? '语音合成中…' : msg.duration ? `${Math.ceil(msg.duration)}\"` : `${estimateSeconds(msg.text)}\"` }}</span>
-                    </button>
-                    <button v-if="!showOriginal" class="original-toggle" type="button" :aria-expanded="expandedMessages.has(msg.key)" @click="toggleOriginal(msg.key, $event)"><AppIcon name="file-text" :size="13" />{{ expandedMessages.has(msg.key) ? '收起' : '原文' }}</button>
-                  </div>
-                  <transition
-                    name="panel"
-                    @enter="onPanelEnter"
-                    @after-enter="onPanelAfterEnter"
-                    @leave="onPanelLeave"
-                    @after-leave="onPanelAfterLeave"
-                  >
-                    <div v-show="(showOriginal || expandedMessages.has(msg.key)) && msg.text.trim()" class="original-panel"><div class="bubble-text md-body" v-html="renderMessageMd(msg.text)" /></div>
-                  </transition>
-                </template>
+                    </div>
+                  </template>
+                </VoiceBubbleRow>
+                <!-- agent 消息：复用 VoiceBubbleRow 组件 -->
+                <VoiceBubbleRow
+                  v-else
+                  role="agent"
+                  :is-user="false"
+                  :is-voice="true"
+                  :text="msg.text"
+                  :html-text="renderMessageMd(msg.text)"
+                  :duration="msg.duration || 0"
+                  :capsule-width="capsuleWidth(msg)"
+                  :playing="playingKey === msg.key"
+                  :busy="ttsBusyKey === msg.key"
+                  :progress="playbackTime / (playbackDuration || estimateSeconds(msg.text)) * 100"
+                  :show-original="showOriginal"
+                  :expanded="expandedMessages.has(msg.key)"
+                  :play-aria-label="playingKey === msg.key ? '停止播放回复' : '播放回复语音'"
+                  @toggle-play="playingKey === msg.key ? stopAudio() : playMessage(msg)"
+                  @toggle-original="toggleOriginal(msg.key, $event)"
+                />
               </div>
               <span v-if="msg.role === 'user'" class="msg-avatar user">{{ userInitial }}</span>
             </article>
@@ -399,6 +381,7 @@ import { marked } from 'marked'
 import AppIcon from '../components/AppIcon.vue'
 import AvatarStage from '../components/avatar/AvatarStage.vue'
 import PracticeComposer from '../components/practice/PracticeComposer.vue'
+import VoiceBubbleRow from '../components/practice/VoiceBubbleRow.vue'
 import PracticeEndingCard from '../components/practice/PracticeEndingCard.vue'
 import PracticeKnowledge from '../components/practice/PracticeKnowledge.vue'
 import PracticeLookupPopover from '../components/practice/PracticeLookupPopover.vue'
@@ -431,6 +414,7 @@ const finishLoading = props.embeddedScene
   ? () => {}
   : usePageLoading(route.query.session ? '正在打开这次练习' : '', Boolean(route.query.session))
 const scenes = ref([])
+const allScenesList = ref([])
 const loadingScenes = ref(false)
 const starting = ref(false)
 const error = ref('')
@@ -813,8 +797,14 @@ onMounted(async () => {
   loadingScenes.value = true
   try {
     const { data } = await listScenes()
-    scenes.value = data?.items || []
-    const selected = route.query.scene ? scenes.value.find(scene => scene.id === route.query.scene) : null
+    const allScenes = data?.items || []
+    allScenesList.value = allScenes
+    // 优先展示本人创建以及已收藏的场景；新用户尚无自有/收藏场景时兜底展示官方内置场景
+    const curated = allScenes.filter(
+      (s) => (session.user && s.author_id === session.user.id) || s.stats?.favorited
+    )
+    scenes.value = curated.length ? curated : allScenes.filter((s) => s.source === 'builtin')
+    const selected = route.query.scene ? allScenes.find(scene => scene.id === route.query.scene) : null
     if (selected) void chooseScene(selected)
     else if (resumeId) await resumeSession(resumeId, pendingSession) // 从历史记录进入某次会话：等恢复完成再收遮罩
   } catch (err) {
@@ -844,7 +834,15 @@ async function resumeSession(sessionId, pending) {
   }
   try {
     const { data } = await (pending || getSession(sessionId))
-    const scene = scenes.value.find(item => item.id === data.scene_id)
+    let scene = scenes.value.find(item => item.id === data.scene_id)
+      || allScenesList.value.find(item => item.id === data.scene_id)
+    if (!scene && data.scene_id) {
+      scene = {
+        id: data.scene_id,
+        name: data.scene_display?.meta?.name || data.scene_id,
+        ...(data.scene_display || {}),
+      }
+    }
     if (!scene) { error.value = '对应的场景已不可用，无法打开这条练习记录。'; return }
     await startScene(scene, sessionId)
   } catch (err) {
@@ -1453,8 +1451,7 @@ button.voice-bar-info:disabled { opacity: .65; cursor: not-allowed; }
 .voice-result-actions { display: flex; align-items: center; justify-content: flex-end; gap: 6px; }
 /* 继承旧版「场景工具栏 + 对话主区 + 辅助栏」，沿用 2.0 的色彩与控件。 */
 .practice-page { flex: 1; min-height: 0; min-width: 0; display: flex; flex-direction: column; }
-.practice-page.is-overlay-only { position: fixed; inset: 0; z-index: 60; pointer-events: none; }
-.practice-page.is-overlay-only > * { pointer-events: auto; }
+.practice-page.is-overlay-only { display: contents; }
 button, a, textarea, select, summary { -webkit-app-region: no-drag; }
 button { cursor: pointer; } button:disabled { cursor: not-allowed; }
 button:focus-visible, a:focus-visible, summary:focus-visible { outline: 2px solid var(--brand); outline-offset: 3px; }

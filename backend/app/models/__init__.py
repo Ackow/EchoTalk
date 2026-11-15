@@ -17,5 +17,6 @@ from .practice import PracticeTurn
 from .usage import ApiTokenUsage
 from .review import ReviewItem
 from .listening import ListeningUnit, ListeningProgress, ListeningAttempt, UserXpState
+from .debate import DebateSession, DebateTopic, DebateTurn
 
-__all__ = ['User', 'AuthSession', 'Scene', 'SceneStats', 'SceneUserStat', 'Document', 'Chunk', 'PersonalDocument', 'PersonalChunk', 'ChunkEmbedding', 'PersonalChunkEmbedding', 'AvatarPreference', 'AvatarPreset', 'PracticeSession', 'PracticeTurn', 'ApiTokenUsage', 'ReviewItem', 'ListeningUnit', 'ListeningProgress', 'ListeningAttempt', 'UserXpState']
+__all__ = ['User', 'AuthSession', 'Scene', 'SceneStats', 'SceneUserStat', 'Document', 'Chunk', 'PersonalDocument', 'PersonalChunk', 'ChunkEmbedding', 'PersonalChunkEmbedding', 'AvatarPreference', 'AvatarPreset', 'PracticeSession', 'PracticeTurn', 'ApiTokenUsage', 'ReviewItem', 'ListeningUnit', 'ListeningProgress', 'ListeningAttempt', 'UserXpState', 'DebateTopic', 'DebateSession', 'DebateTurn']

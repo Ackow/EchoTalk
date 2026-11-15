@@ -100,6 +100,7 @@ def sync_seeds(db: Session) -> int:
     """
     _migrate_difficulties(db)
     synced = 0
+    seeded_ids: set[str] = set()
     for path in sorted(CONTENT_DIR.glob("*.yaml")):
         try:
             data = yaml.safe_load(path.read_text(encoding="utf-8"))
@@ -107,6 +108,7 @@ def sync_seeds(db: Session) -> int:
         except SceneInvalidPackageError:
             logger.exception("内置场景包种子校验失败：%s", path.name)
             continue
+        seeded_ids.add(package.meta.id)
 
         row = db.get(Scene, package.meta.id)
         if row is None:
@@ -168,6 +170,10 @@ def sync_seeds(db: Session) -> int:
             materialized = knowledge_svc.seed_builtin_documents(db, row, package)
             if materialized:
                 logger.info("场景 %s 物化内置资料 %d 个文件", package.meta.id, materialized)
+    for stale in db.scalars(select(Scene).where(Scene.source == "builtin")).all():
+        if stale.id not in seeded_ids:
+            _cache.pop(stale.id, None)
+            db.delete(stale)
     db.commit()
     return synced
 

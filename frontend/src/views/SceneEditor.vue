@@ -40,6 +40,28 @@
       <transition :name="stepDirection > 0 ? 'slide-left' : 'slide-right'" mode="out-in">
         <!-- 第 1 步：基本信息 -->
         <div v-if="stepIndex === 0" key="s0" class="step-panel">
+          <div v-if="!isEdit" class="ai-draft-card">
+            <div class="ai-draft-head">
+              <strong><AppIcon name="sparkles" :size="14" />AI 一键生成场景参数</strong>
+              <span>输入一句场景想法，AI 自动填充名称、角色人设、开场白、规则与训练目标</span>
+            </div>
+            <div class="ai-draft-row">
+              <input
+                v-model="aiIdea"
+                placeholder="例如：在纽约咖啡馆和产品经理聊 AI 创业想法"
+                @keydown.enter.prevent="handleGenerateSceneDraft"
+              />
+              <button
+                type="button"
+                class="primary-button slim"
+                :disabled="generatingDraft || !aiIdea.trim()"
+                @click="handleGenerateSceneDraft"
+              >
+                {{ generatingDraft ? '生成中...' : 'AI 一键生成' }}
+              </button>
+            </div>
+          </div>
+
           <div v-if="!isEdit" class="template-row">
             <label class="template-label">从内置模板开始<span>可选</span></label>
             <select v-model="templateId" class="field-select" @change="applyTemplate">
@@ -78,7 +100,6 @@
                 <select v-model="form.meta.mode">
                   <option value="conversation">任务对话</option>
                   <option value="interview">模拟面试</option>
-                  <option value="debate">辩论</option>
                 </select>
               </label>
             </div>
@@ -117,25 +138,33 @@
         <!-- 第 2 步：角色与对话 -->
         <div v-else-if="stepIndex === 1" key="s1" class="step-panel">
           <div class="form-card">
-            <span class="field-label">角色<span class="optional">1–4 个，对话中 AI 扮演的人设</span></span>
-            <div v-for="(role, index) in form.roles" :key="index" class="role-card">
+            <span class="field-label">AI 对话角色<span class="optional">语音对话固定为 1v1 沉浸式交流；如需多人同场请使用「多角色对话」</span></span>
+            <div v-if="form.roles[0]" class="role-card">
               <div class="field-grid four">
-                <label class="field">角色 ID<input v-model="role.id" placeholder="barista" /></label>
-                <label class="field">名字<input v-model="role.display_name" placeholder="Leo" /></label>
-                <label class="field">职务<input v-model="role.title" placeholder="Barista" /></label>
-                <label class="field">性格<input v-model="role.personality" placeholder="friendly but busy" /></label>
+                <label class="field">角色 ID<input v-model="form.roles[0].id" placeholder="barista" /></label>
+                <label class="field">名字<input v-model="form.roles[0].display_name" placeholder="Leo" /></label>
+                <label class="field">职务<input v-model="form.roles[0].title" placeholder="Barista" /></label>
+                <label class="field">性格<input v-model="form.roles[0].personality" placeholder="friendly but busy" /></label>
               </div>
-              <button
-                v-if="form.roles.length > 1"
-                class="role-remove"
-                type="button"
-                :aria-label="`删除角色 ${role.display_name || index + 1}`"
-                @click="form.roles.splice(index, 1)"
-              ><AppIcon name="x" :size="13" /></button>
+              <div class="field-grid role-avatar-row">
+                <label class="field">推荐数字人形象
+                  <select v-model="form.roles[0].avatar">
+                    <option value="">跟随用户当前偏好</option>
+                    <option v-for="av in avatarOptions" :key="av.id" :value="av.id">
+                      {{ av.display_name || av.name || av.id }}{{ av.kind === 'custom' || av.is_custom ? '（自定义）' : '' }}
+                    </option>
+                  </select>
+                </label>
+                <label class="field">推荐音色
+                  <select v-model="form.roles[0].voice">
+                    <option value="">跟随数字人/默认音色</option>
+                    <option v-for="v in voiceOptions" :key="v.style || v.id" :value="v.style || v.id">
+                      {{ v.label || v.style }}
+                    </option>
+                  </select>
+                </label>
+              </div>
             </div>
-            <button v-if="form.roles.length < 4" class="ghost-button add-row" type="button" @click="addRole">
-              <AppIcon name="plus" :size="13" />添加角色
-            </button>
           </div>
 
           <div class="form-card">
@@ -227,9 +256,12 @@
         <div v-else-if="stepIndex === 2" key="s2" class="step-panel">
           <div class="form-card">
             <span class="field-label">训练目标<span class="optional">希望学习者在对话中做到的事</span></span>
-            <div v-for="(objective, index) in form.objectives" :key="index" class="role-card">
+            <div v-for="(objective, index) in form.objectives" :key="index" class="role-card objective-card">
               <div class="field-grid two">
-                <label class="field">目标描述<input v-model="objective.label" placeholder="礼貌提出请求" /></label>
+                <div class="field">
+                  <span class="field-label">目标描述</span>
+                  <input v-model="objective.label" placeholder="礼貌提出请求" />
+                </div>
                 <div class="field">
                   <span class="field-label">达成判定<span class="optional">可选</span></span>
                   <select v-model="objective.checkMode">
@@ -271,6 +303,26 @@
             </div>
             <button class="ghost-button add-row" type="button" @click="addObjective">
               <AppIcon name="plus" :size="13" />添加目标
+            </button>
+          </div>
+
+          <div class="form-card">
+            <span class="field-label">对话阶段<span class="optional">可选，最多 8 个；用于分步引导如「破冰 → 细节 → 收尾」</span></span>
+            <div v-for="(stage, index) in form.stages" :key="index" class="role-card">
+              <div class="field-grid three">
+                <label class="field">阶段 ID<input v-model="stage.id" class="mono" :placeholder="`stage_${index + 1}`" /></label>
+                <label class="field">阶段名称<input v-model="stage.name" placeholder="如：破冰与需求说明" /></label>
+                <label class="field">推进条件<small>可选</small><input v-model="stage.exit_when" class="mono" placeholder="state.confirmed == true" /></label>
+              </div>
+              <label class="field" style="margin-top: 9px">阶段引导<small>可选，提示 AI 本阶段提问侧重点</small>
+                <input v-model="stage.guidance" placeholder="如：先确认对方点单偏好与杯型，再询问是否需要加奶或糖" />
+              </label>
+              <button class="role-remove" type="button" :aria-label="`删除阶段 ${stage.name || index + 1}`" @click="form.stages.splice(index, 1)">
+                <AppIcon name="x" :size="13" />
+              </button>
+            </div>
+            <button v-if="form.stages.length < 8" class="ghost-button add-row" type="button" @click="addStage">
+              <AppIcon name="plus" :size="13" />添加阶段
             </button>
           </div>
 
@@ -392,7 +444,13 @@
         <!-- 第 4 步：资料与预览 -->
         <div v-else key="s3" class="step-panel">
           <div class="form-card">
-            <span class="field-label">场景资料<span class="optional">md / txt / pdf，保存后可继续管理</span></span>
+            <div class="doc-head-row">
+              <span class="field-label">场景资料<span class="optional">md / txt / pdf，保存后可继续管理</span></span>
+              <label class="ghost-button slim-upload" :class="{ disabled: uploading }">
+                <AppIcon name="upload" :size="13" />{{ uploading ? '上传解析中…' : (isEdit ? '上传资料' : '选择资料') }}
+                <input type="file" accept=".md,.markdown,.txt,.pdf" class="hidden-input" :disabled="uploading" @change="handleFiles" />
+              </label>
+            </div>
             <ul v-if="form.documents.length" class="doc-list">
               <li v-for="doc in form.documents" :key="doc.id">
                 <AppIcon name="file-text" :size="13" />
@@ -401,15 +459,30 @@
                 <button v-if="isEdit" class="doc-remove" type="button" @click="removeDocument(doc)"><AppIcon name="trash" :size="13" /></button>
               </li>
             </ul>
-            <p v-else class="field-hint">还没有资料。菜单、内部规范、JD 等文件可以先保存场景，再在编辑页上传。</p>
-            <label class="ghost-button add-row" :class="{ disabled: uploading }">
-              <AppIcon name="upload" :size="13" />{{ isEdit ? '上传资料' : '选择资料（保存场景时一并上传）' }}
-              <input type="file" accept=".md,.markdown,.txt,.pdf" class="hidden-input" :disabled="uploading" @change="handleFiles" />
-            </label>
+            <p v-else class="field-hint">
+              {{ isEdit ? '还没有资料，可直接点击右上角「上传资料」（支持 Markdown、TXT、PDF）。' : '还没有资料，可点击右上角「选择资料」（创建场景时一并上传，支持 Markdown、TXT、PDF）。' }}
+            </p>
           </div>
           <div class="form-card">
-            <span class="field-label">包结构预览</span>
-            <pre class="pkg-preview mono">{{ packagePreview }}</pre>
+            <div class="state-head">
+              <span class="field-label">场景包解析预览</span>
+              <button class="adv-toggle" type="button" @click="showRawJson = !showRawJson">
+                {{ showRawJson ? '返回结构化摘要' : '查看原始 JSON' }}
+              </button>
+            </div>
+            <pre v-if="showRawJson" class="pkg-preview mono">{{ packagePreview }}</pre>
+            <div v-else-if="parsedPackageSummary" class="preview-summary">
+              <div class="preview-row"><span>场景名称</span><b>{{ parsedPackageSummary.name || '未填写' }}</b></div>
+              <div class="preview-row"><span>场景 ID</span><b class="mono">{{ parsedPackageSummary.id }}</b></div>
+              <div class="preview-row"><span>分类与模式</span><b>{{ parsedPackageSummary.categoryLabel }} · {{ parsedPackageSummary.modeLabel }} · {{ parsedPackageSummary.difficultyLabel }}</b></div>
+              <div class="preview-row"><span>AI 对话伙伴</span><b>{{ parsedPackageSummary.roleLabel }}</b></div>
+              <div class="preview-row"><span>流程阶段</span><b>{{ parsedPackageSummary.stagesLabel }}</b></div>
+              <div class="preview-row"><span>训练目标</span><b>{{ parsedPackageSummary.objectivesLabel }}</b></div>
+              <div class="preview-row"><span>启用工具</span><b>{{ parsedPackageSummary.toolsLabel }}</b></div>
+              <div class="preview-row"><span>初始状态变量</span><b>{{ parsedPackageSummary.stateLabel }}</b></div>
+              <div class="preview-row"><span>知识资料</span><b>{{ parsedPackageSummary.docsLabel }}</b></div>
+            </div>
+            <p v-else class="field-hint">state JSON 尚未合法，修正后可解析预览完整场景包结构。</p>
           </div>
         </div>
       </transition>
@@ -445,9 +518,10 @@ import { useRoute, useRouter } from 'vue-router'
 import AppIcon from '../components/AppIcon.vue'
 import { session } from '../auth/session'
 import { coverUrl, uploadCover, removeCover } from '../api/scenes'
+import { FALLBACK_AVATARS, FALLBACK_VOICES, listAvatars, listVoices } from '../api/avatar'
 import { usePageLoading } from '../app/loading'
 import {
-  createScene, getScene, listTemplates, updateScene, uploadKnowledge, deleteKnowledge,
+  createScene, generateSceneDraft, getScene, listTemplates, updateScene, uploadKnowledge, deleteKnowledge,
 } from '../api/scenes'
 
 const STEPS = [
@@ -486,7 +560,7 @@ const isEdit = computed(() => route.name === 'scene-edit')
 const blankObjective = () => ({ label: '', checkMode: 'none', checkKey: '', checkOp: '==', checkValue: '', checkTool: '', check: '' })
 const blankForm = () => ({
   meta: { id: '', name: '', description: '', category: 'custom', difficulty: 'normal', mode: 'conversation' },
-  roles: [{ id: '', display_name: '', title: '', personality: '', voice: '' }],
+  roles: [{ id: '', display_name: '', title: '', personality: '', avatar: '', voice: '' }],
   prompt: { system: '', greeting: '', params: [] },
   // 对话指引：默认引导模式（场景说明 + 规则）；promptAdvanced 时直接编辑原文
   promptAdvanced: false,
@@ -494,6 +568,8 @@ const blankForm = () => ({
   promptDesc: '',
   promptRules: [],
   objectives: [blankObjective()],
+  stages: [],
+  preserved: null,
   tools: { allowed: ['search_knowledge', 'get_hint'] },
   finish: { when: '', max_turns: 30 },
   // 结束时机：turns=轮数收尾 / goals=目标达成 / state=状态条件 / custom=表达式
@@ -516,7 +592,72 @@ const saveError = ref('')
 const toast = ref('')
 const templates = ref([])
 const templateId = ref('')
+const aiIdea = ref('')
+const generatingDraft = ref(false)
 let toastTimer = null
+
+async function handleGenerateSceneDraft() {
+  const idea = aiIdea.value.trim()
+  if (!idea || generatingDraft.value) return
+  generatingDraft.value = true
+  try {
+    const { data } = await generateSceneDraft({
+      idea,
+      difficulty: form.value.meta.difficulty || 'normal',
+    })
+    const d = data?.draft
+    if (d) {
+      form.value.meta.name = d.name || form.value.meta.name
+      if (!form.value.meta.id) {
+        form.value.meta.id = `scene_${Date.now().toString(36)}`
+      }
+      const catMap = { travel: 'daily', interview: 'career', campus: 'academic' }
+      const allowedCats = new Set(['daily', 'business', 'career', 'academic', 'custom'])
+      const mappedCat = catMap[d.category] || d.category
+      form.value.meta.category = allowedCats.has(mappedCat) ? mappedCat : (form.value.meta.category || 'daily')
+      form.value.meta.difficulty = d.difficulty || form.value.meta.difficulty || 'normal'
+      const allowedModes = new Set(['conversation', 'interview'])
+      form.value.meta.mode = allowedModes.has(d.mode) ? d.mode : (form.value.meta.mode || 'conversation')
+      form.value.meta.description = d.description || ''
+      const roleData = d.role || {}
+      form.value.roles = [{
+        id: 'ai_role',
+        display_name: roleData.display_name || 'Alex',
+        title: roleData.title || '对话伙伴',
+        personality: [roleData.persona, roleData.style].filter(Boolean).join('；'),
+        avatar: form.value.roles?.[0]?.avatar || '',
+        voice: form.value.roles?.[0]?.voice || 'sonia',
+      }]
+      form.value.prompt.greeting = d.opening || ''
+      form.value.promptDesc = d.description || ''
+      form.value.promptRules = Array.isArray(d.rules)
+        ? d.rules.map((t) => ({ text: typeof t === 'string' ? t : (t?.text || '') })).filter((r) => r.text)
+        : []
+      if (Array.isArray(d.objectives) && d.objectives.length) {
+        form.value.objectives = d.objectives.map((o) => ({
+          ...blankObjective(),
+          label: o.label || o.description || '',
+        }))
+      }
+      if (Array.isArray(d.stages) && d.stages.length) {
+        form.value.stages = d.stages.slice(0, 8).map((s, idx) => ({
+          id: s.id || `stage_${idx + 1}`,
+          name: s.name || `阶段 ${idx + 1}`,
+          guidance: s.guidance || '',
+          exit_when: s.exit_when || '',
+        }))
+      }
+      if (Array.isArray(d.domain_keywords) && d.domain_keywords.length) {
+        tagsText.value = d.domain_keywords.slice(0, 6).join(', ')
+      }
+      notify('已生成场景参数，可继续在各步骤微调')
+    }
+  } catch (err) {
+    notify(err?.message || 'AI 生成场景参数失败，请稍后重试')
+  } finally {
+    generatingDraft.value = false
+  }
+}
 
 const notify = (message) => {
   toast.value = message
@@ -528,8 +669,12 @@ function goBack() {
   router.push({ name: 'scenes' })
 }
 
-function addRole() {
-  form.value.roles.push({ id: '', display_name: '', title: '', personality: '', voice: '' })
+const avatarOptions = ref([...FALLBACK_AVATARS])
+const voiceOptions = ref([...FALLBACK_VOICES])
+
+function addStage() {
+  if (form.value.stages.length >= 8) return
+  form.value.stages.push({ id: `stage_${form.value.stages.length + 1}`, name: '', guidance: '', exit_when: '' })
 }
 
 // ---- 对话指引：引导模式（结构化输入 → 拼装 System Prompt）与高级模式互转 ----
@@ -819,10 +964,14 @@ function fillForm(pkg) {
   form.value = {
     meta: {
       ...pkg.meta,
+      mode: pkg.meta.mode === 'debate' ? 'conversation' : (pkg.meta.mode || 'conversation'),
       // 难度统一为中文三档展示（旧 CEFR 值按首字母归档）
       difficulty: normalizeDifficulty(pkg.meta.difficulty),
     },
-    roles: pkg.roles.map((role) => ({ ...role })),
+    roles: (() => {
+      const primary = (pkg.roles || []).find((r) => !r.backstage) || pkg.roles?.[0] || { id: '', display_name: '', title: '', personality: '', avatar: '', voice: '' }
+      return [{ avatar: '', voice: '', ...primary }]
+    })(),
     prompt: {
       system: pkg.prompt.system,
       greeting: pkg.prompt.greeting || '',
@@ -834,6 +983,19 @@ function fillForm(pkg) {
     promptDesc: '',
     promptRules: [],
     objectives: (pkg.objectives || []).map((objective) => ({ ...blankObjective(), label: objective.label, ...parseCheck(objective.check) })),
+    stages: (pkg.stages || []).map((s) => ({
+      id: s.id || '',
+      name: s.name || '',
+      guidance: s.guidance || '',
+      exit_when: s.exit_when || '',
+    })),
+    preserved: {
+      knowledge: pkg.knowledge ? JSON.parse(JSON.stringify(pkg.knowledge)) : undefined,
+      evaluation: pkg.evaluation ? JSON.parse(JSON.stringify(pkg.evaluation)) : undefined,
+      guardrails: pkg.guardrails ? JSON.parse(JSON.stringify(pkg.guardrails)) : undefined,
+      avatar: pkg.avatar ? JSON.parse(JSON.stringify(pkg.avatar)) : undefined,
+      toolsConfig: pkg.tools?.config ? JSON.parse(JSON.stringify(pkg.tools.config)) : undefined,
+    },
     tools: { allowed: [...(pkg.tools?.allowed || [])] },
     finish: { when: pkg.finish?.when || '', max_turns: pkg.finish?.max_turns || 30 },
     finishMode: finish.mode,
@@ -883,6 +1045,13 @@ onMounted(async () => {
         return
       }
     }
+    const [avRes, vRes] = await Promise.allSettled([listAvatars(), listVoices()])
+    if (avRes.status === 'fulfilled' && Array.isArray(avRes.value) && avRes.value.length) {
+      avatarOptions.value = avRes.value
+    }
+    if (vRes.status === 'fulfilled' && Array.isArray(vRes.value) && vRes.value.length) {
+      voiceOptions.value = vRes.value
+    }
     await loadTemplates()
   } finally {
     finishLoading()
@@ -905,13 +1074,16 @@ function buildPackage() {
     description: form.value.meta.description.trim(),
     category: form.value.meta.category,
     mode: form.value.meta.mode,
-    version: 2,
+    version: Number(form.value.meta.version) || 2,
   }
   if (form.value.meta.difficulty?.trim()) meta.difficulty = form.value.meta.difficulty.trim()
+  if (form.value.meta.compat) meta.compat = form.value.meta.compat
+  if (form.value.meta.author) meta.author = form.value.meta.author
   if (tags.length) meta.tags = tags.slice(0, 8)
 
   const roles = form.value.roles
     .filter((role) => role.display_name.trim() || role.id.trim())
+    .slice(0, 1)
     .map((role, index) => {
       const item = {
         id: role.id.trim() || `role_${index + 1}`,
@@ -919,6 +1091,8 @@ function buildPackage() {
       }
       if (role.title.trim()) item.title = role.title.trim()
       if (role.personality.trim()) item.personality = role.personality.trim()
+      if (role.avatar?.trim()) item.avatar = role.avatar.trim()
+      if (role.voice?.trim()) item.voice = role.voice.trim()
       return item
     })
 
@@ -935,6 +1109,18 @@ function buildPackage() {
       return item
     })
 
+  const stages = (form.value.stages || [])
+    .filter((s) => s.name?.trim())
+    .slice(0, 8)
+    .map((s, index) => {
+      const cleanId = (s.id || '').trim().toLowerCase().replace(/[^a-z0-9_]/g, '_')
+      const validId = /^[a-z][a-z0-9_]{0,29}$/.test(cleanId) ? cleanId : `stage_${index + 1}`
+      const item = { id: validId, name: s.name.trim() }
+      if (s.guidance?.trim()) item.guidance = s.guidance.trim()
+      if (s.exit_when?.trim()) item.exit_when = s.exit_when.trim()
+      return item
+    })
+
   // 初始状态：简单模式由行构建；高级模式解析 JSON（非法时交给后端给可解释错误）
   const state = form.value.stateAdvanced
     ? (() => {
@@ -946,7 +1132,7 @@ function buildPackage() {
       })()
     : stateFromRows(form.value.stateRows)
 
-  return {
+  const pkgOut = {
     meta,
     roles: roles.length ? roles : [{ id: 'assistant', display_name: 'Assistant' }],
     prompt: {
@@ -955,10 +1141,19 @@ function buildPackage() {
       params,
     },
     objectives,
+    stages,
     state,
-    tools: { allowed: [...form.value.tools.allowed], config: {} },
+    tools: {
+      allowed: [...form.value.tools.allowed],
+      config: form.value.preserved?.toolsConfig ? { ...form.value.preserved.toolsConfig } : {},
+    },
     finish: buildFinish(),
   }
+  if (form.value.preserved?.knowledge) pkgOut.knowledge = form.value.preserved.knowledge
+  if (form.value.preserved?.evaluation) pkgOut.evaluation = form.value.preserved.evaluation
+  if (form.value.preserved?.guardrails) pkgOut.guardrails = form.value.preserved.guardrails
+  if (form.value.preserved?.avatar) pkgOut.avatar = form.value.preserved.avatar
+  return pkgOut
 }
 
 // 用户输入的值 → 表达式字面量：true/false/数字原样，其余加双引号
@@ -998,11 +1193,49 @@ function buildFinish() {
   return { when: when || `turn_count >= ${maxTurns}`, max_turns: maxTurns }
 }
 
+const showRawJson = ref(false)
+const CATEGORY_LABEL_MAP = { daily: '日常沟通', business: '职场沟通', career: '求职训练', academic: '学术场景', custom: '自定义' }
+const MODE_LABEL_MAP = { conversation: '任务对话', interview: '1v1 模拟面试' }
+const DIFF_LABEL_MAP = { entry: '入门', easy: '简单', normal: '普通', hard: '困难', expert: '专家' }
+
 const packagePreview = computed(() => {
   try {
     return JSON.stringify(buildPackage(), null, 2)
   } catch {
     return '// state JSON 尚未合法，修正后可预览完整包结构'
+  }
+})
+
+const parsedPackageSummary = computed(() => {
+  try {
+    const pkg = buildPackage()
+    const role = (pkg.roles || [])[0]
+    const roleLabel = role ? `${role.name}${role.title ? `（${role.title}）` : ''}` : '未设置'
+    const stagesLabel = (pkg.stages || []).length
+      ? pkg.stages.map((s) => s.name || s.id).filter(Boolean).join(' → ')
+      : '自由对话（无分阶段）'
+    const objItems = (pkg.objectives || []).map((o) => o.label).filter(Boolean)
+    const objectivesLabel = objItems.length ? `${objItems.length} 项：${objItems.join('、')}` : '未设置'
+    const toolNames = (pkg.tools?.allowed || []).map((id) => TOOLS.find((t) => t.id === id)?.name || id)
+    const toolsLabel = toolNames.length ? `${toolNames.length} 项（${toolNames.join('、')}）` : '未启用'
+    const stateKeysList = Object.keys(pkg.state || {})
+    const stateLabel = stateKeysList.length ? stateKeysList.join(', ') : '无'
+    const docsCount = isEdit.value ? (form.value.documents?.length || 0) : (pendingFiles.value?.length || 0)
+    return {
+      id: pkg.meta?.id || '',
+      name: pkg.meta?.name || '',
+      categoryLabel: CATEGORY_LABEL_MAP[pkg.meta?.category] || pkg.meta?.category || '自定义',
+      modeLabel: MODE_LABEL_MAP[pkg.meta?.mode] || pkg.meta?.mode || '任务对话',
+      difficultyLabel: DIFF_LABEL_MAP[pkg.meta?.difficulty] || pkg.meta?.difficulty || '普通',
+      roleLabel,
+      stagesLabel,
+      objectivesLabel,
+      toolsLabel,
+      stateLabel,
+      docsLabel: `${docsCount} 份文档`,
+    }
+  } catch {
+    return null
   }
 })
 
@@ -1181,6 +1414,19 @@ async function removeDocument(doc) {
 .cover-actions .field-hint { flex: 1 1 100%; margin: 0; }
 
 .role-card, .objective-card { position: relative; padding: 12px; margin-bottom: 9px; border: 1px solid var(--line); border-radius: 10px; background: #fbfbfd; }
+.objective-card { padding: 14px 40px 14px 14px; }
+.objective-card .field-grid.two { align-items: end; }
+.objective-card .cond-row { margin-top: 10px; }
+.objective-card .field input,
+.objective-card .field select,
+.objective-card .cond-row input,
+.objective-card .cond-row select,
+.objective-card > select,
+.objective-card > input { height: 38px; padding: 0 11px; box-sizing: border-box; }
+.objective-card .field select,
+.objective-card .cond-row select,
+.objective-card > select { padding-right: 30px; }
+.role-avatar-row { margin-top: 10px; }
 .role-card:last-of-type, .objective-card:last-of-type { margin-bottom: 0; }
 .role-remove { position: absolute; top: 9px; right: 9px; display: grid; width: 22px; height: 22px; place-items: center; border: 0; border-radius: 6px; background: transparent; color: var(--muted); transition: background .15s, color .15s; }
 .role-remove:hover { background: #fbf1f2; color: var(--danger); }
@@ -1271,6 +1517,10 @@ async function removeDocument(doc) {
 .role-card > select { cursor: pointer; }
 .role-card > input:focus, .role-card > select:focus { border-color: var(--brand); }
 
+.doc-head-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.doc-head-row .field-label { margin-bottom: 0; }
+.slim-upload { flex: 0 0 auto; min-height: 32px; padding: 0 12px; font-size: 12.5px; cursor: pointer; }
+.slim-upload.disabled { opacity: 0.6; pointer-events: none; }
 .doc-list { margin: 0; padding: 0; list-style: none; }
 .doc-list li { display: flex; align-items: center; gap: 8px; height: 36px; padding: 0 12px; margin-bottom: 6px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--ink-soft); font-size: 13.5px; }
 .doc-name { color: var(--ink); }
@@ -1278,6 +1528,10 @@ async function removeDocument(doc) {
 .doc-remove { display: grid; width: 24px; height: 24px; place-items: center; border: 0; border-radius: 6px; background: transparent; color: var(--muted); transition: background .15s, color .15s; }
 .doc-remove:hover { background: #fbf1f2; color: var(--danger); }
 .pkg-preview { max-height: 300px; overflow: auto; margin: 0; padding: 13px; border: 1px solid var(--line); border-radius: 10px; background: #fbfbfd; color: var(--ink-soft); font-size: 12.5px; line-height: 1.6; white-space: pre; }
+.preview-summary { display: flex; flex-direction: column; gap: 8px; }
+.preview-row { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; padding: 8px 12px; border-radius: 10px; background: #faf8ff; font-size: 13px; }
+.preview-row span { color: var(--muted); flex: 0 0 auto; }
+.preview-row b { color: var(--ink); font-weight: 600; text-align: right; word-break: break-word; }
 
 /* 底部操作栏：固定贴底（不随内容滚动），主操作按钮永远可见 */
 .editor-footer { display: flex; flex: 0 0 auto; align-items: center; justify-content: space-between; margin: 0 -28px; padding: 12px 28px; border-top: 1px solid var(--line); background: var(--surface); }
@@ -1311,4 +1565,45 @@ async function removeDocument(doc) {
 .primary-button.slim, .ghost-button { min-height: 38px; border-radius: 12px; font-weight: 650; }
 .primary-button.slim { border: 1.5px solid #8067d1; border-bottom: 4px solid #6951b8; background: #8b73dd; }
 .ghost-button { border: 1.5px solid #e9e5f1; border-bottom-width: 3px; }
+.ai-draft-card {
+  padding: 16px 18px;
+  border-radius: 16px;
+  border: 1.5px solid #dfd6f6;
+  border-bottom: 4px solid #cfc1f0;
+  background: linear-gradient(135deg, #f8f5ff 0%, #ffffff 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.ai-draft-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+.ai-draft-head strong {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13.5px;
+  color: #5b44b6;
+}
+.ai-draft-head span {
+  font-size: 12px;
+  color: #6b6480;
+}
+.ai-draft-row {
+  display: flex;
+  gap: 10px;
+}
+.ai-draft-row input {
+  flex: 1;
+  height: 38px;
+  padding: 0 12px;
+  border: 1.5px solid #dfd6f6;
+  border-radius: 11px;
+  background: #ffffff;
+  font-size: 13px;
+  color: #393451;
+}
 </style>

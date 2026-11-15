@@ -1,27 +1,74 @@
 <template>
   <!-- 场景探索：搜索 / 分类 / 来源筛选 / 场景卡（作者·封面） / 详情弹窗 / 导入导出与互动 -->
   <section v-show="trainingPhase !== 'chat'" class="scenes-page">
-    <!-- 工具行：来源筛选 + 创建/导入 -->
+    <!-- 工具行：大选择（对话/辩论） + 来源类别 + 创建/导入 -->
     <div class="scenes-toolbar">
-      <AppTabs
-        v-model="filter"
-        :options="filters.map((t) => ({ value: t.key, label: t.label, count: countFor(t.key) }))"
-        aria-label="场景来源筛选"
-      />
+      <div class="toolbar-left">
+        <div class="explore-mode-tabs compact" role="tablist" aria-label="场景探索板块">
+          <button
+            type="button"
+            role="tab"
+            class="explore-mode-tab"
+            :class="{ active: exploreMode === 'conversation' }"
+            :aria-selected="exploreMode === 'conversation'"
+            @click="exploreMode = 'conversation'"
+          >
+            <AppIcon name="messages" :size="14" />
+            <span>对话场景</span>
+            <span class="mode-count">{{ countFor('all') }}</span>
+          </button>
+          <button
+            type="button"
+            role="tab"
+            class="explore-mode-tab"
+            :class="{ active: exploreMode === 'debate' }"
+            :aria-selected="exploreMode === 'debate'"
+            @click="exploreMode = 'debate'"
+          >
+            <AppIcon name="users" :size="14" />
+            <span>多角色对话</span>
+            <span class="mode-count">{{ debateCountFor('all') }}</span>
+          </button>
+        </div>
+
+        <AppTabs
+          v-if="exploreMode === 'conversation'"
+          v-model="filter"
+          :options="filters.map((t) => ({ value: t.key, label: t.label, count: countFor(t.key) }))"
+          aria-label="场景来源筛选"
+        />
+        <AppTabs
+          v-else
+          v-model="debateSourceFilter"
+          :options="debateSourceFilters.map((t) => ({ value: t.key, label: t.label, count: debateCountFor(t.key) }))"
+          aria-label="多角色来源筛选"
+        />
+      </div>
       <div class="toolbar-actions">
-        <button class="ghost-button" type="button" @click="pickImport">
-          <AppIcon name="download" :size="14" />导入场景包
-        </button>
-        <button class="primary-button slim" type="button" @click="goCreate">
-          <AppIcon name="plus" :size="14" />新建场景
-        </button>
-        <input ref="importInput" type="file" accept=".zip" class="hidden-input" @change="handleImportFile" />
+        <template v-if="exploreMode === 'conversation'">
+          <button class="ghost-button" type="button" @click="pickImport">
+            <AppIcon name="download" :size="14" />导入场景包
+          </button>
+          <button class="primary-button slim" type="button" @click="goCreate">
+            <AppIcon name="plus" :size="14" />新建场景
+          </button>
+          <input ref="importInput" type="file" accept=".zip" class="hidden-input" @change="handleImportFile" />
+        </template>
+        <template v-else>
+          <button class="ghost-button" type="button" @click="pickDebateImport">
+            <AppIcon name="download" :size="14" />导入多角色包
+          </button>
+          <button class="primary-button slim" type="button" @click="router.push({ name: 'debate-create' })">
+            <AppIcon name="plus" :size="14" />新建多角色场景
+          </button>
+          <input ref="debateImportInput" type="file" accept=".zip,.json" class="hidden-input" @change="handleDebateImportFile" />
+        </template>
       </div>
     </div>
 
     <!-- 筛选行：分类 chips + 排序 + 搜索框 -->
     <div class="filter-row">
-      <div class="cat-chips" role="group" aria-label="场景分类筛选">
+      <div v-if="exploreMode === 'conversation'" class="cat-chips" role="group" aria-label="场景分类筛选">
         <button
           v-for="cat in CATEGORIES"
           :key="cat.key"
@@ -31,22 +78,50 @@
           @click="category = cat.key"
         >{{ cat.label }}</button>
       </div>
+      <div v-else class="cat-chips" role="group" aria-label="多角色分类筛选">
+        <button
+          v-for="cat in DEBATE_CATEGORIES"
+          :key="cat.key"
+          type="button"
+          class="cat-chip"
+          :class="{ active: debateCategory === cat.key }"
+          @click="debateCategory = cat.key"
+        >{{ cat.label }}</button>
+      </div>
+
       <div class="filter-right">
         <AppSelect
+          v-if="exploreMode === 'conversation'"
           v-model="sortBy"
           :options="SORT_OPTIONS"
           label="排序"
           aria-label="排序方式"
         />
-        <label class="search-box">
+        <AppSelect
+          v-else
+          v-model="debateSortBy"
+          :options="SORT_OPTIONS"
+          label="排序"
+          aria-label="多角色排序方式"
+        />
+        <label v-if="exploreMode === 'conversation'" class="search-box">
           <AppIcon name="search" :size="14" />
           <input v-model="keyword" type="search" placeholder="搜索场景名称、描述或标签" />
           <button v-if="keyword" class="search-clear" type="button" aria-label="清空搜索" @click="keyword = ''">
             <AppIcon name="x" :size="12" />
           </button>
         </label>
+        <label v-else class="search-box">
+          <AppIcon name="search" :size="14" />
+          <input v-model="debateKeyword" type="search" placeholder="搜索多角色场景、议题或角色设定" />
+          <button v-if="debateKeyword" class="search-clear" type="button" aria-label="清空搜索" @click="debateKeyword = ''">
+            <AppIcon name="x" :size="12" />
+          </button>
+        </label>
       </div>
     </div>
+
+    <template v-if="exploreMode === 'conversation'">
 
     <!-- 卡片网格：入场 stagger 动画 -->
     <div v-if="!initializing" class="scene-grid" key="grid">
@@ -87,7 +162,7 @@
                     {{ scene.status === 'published' ? '取消发布' : '发布到社区' }}
                   </button>
                   <div v-if="canEdit(scene)" class="menu-divider" aria-hidden="true"></div>
-                  <button v-if="canEdit(scene)" class="menu-item danger" type="button" @click.stop="deleteTarget = scene">
+                  <button v-if="canEdit(scene)" class="menu-item danger" type="button" @click.stop="menuFor = null; deleteTarget = scene">
                     <AppIcon name="trash" :size="13" />删除
                   </button>
                 </div>
@@ -134,12 +209,12 @@
                 type="button"
                 :class="{ on: scene.stats?.favorited }"
                 :aria-pressed="scene.stats?.favorited"
-                :title="session.token ? '收藏' : '登录后可收藏'"
+                :title="session.token ? '收藏并加入训练台' : '登录后可收藏'"
                 @click.stop="toggleFavorite(scene)"
               >
                 <AppIcon name="star" :size="13" />{{ scene.stats?.favorites || 0 }}
               </button>
-              <span class="stat-plain" title="下载次数"><AppIcon name="download" :size="12" />{{ scene.stats?.downloads || 0 }}</span>
+              <span class="stat-plain" title="累计训练量"><AppIcon name="target" :size="12" />{{ scene.stats?.plays || 0 }}</span>
             </div>
           </footer>
         </div>
@@ -175,6 +250,121 @@
         下一页<AppIcon name="arrow-right" :size="14" />
       </button>
     </nav>
+    </template>
+
+    <!-- 板块二：多角色对话场景 -->
+    <template v-else>
+      <div v-if="!initializing" class="scene-grid debate-explore-grid">
+        <article
+          v-for="(topic, index) in filteredDebateTopics"
+          :key="topic.id"
+          class="scene-card"
+          :style="{ animationDelay: `${Math.min(index, 8) * 45}ms` }"
+          @click="openDebateDetail(topic)"
+        >
+          <SceneCover :scene="debateCoverModel(topic)" :category-label="topic.categoryLabel || (topic.sceneType === 'panel' ? '多人对话' : '正反辩论')" />
+          <div class="card-body">
+            <header class="card-head">
+              <span class="mode-chip" :data-mode="topic.sceneType || 'debate'">
+                <AppIcon :name="topic.sceneType === 'panel' ? 'users' : 'sparkles'" :size="13" />
+                {{ topic.sceneType === 'panel' ? '多人对话' : '正反辩论' }}
+              </span>
+              <span class="source-chip" :class="topic.isBuiltin !== false ? 'builtin' : topic.status">
+                <AppIcon :name="topic.isBuiltin !== false ? 'check' : topic.status === 'published' ? 'globe' : 'lock'" :size="12" />
+                {{ topic.isBuiltin !== false ? '内置' : topic.status === 'published' ? '已发布' : '本地' }}
+              </span>
+              <div class="card-menu-anchor">
+                <button class="menu-trigger" type="button" :aria-label="`多角色场景 ${topic.titleZh} 的更多操作`" @click.stop="toggleDebateMenu(topic)">
+                  <AppIcon name="dots" :size="15" />
+                </button>
+                <transition name="pop">
+                  <div v-if="debateMenuFor === topic.id" class="card-menu" role="menu" @click.stop>
+                    <button v-if="canEditDebate(topic)" class="menu-item" type="button" @click="goEditDebate(topic)">
+                      <AppIcon name="pencil" :size="13" />编辑
+                    </button>
+                    <button v-if="session.token" class="menu-item" type="button" @click="doDuplicateDebate(topic)">
+                      <AppIcon name="copy" :size="13" />复制为我的场景
+                    </button>
+                    <button class="menu-item" type="button" @click="doExportDebate(topic)">
+                      <AppIcon name="upload" :size="13" />导出 ZIP
+                    </button>
+                    <button v-if="canEditDebate(topic)" class="menu-item" type="button" @click="doPublishDebateToggle(topic)">
+                      <AppIcon :name="topic.status === 'published' ? 'lock' : 'send'" :size="13" />
+                      {{ topic.status === 'published' ? '取消发布' : '发布到社区' }}
+                    </button>
+                    <div v-if="canEditDebate(topic)" class="menu-divider" aria-hidden="true"></div>
+                    <button v-if="canEditDebate(topic)" class="menu-item danger" type="button" @click.stop="askDeleteDebate(topic)">
+                      <AppIcon name="trash" :size="13" />删除
+                    </button>
+                  </div>
+                </transition>
+              </div>
+            </header>
+
+            <p class="card-desc debate-motion-en">{{ topic.motionEn }}</p>
+
+            <div class="card-tags">
+              <span
+                v-for="expr in (topic.keyExpressions || []).slice(0, 3)"
+                :key="expr"
+                class="tag-chip"
+              >{{ expr }}</span>
+              <template v-if="!(topic.keyExpressions && topic.keyExpressions.length)">
+                <span v-if="topic.sceneType === 'panel' && topic.userRoleLabel" class="tag-chip">我的身份 · {{ topic.userRoleLabel }}</span>
+                <span v-else class="tag-chip">正方 · {{ topic.proSummary }}</span>
+              </template>
+            </div>
+
+            <div class="card-author">
+              <img v-if="topic.isBuiltin !== false" class="avatar-logo" :src="brandImage" alt="EchoTalk" />
+              <UserAvatar v-else :user="{ username: topic.authorName || '学习者' }" :size="22" />
+              <span class="author-name">{{ topic.authorName || 'EchoTalk 官方' }}</span>
+              <span class="diff-chip" :class="debateDiffClass(topic.difficulty)">{{ topic.difficultyLabel || '进阶' }}</span>
+            </div>
+
+            <footer class="card-foot">
+              <div class="card-meta">
+                <span class="meta-item">
+                  <AppIcon name="clock" :size="12" />{{ topic.duration || '8 分钟' }}
+                </span>
+                <span class="meta-item">
+                  <AppIcon :name="topic.roles?.length > 1 ? 'users' : 'user'" :size="12" />
+                  {{ topic.roles?.length ? topic.roles.map((r) => r.name).join(' · ') : (topic.opponentName || 'Sonia') }}
+                </span>
+              </div>
+              <div class="card-stats">
+                <button
+                  class="stat-button like"
+                  type="button"
+                  :class="{ on: topic.stats?.liked }"
+                  :aria-pressed="topic.stats?.liked"
+                  :title="session.token ? '点赞' : '登录后可点赞'"
+                  @click.stop="toggleDebateLike(topic)"
+                >
+                  <AppIcon name="heart" :size="13" />{{ topic.stats?.likes || 0 }}
+                </button>
+                <button
+                  class="stat-button fav"
+                  type="button"
+                  :class="{ on: topic.stats?.favorited }"
+                  :aria-pressed="topic.stats?.favorited"
+                  :title="session.token ? '收藏并加入训练台' : '登录后可收藏'"
+                  @click.stop="toggleDebateFavorite(topic)"
+                >
+                  <AppIcon name="star" :size="13" />{{ topic.stats?.favorites || 0 }}
+                </button>
+                <span class="stat-plain" title="累计训练量"><AppIcon name="target" :size="12" />{{ topic.stats?.plays || 0 }}</span>
+              </div>
+            </footer>
+          </div>
+        </article>
+        <div v-if="!filteredDebateTopics.length" class="scenes-empty">
+          <div class="empty-icon"><AppIcon name="users" :size="22" /></div>
+          <h3>没有匹配的多角色场景</h3>
+          <p>尝试更换关键词或前往多角色对话工作台新建自定义场景。</p>
+        </div>
+      </div>
+    </template>
 
     <!-- 全局骨架：首屏加载（独立条件，避免与分页器的 v-if 串联） -->
     <div v-if="initializing" class="scene-grid" aria-busy="true" aria-label="正在加载场景">
@@ -235,6 +425,16 @@
               </div>
             </div>
 
+            <!-- 对话流程 -->
+            <div v-if="detail.package?.stages?.length" class="detail-section">
+              <h4>对话流程（{{ detail.package.stages.length }}）</h4>
+              <ul class="objective-list">
+                <li v-for="stage in detail.package.stages" :key="stage.id">
+                  <AppIcon name="arrow-right" :size="13" />{{ stage.name }}
+                </li>
+              </ul>
+            </div>
+
             <!-- 训练目标 -->
             <div v-if="detail.package?.objectives?.length" class="detail-section">
               <h4>训练目标（{{ detail.package.objectives.length }}）</h4>
@@ -243,6 +443,14 @@
                   <AppIcon name="target" :size="13" />{{ objective.label }}
                 </li>
               </ul>
+            </div>
+
+            <!-- 启用工具 -->
+            <div v-if="detail.package?.tools?.allowed?.length" class="detail-section">
+              <h4>启用工具（{{ detail.package.tools.allowed.length }}）</h4>
+              <div class="card-tags">
+                <span v-for="toolId in detail.package.tools.allowed" :key="toolId" class="tag-chip">{{ toolLabel(toolId) }}</span>
+              </div>
             </div>
 
             <!-- 知识资料 -->
@@ -258,13 +466,25 @@
           </div>
 
           <!-- 底部操作栏：滚动容器外层，固定贴底不随内容滚动 -->
+          <div v-if="favRequiredHint && !detail.stats?.favorited" class="detail-fav-hint" role="alert">
+            <AppIcon name="star" :size="14" />
+            <span>请先点击下方「收藏」按钮收藏该场景，然后再开始训练。</span>
+          </div>
           <footer class="detail-foot">
             <div class="detail-stats">
-              <span class="stat-plain"><AppIcon name="heart" :size="13" />{{ detail.stats?.likes || 0 }}</span>
-              <span class="stat-plain"><AppIcon name="star" :size="13" />{{ detail.stats?.favorites || 0 }}</span>
-              <span class="stat-plain"><AppIcon name="download" :size="13" />{{ detail.stats?.downloads || 0 }}</span>
+              <span class="stat-plain" title="喜欢"><AppIcon name="heart" :size="13" />{{ detail.stats?.likes || 0 }}</span>
+              <span class="stat-plain" title="收藏"><AppIcon name="star" :size="13" />{{ detail.stats?.favorites || 0 }}</span>
+              <span class="stat-plain" title="训练量"><AppIcon name="target" :size="13" />{{ detail.stats?.plays || 0 }}</span>
             </div>
             <div class="detail-actions">
+              <button
+                class="ghost-button"
+                :class="{ 'fav-active': detail.stats?.favorited }"
+                type="button"
+                @click="toggleFavorite(detail)"
+              >
+                <AppIcon name="star" :size="13" />{{ detail.stats?.favorited ? '已收藏' : '收藏' }}
+              </button>
               <button v-if="canEdit(detail)" class="ghost-button" type="button" @click="goEdit(detail); detail = null">
                 <AppIcon name="pencil" :size="13" />编辑
               </button>
@@ -283,16 +503,173 @@
       </div>
     </transition>
 
+    <!-- 多角色详情弹窗 -->
+    <transition name="fade">
+      <div v-if="debateDetail" class="modal-backdrop" @click.self="debateDetail = null">
+        <div class="detail-card" role="dialog" aria-modal="true" :aria-label="`${debateDetail.titleZh} 详情`">
+          <button class="detail-close" type="button" aria-label="关闭详情" @click="debateDetail = null">
+            <AppIcon name="x" :size="15" />
+          </button>
+          <div v-if="debateDetail.coverUrl" class="detail-cover">
+            <img :src="debateCoverUrl(debateDetail.id)" alt="" @error="debateDetail.coverUrl = ''" />
+          </div>
+          <div class="detail-content">
+            <header class="detail-head">
+              <h3>{{ debateDetail.titleZh }}</h3>
+              <div class="detail-chips">
+                <span class="mode-chip" :data-mode="debateDetail.sceneType || 'debate'">
+                  <AppIcon :name="debateDetail.sceneType === 'panel' ? 'users' : 'sparkles'" :size="13" />
+                  {{ debateDetail.sceneType === 'panel' ? '多人对话 / 群面' : '正反辩论对抗' }}
+                </span>
+                <span class="diff-chip" :class="debateDiffClass(debateDetail.difficulty)">{{ debateDetail.difficultyLabel || '进阶' }}</span>
+                <span class="cat-chip-static">{{ debateDetail.categoryLabel || '科技伦理' }}</span>
+                <span class="source-chip" :class="debateDetail.isBuiltin !== false ? 'builtin' : debateDetail.status">
+                  <AppIcon :name="debateDetail.isBuiltin !== false ? 'check' : debateDetail.status === 'published' ? 'globe' : 'lock'" :size="12" />
+                  {{ debateDetail.isBuiltin !== false ? '内置' : debateDetail.status === 'published' ? '已发布' : '本地' }}
+                </span>
+              </div>
+              <div class="card-author">
+                <img v-if="debateDetail.isBuiltin !== false" class="avatar-logo" :src="brandImage" alt="EchoTalk" />
+                <UserAvatar v-else :user="{ username: debateDetail.authorName || '学习者' }" :size="22" />
+                <span class="author-name">{{ debateDetail.authorName || 'EchoTalk 官方' }}</span>
+                <span class="author-date" v-if="debateDetail.createdAt">创建于 {{ formatDate(debateDetail.createdAt) }}</span>
+              </div>
+            </header>
+
+            <p class="detail-desc">{{ debateDetail.motionEn }}</p>
+            <p v-if="debateDetail.backgroundContext" class="detail-desc muted-ctx">{{ debateDetail.backgroundContext }}</p>
+
+            <div v-if="debateDetail.keyExpressions?.length" class="card-tags">
+              <span v-for="expr in debateDetail.keyExpressions" :key="expr" class="tag-chip">{{ expr }}</span>
+            </div>
+
+            <div class="detail-section">
+              <h4>{{ debateDetail.sceneType === 'panel' ? '参与身份与讨论焦点' : '正反方核心立场' }}</h4>
+              <div v-if="debateDetail.sceneType === 'panel'" class="role-grid">
+                <div class="role-item">
+                  <span class="role-name">我的身份</span>
+                  <span class="role-title">{{ debateDetail.userRoleLabel || 'Candidate' }}</span>
+                </div>
+                <div class="role-item">
+                  <span class="role-name">核心目标</span>
+                  <span class="role-title">{{ debateDetail.proSummary || debateDetail.motionEn }}</span>
+                </div>
+                <div v-if="debateDetail.conSummary" class="role-item">
+                  <span class="role-name">重点考察 / 压力点</span>
+                  <span class="role-title">{{ debateDetail.conSummary }}</span>
+                </div>
+              </div>
+              <div v-else class="role-grid">
+                <div class="role-item">
+                  <span class="role-name">正方立场</span>
+                  <span class="role-title">{{ debateDetail.proSummary || '支持该辩题核心主张' }}</span>
+                </div>
+                <div class="role-item">
+                  <span class="role-name">反方立场</span>
+                  <span class="role-title">{{ debateDetail.conSummary || '质疑并反驳该辩题主张' }}</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="detail-section">
+              <h4>
+                {{
+                  debateDetail.roles?.length
+                    ? `AI 多角色席位（${debateDetail.roles.length} 位）`
+                    : 'AI 对手设定'
+                }}
+              </h4>
+              <div v-if="debateDetail.roles?.length" class="role-grid">
+                <div v-for="role in debateDetail.roles" :key="role.key || role.name" class="role-item">
+                  <span class="role-name">{{ role.name }}</span>
+                  <span class="role-title">{{ role.title || '对话角色' }}{{ role.focus ? ` · ${role.focus}` : '' }}</span>
+                </div>
+              </div>
+              <div v-else class="role-grid">
+                <div class="role-item">
+                  <span class="role-name">{{ debateDetail.opponentName || 'Sonia' }}</span>
+                  <span class="role-title">{{ debateDetail.opponentTitle || '对手辩手' }}</span>
+                </div>
+                <div v-if="debateDetail.opponentPersona" class="role-item">
+                  <span class="role-name">交锋风格</span>
+                  <span class="role-title">{{ debateDetail.opponentPersona }}</span>
+                </div>
+              </div>
+            </div>
+
+            <div v-if="debateDetail.stages?.length" class="detail-section">
+              <h4>对话流程（{{ debateDetail.stages.length }}）</h4>
+              <ul class="objective-list">
+                <li v-for="stage in debateDetail.stages" :key="stage.id">
+                  <AppIcon name="arrow-right" :size="13" />{{ stage.shortTag ? `${stage.shortTag} · ${stage.label}` : stage.label }}
+                </li>
+              </ul>
+            </div>
+
+            <div v-if="debateDetail.tools?.length" class="detail-section">
+              <h4>启用工具（{{ debateDetail.tools.length }}）</h4>
+              <div class="card-tags">
+                <span v-for="toolId in debateDetail.tools" :key="toolId" class="tag-chip">{{ toolLabel(toolId) }}</span>
+              </div>
+            </div>
+
+            <div v-if="debateDetail.knowledgeDocIds?.length" class="detail-section">
+              <h4>场景资料（{{ debateDetail.knowledgeDocIds.length }}）</h4>
+              <ul class="doc-brief">
+                <li>
+                  <AppIcon name="file-text" :size="13" />已关联 {{ debateDetail.knowledgeDocIds.length }} 份个人知识库文档
+                </li>
+              </ul>
+            </div>
+          </div>
+
+          <div v-if="favRequiredHint && !debateDetail.stats?.favorited" class="detail-fav-hint" role="alert">
+            <AppIcon name="star" :size="14" />
+            <span>请先点击下方「收藏」按钮收藏该场景，然后再开始训练。</span>
+          </div>
+          <footer class="detail-foot">
+            <div class="detail-stats">
+              <span class="stat-plain" title="喜欢"><AppIcon name="heart" :size="13" />{{ debateDetail.stats?.likes || 0 }}</span>
+              <span class="stat-plain" title="收藏"><AppIcon name="star" :size="13" />{{ debateDetail.stats?.favorites || 0 }}</span>
+              <span class="stat-plain" title="训练量"><AppIcon name="target" :size="13" />{{ debateDetail.stats?.plays || 0 }}</span>
+            </div>
+            <div class="detail-actions">
+              <button
+                class="ghost-button"
+                :class="{ 'fav-active': debateDetail.stats?.favorited }"
+                type="button"
+                @click="toggleDebateFavorite(debateDetail)"
+              >
+                <AppIcon name="star" :size="13" />{{ debateDetail.stats?.favorited ? '已收藏' : '收藏' }}
+              </button>
+              <button v-if="canEditDebate(debateDetail)" class="ghost-button" type="button" @click="goEditDebate(debateDetail); debateDetail = null">
+                <AppIcon name="pencil" :size="13" />编辑
+              </button>
+              <button v-if="session.token" class="ghost-button" type="button" @click="doDuplicateDebate(debateDetail); debateDetail = null">
+                <AppIcon name="copy" :size="13" />复制
+              </button>
+              <button class="ghost-button" type="button" @click="doExportDebate(debateDetail)">
+                <AppIcon name="upload" :size="13" />导出
+              </button>
+              <button class="primary-button slim" type="button" @click="openDebateTopic(debateDetail)">
+                <AppIcon :name="debateDetail.sceneType === 'panel' ? 'users' : 'sparkles'" :size="13" />开始训练
+              </button>
+            </div>
+          </footer>
+        </div>
+      </div>
+    </transition>
+
     <!-- 删除确认弹窗 -->
     <transition name="fade">
       <div v-if="deleteTarget" class="modal-backdrop" @click.self="deleteTarget = null">
         <div class="modal-card" role="alertdialog" aria-modal="true" aria-label="删除确认">
           <div class="modal-icon danger"><AppIcon name="trash" :size="18" /></div>
-          <h3>删除「{{ deleteTarget.name }}」？</h3>
-          <p>场景的配置与知识资料会被移除；已开始的训练记录保留快照，此操作无法撤销。</p>
+          <h3>删除「{{ deleteTarget._isDebate ? deleteTarget.titleZh : deleteTarget.name }}」？</h3>
+          <p>{{ deleteTarget._isDebate ? '该多角色场景的配置会被移除；已开始的训练记录保留快照，此操作无法撤销。' : '场景的配置与知识资料会被移除；已开始的训练记录保留快照，此操作无法撤销。' }}</p>
           <div class="modal-actions">
             <button class="ghost-button" type="button" @click="deleteTarget = null">取消</button>
-            <button class="danger-button" type="button" @click="doDelete">确认删除</button>
+            <button class="danger-button" type="button" @click="confirmDeleteTarget">确认删除</button>
           </div>
         </div>
       </div>
@@ -329,7 +706,7 @@
 
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import brandImage from '../assets/echotalk-brand.png'
 import UserAvatar from '../components/UserAvatar.vue'
 import AppIcon from '../components/AppIcon.vue'
@@ -343,12 +720,24 @@ import {
   coverUrl, deleteScene, duplicateScene, exportScene, favoriteScene, getScene, importScene,
   likeScene, listScenes, publishScene, unpublishScene,
 } from '../api/scenes'
+import {
+  debateCoverUrl,
+  deleteDebateTopic,
+  duplicateDebateTopic,
+  exportDebateTopic,
+  favoriteDebateTopic,
+  importDebateTopic,
+  likeDebateTopic,
+  listDebateTopics,
+  publishDebateTopic,
+  unpublishDebateTopic,
+} from '../api/debate'
 
 // 场景模式 → 图标与中文标签（卡片左上角徽标）
 const MODE_META = {
   conversation: { icon: 'messages', label: '对话' },
   interview: { icon: 'briefcase', label: '面试' },
-  debate: { icon: 'messages', label: '辩论' },
+  debate: { icon: 'users', label: '多角色' },
 }
 const modeIcon = (mode) => MODE_META[mode]?.icon || 'messages'
 const modeLabel = (mode) => MODE_META[mode]?.label || mode
@@ -368,13 +757,237 @@ const categoryLabel = (key) => CATEGORIES.find((cat) => cat.key === key)?.label 
 const filters = [
   { key: 'all', label: '全部' },
   { key: 'builtin', label: '内置' },
-  { key: 'mine', label: '我的' },
   { key: 'community', label: '社区' },
   { key: 'favorited', label: '收藏' },
+  { key: 'mine', label: '我的' },
 ]
 
+const route = useRoute()
 const router = useRouter()
+const exploreMode = ref(route.query?.tab === 'debate' ? 'debate' : 'conversation')
+watch(() => route.query?.tab, (tab) => {
+  if (tab === 'debate') exploreMode.value = 'debate'
+  else if (tab === 'conversation') exploreMode.value = 'conversation'
+})
 const items = ref([])
+const debateTopics = ref([])
+const debateSourceFilter = ref('all')
+const debateMenuFor = ref(null)
+const debateSourceFilters = [
+  { key: 'all', label: '全部' },
+  { key: 'builtin', label: '内置' },
+  { key: 'community', label: '社区' },
+  { key: 'favorited', label: '收藏' },
+  { key: 'mine', label: '我的' },
+]
+function matchesDebateSource(topic, key) {
+  if (key === 'builtin') return topic.isBuiltin !== false
+  if (key === 'mine') return Boolean(topic.isMine)
+  if (key === 'community') return topic.isBuiltin === false && !topic.isMine && topic.status === 'published'
+  if (key === 'favorited') return Boolean(topic.stats?.favorited)
+  return topic.isBuiltin !== false || topic.status === 'published'
+}
+const debateCountFor = (key) => debateTopics.value.filter((t) => matchesDebateSource(t, key)).length
+const debateCategory = ref('all')
+const debateKeyword = ref('')
+const debateSortBy = ref('hot')
+const DEBATE_CATEGORIES = [
+  { key: 'all', label: '全部' },
+  { key: 'tech', label: '科技伦理' },
+  { key: 'workplace', label: '职场文化' },
+  { key: 'education', label: '教育成长' },
+  { key: 'society', label: '社会生活' },
+]
+const debateHotScore = (t) => (t.stats?.likes || 0) * 3 + (t.stats?.favorites || 0) * 2 + (t.stats?.plays || 0)
+const debateCreatedTs = (t) => {
+  const ts = new Date(t.createdAt || t.created_at || 0).getTime()
+  return Number.isFinite(ts) ? ts : 0
+}
+const filteredDebateTopics = computed(() => {
+  const q = debateKeyword.value.trim().toLowerCase()
+  const list = debateTopics.value.filter((t) => {
+    if (!matchesDebateSource(t, debateSourceFilter.value)) return false
+    if (debateCategory.value !== 'all' && t.category !== debateCategory.value) return false
+    if (!q) return true
+    return [
+      t.titleZh,
+      t.motionEn,
+      t.userRoleLabel,
+      t.opponentName,
+      t.opponentTitle,
+      t.proSummary,
+      t.conSummary,
+      ...(t.roles || []).flatMap((r) => [r.name, r.title]),
+    ]
+      .filter(Boolean)
+      .some((f) => String(f).toLowerCase().includes(q))
+  })
+  if (debateSortBy.value === 'hot') {
+    return [...list].sort((a, b) => debateHotScore(b) - debateHotScore(a) || debateCreatedTs(b) - debateCreatedTs(a))
+  }
+  if (debateSortBy.value === 'plays') {
+    return [...list].sort((a, b) => (b.stats?.plays || 0) - (a.stats?.plays || 0) || debateHotScore(b) - debateHotScore(a))
+  }
+  if (debateSortBy.value === 'newest') {
+    return [...list].sort((a, b) => debateCreatedTs(b) - debateCreatedTs(a))
+  }
+  if (debateSortBy.value === 'favorites') {
+    return [...list].sort((a, b) => (b.stats?.favorites || 0) - (a.stats?.favorites || 0) || debateHotScore(b) - debateHotScore(a))
+  }
+  if (debateSortBy.value === 'difficulty') {
+    const order = { beginner: 0, intermediate: 1, advanced: 2 }
+    return [...list].sort((a, b) => (order[a.difficulty] ?? 1) - (order[b.difficulty] ?? 1))
+  }
+  return list
+})
+function toggleDebateMenu(topic) {
+  debateMenuFor.value = debateMenuFor.value === topic.id ? null : topic.id
+}
+function goEditDebate(topic) {
+  debateMenuFor.value = null
+  router.push({ name: 'debate-edit', params: { id: topic.id } })
+}
+async function toggleDebateLike(topic) {
+  if (!session.token) return notify('点赞需要先登录，点击左下角账户卡片登录。')
+  try {
+    const { data } = await likeDebateTopic(topic.id)
+    topic.stats = { ...(topic.stats || {}), liked: data.liked, likes: data.likes }
+  } catch (err) {
+    notify(err?.message || '点赞失败')
+  }
+}
+async function toggleDebateFavorite(topic) {
+  if (!session.token) return notify('收藏需要先登录，点击左下角账户卡片登录。')
+  try {
+    const { data } = await favoriteDebateTopic(topic.id)
+    topic.stats = { ...(topic.stats || {}), favorited: data.favorited, favorites: data.favorites }
+  } catch (err) {
+    notify(err?.message || '收藏失败')
+  }
+}
+async function doPublishDebateToggle(topic) {
+  debateMenuFor.value = null
+  try {
+    const fn = topic.status === 'published' ? unpublishDebateTopic : publishDebateTopic
+    const { data } = await fn(topic.id)
+    if (data?.topic) Object.assign(topic, data.topic)
+    notify(topic.status === 'published' ? '已发布到社区，其他学习者可以查看与收藏' : '已设为仅自己可见')
+  } catch (err) {
+    notify(err?.message || '操作失败')
+  }
+}
+async function doDuplicateDebate(topic) {
+  debateMenuFor.value = null
+  try {
+    const { data } = await duplicateDebateTopic(topic.id)
+    if (data?.topic) {
+      debateTopics.value.unshift(data.topic)
+      notify(`已复制为「${data.topic.titleZh}」`)
+    }
+  } catch (err) {
+    notify(err?.message || '复制失败')
+  }
+}
+function askDeleteDebate(topic) {
+  debateMenuFor.value = null
+  deleteTarget.value = { ...topic, _isDebate: true }
+}
+async function doDeleteDebate(topic) {
+  debateMenuFor.value = null
+  try {
+    await deleteDebateTopic(topic.id)
+    debateTopics.value = debateTopics.value.filter((t) => t.id !== topic.id)
+    if (debateDetail.value?.id === topic.id) debateDetail.value = null
+    notify(`已删除「${topic.titleZh}」`)
+  } catch (err) {
+    notify(err?.message || '删除失败')
+  }
+}
+async function doExportDebate(topic) {
+  debateMenuFor.value = null
+  try {
+    await exportDebateTopic(topic.id)
+    notify(`已导出「${topic.titleZh}」`)
+  } catch (err) {
+    notify(err?.message || '导出失败')
+  }
+}
+const debateImportInput = ref(null)
+function pickDebateImport() {
+  if (!session.token) return notify('导入多角色包需要先登录，点击左下角账户卡片登录。')
+  debateImportInput.value?.click()
+}
+async function handleDebateImportFile(event) {
+  const file = event.target.files?.[0]
+  event.target.value = ''
+  if (!file) return
+  try {
+    const { data } = await importDebateTopic(file)
+    if (data?.topic) {
+      debateTopics.value.unshift(data.topic)
+      debateSourceFilter.value = 'mine'
+      notify(`导入成功：${data.topic.titleZh}`)
+    }
+  } catch (err) {
+    notify(err?.message || '导入多角色包失败')
+  }
+}
+const debateDetail = ref(null)
+const favRequiredHint = ref(false)
+
+function canEditDebate(topic) {
+  return Boolean(session.user && topic && topic.isBuiltin === false && topic.isMine)
+}
+
+function toolLabel(id) {
+  return {
+    search_knowledge: '知识检索',
+    get_hint: '表达提示',
+    rebuttal_hint: '回复与表达提示',
+    lookup_word: '词汇查询',
+    calculate_expression: '精确计算',
+    add_review_task: '加入复习',
+    judge_score: '实时评估评分',
+    fact_check: '事实核查追问',
+    set_state: '状态更新',
+    append_state_item: '列表追加',
+    mark_objective: '目标达成标记',
+  }[id] || id
+}
+
+function openDebateDetail(topic) {
+  debateMenuFor.value = null
+  debateDetail.value = topic
+}
+
+function openDebateTopic(topic) {
+  if (!topic?.id) return
+  if (!session.token) return notify('开始训练需要先登录，点击左下角账户卡片登录。')
+  if (!topic.stats?.favorited) {
+    favRequiredHint.value = true
+    return notify('请先收藏该多角色场景，然后再开始训练。')
+  }
+  favRequiredHint.value = false
+  debateDetail.value = null
+  router.push({ name: 'debate', query: { topic: topic.id } })
+}
+const DEBATE_COVER_CAT_MAP = {
+  tech: 'academic',
+  workplace: 'business',
+  education: 'campus',
+  society: 'daily',
+}
+function debateCoverModel(topic) {
+  return {
+    id: topic.id,
+    name: topic.titleZh,
+    category: DEBATE_COVER_CAT_MAP[topic.category] || 'academic',
+    cover_image_url: topic.coverUrl ? debateCoverUrl(topic.id) : '',
+  }
+}
+function debateDiffClass(diff) {
+  return { beginner: 'easy', intermediate: 'normal', advanced: 'hard' }[diff] || 'normal'
+}
 const initializing = ref(true)
 const filter = ref('all')
 const category = ref('all')
@@ -383,6 +996,9 @@ const menuFor = ref(null) // 当前展开菜单的场景 id
 const deleteTarget = ref(null) // 删除确认目标
 const conflict = ref(null) // { file, message }：导入 ID 冲突弹窗
 const detail = ref(null) // 详情弹窗数据（初始为卡片摘要，完整包异步并入）
+watch([detail, debateDetail], () => {
+  favRequiredHint.value = false
+})
 const toast = ref('')
 let toastTimer = null
 
@@ -392,14 +1008,14 @@ const notify = (message) => {
   toastTimer = setTimeout(() => (toast.value = ''), 2600)
 }
 
-// 来源筛选：mine=本人（含私有）；community=他人已发布；favorited=我收藏的
+// 来源筛选：all=内置+已发布；mine=本人（含私有）；community=他人已发布；favorited=我收藏的
 const isMine = (scene) => session.user && scene.source !== 'builtin' && scene.author_id === session.user.id
 const matchesSource = (scene, key) => {
   if (key === 'builtin') return scene.source === 'builtin'
   if (key === 'mine') return isMine(scene)
   if (key === 'community') return scene.source !== 'builtin' && !isMine(scene)
   if (key === 'favorited') return !!scene.stats?.favorited
-  return true
+  return scene.source === 'builtin' || scene.status === 'published'
 }
 // 每个 tab 的计数独立计算（修复：此前所有 tab 都显示当前筛选的数量）
 const countFor = (key) => items.value.filter((scene) => matchesSource(scene, key)).length
@@ -418,18 +1034,20 @@ const filteredItems = computed(() =>
   ),
 )
 
-// 排序：热度为点赞/收藏/下载的加权综合；同分按创建时间新者优先
+// 排序：热度为喜欢/收藏/训练量的加权综合；同分按创建时间新者优先
 const hotScore = (scene) =>
-  (scene.stats?.likes || 0) * 3 + (scene.stats?.favorites || 0) * 2 + (scene.stats?.downloads || 0)
+  (scene.stats?.likes || 0) * 3 + (scene.stats?.favorites || 0) * 2 + (scene.stats?.plays || 0)
 const createdTs = (scene) => {
   const ts = new Date(scene.created_at || scene.updated_at || 0).getTime()
   return Number.isFinite(ts) ? ts : 0
 }
+const DIFF_ORDER = { entry: 0, easy: 1, normal: 2, hard: 3, expert: 4 }
 const SORTERS = {
   hot: { label: '热度最高', fn: (a, b) => hotScore(b) - hotScore(a) || createdTs(b) - createdTs(a) },
+  plays: { label: '训练最多', fn: (a, b) => (b.stats?.plays || 0) - (a.stats?.plays || 0) || hotScore(b) - hotScore(a) },
   newest: { label: '最新创建', fn: (a, b) => createdTs(b) - createdTs(a) },
-  downloads: { label: '下载最多', fn: (a, b) => (b.stats?.downloads || 0) - (a.stats?.downloads || 0) || hotScore(b) - hotScore(a) },
   favorites: { label: '收藏最多', fn: (a, b) => (b.stats?.favorites || 0) - (a.stats?.favorites || 0) || hotScore(b) - hotScore(a) },
+  difficulty: { label: '难度递增', fn: (a, b) => (DIFF_ORDER[a.difficulty] ?? 2) - (DIFF_ORDER[b.difficulty] ?? 2) },
 }
 // AppSelect 的选项数据（与 SORTERS 保持同一 key 顺序）
 const SORT_OPTIONS = Object.entries(SORTERS).map(([value, { label }]) => ({ value, label }))
@@ -500,10 +1118,15 @@ const finishLoading = usePageLoading()
 async function load() {
   initializing.value = true
   try {
-    const { data } = await listScenes()
-    items.value = data.items
-  } catch (error) {
-    notify(error.message)
+    const [scenesRes, debateRes] = await Promise.allSettled([listScenes(), listDebateTopics()])
+    if (scenesRes.status === 'fulfilled') {
+      items.value = scenesRes.value.data.items
+    } else {
+      notify(scenesRes.reason?.message || '加载对话场景失败')
+    }
+    if (debateRes.status === 'fulfilled' && Array.isArray(debateRes.value.data?.items)) {
+      debateTopics.value = debateRes.value.data.items
+    }
   } finally {
     initializing.value = false
     finishLoading()
@@ -517,10 +1140,12 @@ function toggleMenu(scene) {
 }
 function onGlobalClick() {
   menuFor.value = null
+  debateMenuFor.value = null
 }
 function onEscKey(event) {
   if (event.key === 'Escape') {
     detail.value = null
+    debateDetail.value = null
     deleteTarget.value = null
     conflict.value = null
   }
@@ -552,6 +1177,11 @@ const trainingPhase = ref('select')
 function startTraining(scene) {
   if (!scene?.id) return
   if (!session.token) return notify('开始训练需要先登录，点击左下角账户卡片登录。')
+  if (!scene.stats?.favorited) {
+    favRequiredHint.value = true
+    return notify('请先收藏该场景，然后再开始训练。')
+  }
+  favRequiredHint.value = false
   detail.value = null
   trainingPhase.value = 'select'
   activeTrainingScene.value = scene
@@ -621,6 +1251,17 @@ async function doDuplicate(scene) {
   }
 }
 
+async function confirmDeleteTarget() {
+  const target = deleteTarget.value
+  if (!target) return
+  if (target._isDebate) {
+    deleteTarget.value = null
+    await doDeleteDebate(target)
+    return
+  }
+  await doDelete()
+}
+
 async function doDelete() {
   const scene = deleteTarget.value
   deleteTarget.value = null
@@ -643,7 +1284,7 @@ async function doPublishToggle(scene) {
     } else {
       await publishScene(scene.id)
       scene.status = 'published'
-      notify('已发布到社区，所有用户可查看与下载')
+      notify('已发布到社区，其他学习者可以查看与收藏')
     }
   } catch (error) {
     notify(error.message)
@@ -834,6 +1475,7 @@ async function toggleFavorite(scene) {
 .doc-brief { margin: 0; padding: 0; list-style: none; }
 .doc-brief li { display: flex; align-items: center; gap: 7px; padding: 5px 0; color: var(--ink-soft); font-size: 13.5px; }
 .doc-chunks { margin-left: auto; color: var(--muted); font-size: 12px; }
+.detail-fav-hint { display: flex; align-items: center; gap: 7px; padding: 9px 24px; border-top: 1px solid #f2e2b8; background: #fff9eb; color: #9a5b13; font-size: 13px; font-weight: 500; }
 /* 底部操作栏：位于滚动容器外，固定贴底；自带左右 padding 与分隔线 */
 .detail-foot { flex: 0 0 auto; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 24px 16px; border-top: 1px solid var(--line); background: var(--surface); border-radius: 0 0 16px 16px; }
 .detail-stats { display: inline-flex; gap: 14px; }
@@ -903,5 +1545,96 @@ async function toggleFavorite(scene) {
   .filter-right { flex: 1 1 100%; justify-content: flex-end; }
   .search-box { flex: 1 1 auto; max-width: 320px; }
 }
+.toolbar-left {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.explore-mode-tabs {
+  display: inline-flex;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 14px;
+  background: #f4f1fb;
+  border: 1px solid #e6e0f3;
+}
+
+.explore-mode-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 12px;
+  border-radius: 10px;
+  border: 1.5px solid transparent;
+  background: transparent;
+  color: #655e78;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.explore-mode-tab.active {
+  background: #ffffff;
+  color: #5b44b6;
+  border-color: #dcd3f2;
+  border-bottom: 2px solid #c9bce8;
+}
+
+.mode-count {
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: #efeafc;
+  color: #6e58c9;
+  font-size: 11.5px;
+  font-weight: 700;
+}
+
+.debate-motion-en {
+  font-style: italic;
+  color: #6b6480;
+}
+
+.debate-stance-mini {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 10px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: #f8f6fc;
+  border: 1px solid #ece7f6;
+}
+
+.stance-line {
+  display: flex;
+  gap: 8px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: #524b69;
+}
+
+.stance-line strong {
+  flex-shrink: 0;
+  color: #6e58c9;
+}
+
+.debate-enter-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: #6e58c9;
+  font-size: 12.5px;
+  font-weight: 700;
+}
+
+.ghost-button.fav-active {
+  border-color: #e4c158;
+  background: #fff9e8;
+  color: #9a6c08;
+}
+
 @media (prefers-reduced-motion: reduce) { .scene-card { transition: none; animation: none; } }
 </style>

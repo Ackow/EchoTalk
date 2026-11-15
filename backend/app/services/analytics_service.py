@@ -6,7 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.timeutil import utcnow
-from app.models import PracticeSession, PracticeTurn
+from app.models import DebateSession, ListeningAttempt, PracticeSession, PracticeTurn
 
 _CATEGORY_LABELS = {
     "daily": "日常对话",
@@ -16,6 +16,7 @@ _CATEGORY_LABELS = {
     "interview": "模拟面试",
     "academic": "学术交流",
     "debate": "多角色辩论",
+    "listening": "听力工作室",
     "custom": "自定义场景",
 }
 
@@ -57,15 +58,35 @@ def get_growth_analytics(db: Session, user_id: int, days: int = 30) -> dict:
         session_stmt = session_stmt.where(PracticeSession.created_at >= cutoff)
     sessions = db.scalars(session_stmt).all()
 
-    if not sessions:
-        return _empty_analytics(days)
+    DebateSession.__table__.create(bind=db.get_bind(), checkfirst=True)
+    debate_stmt = (
+        select(DebateSession)
+        .where(DebateSession.user_id == user_id)
+        .order_by(DebateSession.created_at.asc())
+    )
+    if cutoff is not None:
+        debate_stmt = debate_stmt.where(DebateSession.created_at >= cutoff)
+    debate_sessions = [d for d in db.scalars(debate_stmt).all() if d.turn_count > 1 or d.status == "finished"]
+
+    attempt_stmt = (
+        select(ListeningAttempt)
+        .where(ListeningAttempt.user_id == user_id)
+        .order_by(ListeningAttempt.created_at.asc())
+    )
+    if cutoff is not None:
+        attempt_stmt = attempt_stmt.where(ListeningAttempt.created_at >= cutoff)
+    listening_attempts = db.scalars(attempt_stmt).all()
 
     session_ids = [s.id for s in sessions]
-    turns = db.scalars(
-        select(PracticeTurn)
-        .where(PracticeTurn.session_id.in_(session_ids))
-        .order_by(PracticeTurn.created_at.asc())
-    ).all()
+    turns = (
+        db.scalars(
+            select(PracticeTurn)
+            .where(PracticeTurn.session_id.in_(session_ids))
+            .order_by(PracticeTurn.created_at.asc())
+        ).all()
+        if session_ids
+        else []
+    )
 
     turns_by_session: dict[str, list[PracticeTurn]] = defaultdict(list)
     for t in turns:
@@ -73,7 +94,7 @@ def get_growth_analytics(db: Session, user_id: int, days: int = 30) -> dict:
 
     # 仅统计有实际对话轮次的会话，避免空开场会话拉低指标
     active_sessions = [s for s in sessions if turns_by_session.get(s.id)]
-    if not active_sessions:
+    if not active_sessions and not debate_sessions and not listening_attempts:
         return _empty_analytics(days)
 
     finished_count = 0
@@ -213,12 +234,44 @@ def get_growth_analytics(db: Session, user_id: int, days: int = 30) -> dict:
         task_rate=task_rate,
     )
 
+    # 合并辩论与听力统计
+    for d in debate_sessions:
+        if d.status == "finished":
+            finished_count += 1
+        category_buckets["debate"]["sessions"] += 1
+        category_buckets["debate"]["turns"] += d.turn_count
+        day_key = d.created_at.strftime("%Y-%m-%d")
+        daily_buckets[day_key]["sessions"].add(f"debate:{d.id}")
+        daily_buckets[day_key]["turns"] += d.turn_count
+
+    listening_units = {a.unit_id for a in listening_attempts}
+    if listening_attempts:
+        category_buckets["listening"]["sessions"] += len(listening_units)
+        category_buckets["listening"]["turns"] += len(listening_attempts)
+        for a in listening_attempts:
+            day_key = a.created_at.strftime("%Y-%m-%d")
+            daily_buckets[day_key]["sessions"].add(f"listening:{a.unit_id}")
+            daily_buckets[day_key]["turns"] += 1
+            if not a.is_correct and a.error_tag:
+                issue_counts[a.error_tag] += 1
+
+    listening_accuracy = (
+        round(sum(1 for a in listening_attempts if a.is_correct) / len(listening_attempts) * 100)
+        if listening_attempts
+        else None
+    )
+    debate_avg_win_rate = (
+        round(sum(d.win_rate for d in debate_sessions) / len(debate_sessions))
+        if debate_sessions
+        else None
+    )
+
     return {
         "range_days": days,
         "summary": {
-            "session_count": len(active_sessions),
+            "session_count": len(active_sessions) + len(debate_sessions) + len(listening_units),
             "finished_count": finished_count,
-            "turn_count": len(active_turns),
+            "turn_count": len(active_turns) + sum(d.turn_count for d in debate_sessions) + len(listening_attempts),
             "voice_turn_count": len(dim_values["total_score"]),
             "avg_pronunciation": avg_pronunciation,
             "avg_grammar": avg_grammar,
@@ -226,6 +279,10 @@ def get_growth_analytics(db: Session, user_id: int, days: int = 30) -> dict:
             "task_completion_rate": task_rate,
             "goals_done": goals_done,
             "goals_total": goals_total,
+            "listening_count": len(listening_attempts),
+            "listening_accuracy": listening_accuracy,
+            "debate_count": len(debate_sessions),
+            "debate_avg_win_rate": debate_avg_win_rate,
         },
         "radar": radar,
         "trend": trend,
@@ -250,6 +307,10 @@ def _empty_analytics(days: int) -> dict:
             "task_completion_rate": None,
             "goals_done": 0,
             "goals_total": 0,
+            "listening_count": 0,
+            "listening_accuracy": None,
+            "debate_count": 0,
+            "debate_avg_win_rate": None,
         },
         "radar": {
             "has_pronunciation": False,

@@ -7,11 +7,24 @@ export const completeListeningUnit = (unitId) => http.post(`/listening/units/${u
 export const addListeningReview = (payload) => http.post('/listening/review-add', payload)
 export const getListeningProfile = () => http.get('/listening/profile')
 
-export function getListeningAudioUrl(text, rate = 1.0, style = 'calm') {
+export function getListeningAudioUrl(text, rate = 1.0, style = 'emma') {
   const params = new URLSearchParams({
     text: String(text || ''),
     rate: String(rate),
     style: String(style)
   })
   return `${baseUrl}/api/listening/audio?${params.toString()}`
+}
+
+export async function fetchListeningAudioBlob(text, rate = 1.0, style = 'emma') {
+  const res = await http.get('/listening/audio', {
+    params: {
+      text: String(text || ''),
+      rate,
+      style
+    },
+    responseType: 'blob',
+    timeout: 30000
+  })
+  return res.data
 }

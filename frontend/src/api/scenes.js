@@ -116,3 +116,4 @@ export const uploadCover = (id, file) => {
 }
 
 export const removeCover = (id) => http.delete(`/scenes/${id}/cover`)
+export const generateSceneDraft = (payload) => http.post('/scenes/generate-draft', payload)

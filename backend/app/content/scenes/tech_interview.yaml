@@ -6,7 +6,7 @@ meta:
   category: career
   difficulty: expert
   mode: interview
-  version: 5
+  version: 6
   compat:
     min_app: 2.0.0
   author: builtin
@@ -19,13 +19,6 @@ roles:
     personality: professional and slightly strict
     voice: en-US-Female
     avatar: sarah_2d
-  - id: coach
-    display_name: Evaluator
-    title: Interview Evaluator
-    backstage: true
-
-coordination:
-  order: [tech]
 
 prompt:
   system: |

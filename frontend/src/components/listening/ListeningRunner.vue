@@ -73,28 +73,30 @@
             type="button"
             class="primary-button play-btn"
             :class="{ playing: isSpeaking && speakRate === 1.0 }"
+            :disabled="audioLoading"
             @click="playAudio(1.0)"
           >
             <AppIcon name="headphones" :size="16" />
-            <span>{{ isSpeaking && speakRate === 1.0 ? '正在播放…' : '播放原速 1.0×' }}</span>
+            <span>{{ audioLoading && speakRate === 1.0 ? '加载音频…' : isSpeaking && speakRate === 1.0 ? '正在播放…' : '播放原速 1.0×' }}</span>
           </button>
 
           <button
             type="button"
             class="slow-button"
             :class="{ playing: isSpeaking && speakRate === 0.75 }"
-            :disabled="isMockRestricted"
+            :disabled="isMockRestricted || audioLoading"
             :title="isMockRestricted ? '模拟模式禁用慢速' : '0.75× 慢速精听'"
             @click="playAudio(0.75)"
           >
             <AppIcon name="clock" :size="15" />
-            <span>0.75× 慢速</span>
+            <span>{{ audioLoading && speakRate === 0.75 ? '加载中…' : '0.75× 慢速' }}</span>
           </button>
 
           <div class="wave-bars" :class="{ active: isSpeaking }" aria-hidden="true">
             <i v-for="n in 14" :key="n" :style="{ '--i': n }"></i>
           </div>
         </div>
+        <p v-if="audioError" class="audio-error-tip">{{ audioError }}</p>
 
         <!-- 渐进式辅助（L1-L3，模拟模式禁用） -->
         <div v-if="!isMockRestricted" class="hint-strip">
@@ -135,32 +137,58 @@
 
         <!-- 题型 A：Word Bank 听音拼句 -->
         <div v-if="currentExercise.type === 'word_bank'" class="word-bank-area">
-          <div class="answer-tray" :class="{ empty: selectedTokens.length === 0 }">
-            <span v-if="selectedTokens.length === 0" class="tray-placeholder">点击下方单词气泡按顺序拼出句子…</span>
+          <div
+            ref="answerTrayRef"
+            class="answer-tray"
+            :class="{
+              empty: selectedTokens.length === 0,
+              'drop-active': dragState.active && dragState.overTray
+            }"
+          >
+            <span v-if="selectedTokens.length === 0" class="tray-placeholder">点击或拖动下方单词按顺序拼出句子…</span>
             <button
               v-for="(tok, idx) in selectedTokens"
               :key="`${tok.id}-sel`"
+              :data-token-id="tok.id"
               type="button"
               class="word-tile selected"
+              :class="{ 'is-dragging': dragState.active && dragState.tokenId === tok.id }"
               :disabled="checked"
-              @click="removeToken(idx)"
+              @pointerdown="startTokenDrag($event, tok, 'tray')"
+              @click="onTrayTokenClick(tok, idx)"
             >
               {{ tok.word }}
             </button>
           </div>
 
-          <div class="bank-pool">
+          <div ref="bankPoolRef" class="bank-pool">
             <button
               v-for="tok in bankTokens"
               :key="tok.id"
               type="button"
               class="word-tile"
-              :class="{ used: tok.used }"
+              :class="{
+                used: tok.used,
+                'is-dragging': dragState.active && dragState.tokenId === tok.id && !tok.used
+              }"
               :disabled="tok.used || checked"
-              @click="pickToken(tok)"
+              @pointerdown="startTokenDrag($event, tok, 'bank')"
+              @click="onBankTokenClick(tok)"
             >
               {{ tok.word }}
             </button>
+          </div>
+
+          <div
+            v-if="dragState.active"
+            class="word-tile drag-ghost"
+            :class="{ removing: dragState.removing }"
+            :style="{
+              left: `${dragState.x - dragState.offsetX}px`,
+              top: `${dragState.y - dragState.offsetY}px`
+            }"
+          >
+            {{ dragState.word }}
           </div>
         </div>
 
@@ -285,7 +313,7 @@ import AppIcon from '../AppIcon.vue'
 import {
   addListeningReview,
   completeListeningUnit,
-  getListeningAudioUrl,
+  fetchListeningAudioBlob,
   submitListeningAttempt
 } from '../../api/listening'
 import { addGlobalXp, applyXpSnapshot, syncGlobalXpProfile } from '../../app/xp'
@@ -336,6 +364,8 @@ function stopMockTimer() {
 }
 
 const isSpeaking = ref(false)
+const audioLoading = ref(false)
+const audioError = ref('')
 const speakRate = ref(1.0)
 
 const showKeywords = ref(false)
@@ -349,6 +379,22 @@ const addedToReview = ref(false)
 
 const bankTokens = ref([])
 const selectedTokens = ref([])
+const answerTrayRef = ref(null)
+const bankPoolRef = ref(null)
+const dragState = ref({
+  active: false,
+  tokenId: null,
+  word: '',
+  source: '',
+  x: 0,
+  y: 0,
+  offsetX: 0,
+  offsetY: 0,
+  overTray: false,
+  removing: false
+})
+let dragSession = null
+let suppressClickTokenId = null
 const selectedChoice = ref('')
 const clozeInputs = ref([])
 const isRecording = ref(false)
@@ -392,90 +438,155 @@ function typeLabel(type) {
 }
 
 let activeAudioEl = null
+let activeObjectUrl = ''
+let audioPlayGen = 0
+const audioBlobCache = new Map()
 
-function speakFallback(text, rate) {
-  if (text && 'speechSynthesis' in window) {
-    const utter = new SpeechSynthesisUtterance(text)
-    utter.lang = 'en-US'
-    utter.rate = rate
-    utter.onstart = () => {
-      isSpeaking.value = true
-    }
-    utter.onend = () => {
-      isSpeaking.value = false
-    }
-    utter.onerror = () => {
-      isSpeaking.value = false
-    }
-    window.speechSynthesis.speak(utter)
-  } else {
-    isSpeaking.value = true
-    setTimeout(() => {
-      isSpeaking.value = false
-    }, 1800)
+function revokeActiveUrl() {
+  if (activeObjectUrl) {
+    URL.revokeObjectURL(activeObjectUrl)
+    activeObjectUrl = ''
   }
 }
 
-function playAudio(rate) {
+function channelVoiceStyle() {
+  const ch = props.unit?.channel
+  if (ch === 'radio') return 'ryan'
+  if (ch === 'talks') return 'aria'
+  return 'emma'
+}
+
+function hasAlignedAudioUrl(ex) {
+  if (!ex?.audioUrl) return false
+  if (String(ex.audioUrl).startsWith('/')) return true
+  return typeof ex.startMs === 'number' && typeof ex.endMs === 'number'
+}
+
+function playAudioFromUrl(audioSrc, { rate, useExternalTiming, ex, isObjectUrl = false, onFail }) {
+  const audio = new Audio(audioSrc)
+  if (useExternalTiming) {
+    audio.playbackRate = rate
+    if (typeof ex.startMs === 'number') {
+      audio.currentTime = ex.startMs / 1000
+    }
+  }
+  audio.onplay = () => {
+    isSpeaking.value = true
+  }
+  audio.ontimeupdate = () => {
+    if (useExternalTiming && typeof ex.endMs === 'number' && audio.currentTime * 1000 >= ex.endMs) {
+      stopAudio()
+    }
+  }
+  audio.onended = () => {
+    isSpeaking.value = false
+    if (isObjectUrl) revokeActiveUrl()
+  }
+  audio.onerror = () => {
+    isSpeaking.value = false
+    if (isObjectUrl) revokeActiveUrl()
+    onFail?.()
+  }
+  activeAudioEl = audio
+  audio.play().catch(() => {
+    isSpeaking.value = false
+    if (isObjectUrl) revokeActiveUrl()
+    onFail?.()
+  })
+}
+
+async function playTtsAudio(ex, rate, gen) {
+  const text = String(ex?.audioText || '').trim()
+  if (!text) {
+    audioError.value = '当前题目缺少听力文本'
+    return
+  }
+  const style = channelVoiceStyle()
+  const cacheKey = `${style}|${rate}|${text}`
+  let blob = audioBlobCache.get(cacheKey)
+  if (!blob) {
+    audioLoading.value = true
+    try {
+      blob = await fetchListeningAudioBlob(text, rate, style)
+      if (blob && blob.size > 0) {
+        audioBlobCache.set(cacheKey, blob)
+      }
+    } catch (err) {
+      if (gen === audioPlayGen) {
+        audioError.value = err?.message || '音频合成失败，请确认后端服务已启动'
+      }
+      return
+    } finally {
+      if (gen === audioPlayGen) {
+        audioLoading.value = false
+      }
+    }
+  }
+  if (gen !== audioPlayGen) return
+  if (!blob || blob.size === 0) {
+    audioError.value = '返回音频为空，请稍后重试'
+    return
+  }
+  revokeActiveUrl()
+  activeObjectUrl = URL.createObjectURL(blob)
+  playAudioFromUrl(activeObjectUrl, {
+    rate,
+    useExternalTiming: false,
+    ex,
+    isObjectUrl: true,
+    onFail: () => {
+      if (gen === audioPlayGen) {
+        audioError.value = '浏览器无法解码该音频，请重试'
+      }
+    }
+  })
+}
+
+async function playAudio(rate) {
   const ex = currentExercise.value
   if (!ex) return
   stopAudio()
+  const gen = ++audioPlayGen
   speakRate.value = rate
-
-  const audioSrc = ex.audioUrl || (ex.audioText ? getListeningAudioUrl(ex.audioText, rate) : '')
-  if (audioSrc) {
-    const audio = new Audio(audioSrc)
-    if (ex.audioUrl) {
-      audio.playbackRate = rate
-      if (typeof ex.startMs === 'number') {
-        audio.currentTime = ex.startMs / 1000
-      }
-    }
-    audio.onplay = () => {
-      isSpeaking.value = true
-    }
-    audio.ontimeupdate = () => {
-      if (ex.audioUrl && typeof ex.endMs === 'number' && audio.currentTime * 1000 >= ex.endMs) {
-        stopAudio()
-      }
-    }
-    audio.onended = () => {
-      isSpeaking.value = false
-    }
-    audio.onerror = () => {
-      isSpeaking.value = false
-      if (!ex.audioUrl && ex.audioText) {
-        speakFallback(ex.audioText, rate)
-      }
-    }
-    activeAudioEl = audio
-    audio.play().catch(() => {
-      isSpeaking.value = false
-      if (!ex.audioUrl && ex.audioText) {
-        speakFallback(ex.audioText, rate)
-      }
-    })
-  } else {
-    speakFallback(ex.audioText, rate)
-  }
+  audioError.value = ''
 
   if (rate < 1.0) {
     currentHintUsed.value = true
   }
+
+  if (hasAlignedAudioUrl(ex)) {
+    playAudioFromUrl(ex.audioUrl, {
+      rate,
+      useExternalTiming: true,
+      ex,
+      onFail: () => {
+        if (gen === audioPlayGen) {
+          void playTtsAudio(ex, rate, gen)
+        }
+      }
+    })
+    return
+  }
+
+  await playTtsAudio(ex, rate, gen)
 }
 
 function stopAudio() {
+  audioPlayGen += 1
   isSpeaking.value = false
+  audioLoading.value = false
   if (activeAudioEl) {
     activeAudioEl.pause()
     activeAudioEl = null
   }
+  revokeActiveUrl()
   if ('speechSynthesis' in window) {
     window.speechSynthesis.cancel()
   }
 }
 
 function initExerciseState() {
+  cleanupTokenDrag()
   stopAudio()
   checked.value = false
   isCorrect.value = false
@@ -545,6 +656,161 @@ function removeToken(idx) {
   if (checked.value) return
   const [removed] = selectedTokens.value.splice(idx, 1)
   if (removed) removed.used = false
+}
+
+function onBankTokenClick(tok) {
+  if (suppressClickTokenId === tok.id) {
+    suppressClickTokenId = null
+    return
+  }
+  pickToken(tok)
+}
+
+function onTrayTokenClick(tok, idx) {
+  if (suppressClickTokenId === tok.id) {
+    suppressClickTokenId = null
+    return
+  }
+  removeToken(idx)
+}
+
+function isPointInRect(x, y, rect, padX = 0, padY = 0) {
+  if (!rect) return false
+  return x >= rect.left - padX && x <= rect.right + padX && y >= rect.top - padY && y <= rect.bottom + padY
+}
+
+function computeTrayInsertIndex(x, y, draggingTokenId) {
+  const trayEl = answerTrayRef.value
+  if (!trayEl) return selectedTokens.value.length
+
+  const otherButtons = Array.from(trayEl.querySelectorAll('.word-tile.selected')).filter(
+    (el) => el.dataset.tokenId !== String(draggingTokenId)
+  )
+  if (otherButtons.length === 0) return 0
+
+  const rects = otherButtons.map((el, idx) => ({ idx, rect: el.getBoundingClientRect() }))
+  const rowMatches = rects.filter(({ rect }) => y >= rect.top - 8 && y <= rect.bottom + 8)
+
+  if (rowMatches.length > 0) {
+    for (const item of rowMatches) {
+      const midX = item.rect.left + item.rect.width / 2
+      if (x < midX) return item.idx
+    }
+    return rowMatches[rowMatches.length - 1].idx + 1
+  }
+
+  if (y < rects[0].rect.top) return 0
+  for (const item of rects) {
+    if (item.rect.top > y) return item.idx
+  }
+  return rects.length
+}
+
+function startTokenDrag(event, tok, source) {
+  if (checked.value) return
+  if (event.button !== undefined && event.button !== 0) return
+  if (source === 'bank' && tok.used) return
+
+  const rect = event.currentTarget?.getBoundingClientRect?.()
+  if (!rect) return
+
+  cleanupTokenDrag()
+  dragSession = {
+    tok,
+    source,
+    startX: event.clientX,
+    startY: event.clientY,
+    offsetX: event.clientX - rect.left,
+    offsetY: event.clientY - rect.top,
+    started: false
+  }
+
+  window.addEventListener('pointermove', onTokenPointerMove)
+  window.addEventListener('pointerup', onTokenPointerUp)
+  window.addEventListener('pointercancel', onTokenPointerUp)
+}
+
+function onTokenPointerMove(event) {
+  if (!dragSession) return
+  const dx = event.clientX - dragSession.startX
+  const dy = event.clientY - dragSession.startY
+
+  if (!dragSession.started) {
+    if (Math.hypot(dx, dy) < 6) return
+    dragSession.started = true
+    dragState.value = {
+      active: true,
+      tokenId: dragSession.tok.id,
+      word: dragSession.tok.word,
+      source: dragSession.source,
+      x: event.clientX,
+      y: event.clientY,
+      offsetX: dragSession.offsetX,
+      offsetY: dragSession.offsetY,
+      overTray: dragSession.source === 'tray',
+      removing: false
+    }
+  }
+
+  dragState.value.x = event.clientX
+  dragState.value.y = event.clientY
+
+  const trayRect = answerTrayRef.value?.getBoundingClientRect?.()
+  const poolRect = bankPoolRef.value?.getBoundingClientRect?.()
+  const overTray = isPointInRect(event.clientX, event.clientY, trayRect, 16, 22)
+  const overPool = isPointInRect(event.clientX, event.clientY, poolRect, 12, 16)
+
+  dragState.value.overTray = overTray
+
+  if (overTray) {
+    dragState.value.removing = false
+    const targetIdx = computeTrayInsertIndex(event.clientX, event.clientY, dragSession.tok.id)
+    const curIdx = selectedTokens.value.findIndex((item) => item.id === dragSession.tok.id)
+
+    if (curIdx === -1) {
+      dragSession.tok.used = true
+      selectedTokens.value.splice(targetIdx, 0, dragSession.tok)
+    } else if (curIdx !== targetIdx) {
+      const [moved] = selectedTokens.value.splice(curIdx, 1)
+      selectedTokens.value.splice(targetIdx, 0, moved)
+    }
+  } else {
+    const inSelected = selectedTokens.value.some((item) => item.id === dragSession.tok.id)
+    dragState.value.removing = Boolean(inSelected && (overPool || (trayRect && event.clientY > trayRect.bottom + 24)))
+  }
+}
+
+function onTokenPointerUp() {
+  if (!dragSession) return
+  const sessionInfo = dragSession
+  const wasRemoving = dragState.value.removing
+  const wasOverTray = dragState.value.overTray
+  cleanupTokenDrag()
+
+  if (!sessionInfo.started) return
+
+  const tokId = sessionInfo.tok.id
+  suppressClickTokenId = tokId
+  setTimeout(() => {
+    if (suppressClickTokenId === tokId) suppressClickTokenId = null
+  }, 80)
+
+  if (wasRemoving || (sessionInfo.source === 'bank' && !wasOverTray)) {
+    const idx = selectedTokens.value.findIndex((item) => item.id === tokId)
+    if (idx !== -1) selectedTokens.value.splice(idx, 1)
+    sessionInfo.tok.used = false
+  }
+}
+
+function cleanupTokenDrag() {
+  window.removeEventListener('pointermove', onTokenPointerMove)
+  window.removeEventListener('pointerup', onTokenPointerUp)
+  window.removeEventListener('pointercancel', onTokenPointerUp)
+  dragSession = null
+  dragState.value.active = false
+  dragState.value.tokenId = null
+  dragState.value.overTray = false
+  dragState.value.removing = false
 }
 
 function toggleMockRecord() {
@@ -671,6 +937,7 @@ async function nextExercise() {
 }
 
 onBeforeUnmount(() => {
+  cleanupTokenDrag()
   stopAudio()
   stopMockTimer()
 })
@@ -835,6 +1102,12 @@ onBeforeUnmount(() => {
   justify-content: space-between;
 }
 
+.audio-error-tip {
+  margin: -8px 0 0;
+  font-size: 12.5px;
+  color: #b8485a;
+}
+
 .type-pill {
   padding: 4px 11px;
   border-radius: 8px;
@@ -996,6 +1269,12 @@ onBeforeUnmount(() => {
   flex-wrap: wrap;
   align-items: center;
   gap: 8px;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.answer-tray.drop-active {
+  border-color: #b7a6ec;
+  background: #f6f3fe;
 }
 
 .tray-placeholder {
@@ -1019,6 +1298,14 @@ onBeforeUnmount(() => {
   color: #29283e;
   font-size: 14px;
   font-weight: 600;
+  cursor: grab;
+  user-select: none;
+  touch-action: none;
+  transition: transform 0.12s ease, opacity 0.12s ease, border-color 0.15s ease;
+}
+
+.word-tile:disabled {
+  cursor: default;
 }
 
 .word-tile.used {
@@ -1033,6 +1320,33 @@ onBeforeUnmount(() => {
   border-bottom-color: #6951b8;
   background: #efeafc;
   color: #654ab8;
+}
+
+.word-tile.is-dragging {
+  opacity: 0.35;
+  border-style: dashed;
+}
+
+.word-tile.drag-ghost {
+  position: fixed;
+  z-index: 80;
+  pointer-events: none;
+  margin: 0;
+  border-color: #8b73dd;
+  border-bottom-color: #6951b8;
+  background: #f7f4ff;
+  color: #5b41b0;
+  transform: scale(1.05);
+  box-shadow: 0 10px 24px rgba(91, 65, 176, 0.22);
+  cursor: grabbing;
+}
+
+.word-tile.drag-ghost.removing {
+  border-color: #e58d8d;
+  border-bottom-color: #c95d5d;
+  background: #fff5f5;
+  color: #b83b3b;
+  box-shadow: 0 10px 24px rgba(184, 59, 59, 0.16);
 }
 
 .choice-list {

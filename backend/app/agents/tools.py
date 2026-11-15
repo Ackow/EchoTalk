@@ -3,6 +3,7 @@ import ast
 from dataclasses import dataclass
 import json
 import operator
+import re
 from typing import Any, Callable
 
 from langchain_core.tools import StructuredTool
@@ -213,8 +214,21 @@ class ToolRegistry:
         scenario_state[parsed.key] = parsed.value
         return {"updated": parsed.key, "value": parsed.value, "evidence": parsed.evidence}
 
+    @staticmethod
+    def _norm_quote(text: str) -> str:
+        """归一化空白和大小写，并消除常见标点差异以便宽松匹配证据引用。"""
+        cleaned = re.sub(r"[\s\.,!?;:\"'`~()\[\]{}\-_/]+", " ", (text or "").lower())
+        return cleaned.strip()
+
     def _require_declared_and_evidence(self, key: str, evidence: str) -> None:
         if key not in self.package.state:
             raise ValueError("State key was not declared by the scene")
-        if evidence not in self.input_text:
-            raise ValueError("Evidence must be an exact quote from this user turn")
+        ev = (evidence or "").strip()
+        if not ev:
+            raise ValueError("Evidence must be non-empty")
+        if ev in self.input_text:
+            return
+        norm_ev = self._norm_quote(ev)
+        norm_in = self._norm_quote(self.input_text)
+        if not norm_ev or norm_ev not in norm_in:
+            raise ValueError("Evidence must reference content from this user turn")

@@ -1660,7 +1660,14 @@
         "tip": "听力中明确提到 'An overloaded air traffic control system triggered communications failures'，说明原因是空管系统超负荷。白宫表示没有网络攻击的证据，因此 A 是干扰项；C、D 均未在内容中出现。",
         "errorTag": "主旨细节",
         "id": "radio-us-airspace-reopens-after-fl-1-ex1",
-        "audioUrl": "http://open.live.bbc.co.uk/mediaselector/6/redir/version/2.0/mediaset/audio-nondrm-download-rss-low/proto/http/vpid/p0pmzy3x.mp3"
+        "audioUrl": "http://open.live.bbc.co.uk/mediaselector/6/redir/version/2.0/mediaset/audio-nondrm-download-rss-low/proto/http/vpid/p0pmzy3x.mp3",
+        "keywords": [
+          "ground flights",
+          "stranded",
+          "overloaded",
+          "communications failures"
+        ],
+        "zhText": "周五，美国罕见地决定在全国范围内停飞航班，导致数以万计的旅客滞留。超负荷运转的空中交通管制系统引发了全国范围的通信故障。"
       },
       {
         "type": "cloze",
@@ -1672,7 +1679,13 @@
         ],
         "tip": "resumed 意为“恢复、重新开始”，与后文 'back to normal'（恢复正常）语义呼应。听写时注意词尾 -sumed 的弱读与连读，不要误写成 assume 或 consumed。",
         "errorTag": "关键词听写",
-        "id": "radio-us-airspace-reopens-after-fl-1-ex2"
+        "id": "radio-us-airspace-reopens-after-fl-1-ex2",
+        "keywords": [
+          "resumed",
+          "aviation network",
+          "back to normal"
+        ],
+        "zhText": "航班在四小时后恢复起降，但要让整个航空网络恢复正常仍需要时间。"
       }
     ]
   },
@@ -1715,7 +1728,13 @@
         "tip": "主旨细节题：听力中明确说 Microsoft 没有发现恶意活动导致问题的证据。注意不要被其他新闻中的黑客内容干扰。",
         "errorTag": "主旨细节",
         "id": "radio-microsoft-outage-millions-af-2-ex1",
-        "audioUrl": "http://open.live.bbc.co.uk/mediaselector/6/redir/version/2.0/mediaset/audio-nondrm-download-rss-low/proto/http/vpid/p0pmwqby.mp3"
+        "audioUrl": "http://open.live.bbc.co.uk/mediaselector/6/redir/version/2.0/mediaset/audio-nondrm-download-rss-low/proto/http/vpid/p0pmwqby.mp3",
+        "keywords": [
+          "outage",
+          "no evidence",
+          "malicious activity"
+        ],
+        "zhText": "一场全球性的微软系统故障波及学校、医院和企业。微软表示尚未发现恶意攻击导致此次故障的证据。"
       },
       {
         "type": "cloze",
@@ -1727,7 +1746,12 @@
         ],
         "tip": "关键词听写：scrambling 表示“手忙脚乱地设法解决”，注意拼写和现在进行时形式。",
         "errorTag": "关键词听写",
-        "id": "radio-microsoft-outage-millions-af-2-ex2"
+        "id": "radio-microsoft-outage-millions-af-2-ex2",
+        "keywords": [
+          "tech giant",
+          "scrambling to fix"
+        ],
+        "zhText": "这家科技巨头正全力以赴紧急修复该问题。"
       }
     ]
   },
@@ -1770,7 +1794,14 @@
         "tip": "音频提到泽连斯基欢迎相关努力，以确保欧洲参与下一轮与俄罗斯的和平谈判，因此选 A。",
         "errorTag": "主旨细节",
         "id": "radio-putin-lets-europe-join-ukrai-3-ex1",
-        "audioUrl": "http://open.live.bbc.co.uk/mediaselector/6/redir/version/2.0/mediaset/audio-nondrm-download-rss-low/proto/http/vpid/p0pmr8dk.mp3"
+        "audioUrl": "http://open.live.bbc.co.uk/mediaselector/6/redir/version/2.0/mediaset/audio-nondrm-download-rss-low/proto/http/vpid/p0pmr8dk.mp3",
+        "keywords": [
+          "welcomed efforts",
+          "European involvement",
+          "peace talks",
+          "EU member"
+        ],
+        "zhText": "乌克兰总统泽连斯基对贾里德·库什纳和史蒂夫·威特科夫推动欧洲参与下一轮俄乌和谈的努力表示欢迎。他表示，既然乌克兰终将成为欧盟成员，欧洲的参与是合情合理的。"
       },
       {
         "type": "cloze",
@@ -1782,7 +1813,13 @@
         ],
         "tip": "核心表达是 Europeans，指欧洲人；注意听清复数形式。",
         "errorTag": "关键词听写",
-        "id": "radio-putin-lets-europe-join-ukrai-3-ex2"
+        "id": "radio-putin-lets-europe-join-ukrai-3-ex2",
+        "keywords": [
+          "made sense",
+          "involved",
+          "eventually"
+        ],
+        "zhText": "泽连斯基表示，既然乌克兰终将成为欧盟成员国，让欧洲方面参与和谈是合情合理的。"
       }
     ]
   },
@@ -1825,7 +1862,14 @@
         "tip": "主旨题：Mnemonic 的核心目标是保存战争影像，并将其转化为可在法庭上使用的证据。",
         "errorTag": "主旨细节",
         "id": "talks-the-digital-detectives-prese-1-ex1",
-        "audioUrl": "https://sphinx.acast.com/p/open/s/67587e77c705e441797aff96/e/6af5f8aa43d8776fbbb21b36/media.mp3"
+        "audioUrl": "https://sphinx.acast.com/p/open/s/67587e77c705e441797aff96/e/6af5f8aa43d8776fbbb21b36/media.mp3",
+        "keywords": [
+          "vanish",
+          "social media posts",
+          "evidence",
+          "holds up in court"
+        ],
+        "zhText": "哈迪·阿尔·哈提卜创立了 Mnemonic，用于在战争照片和视频消失前将其保存下来，并将社交媒体帖文转化为经得起法庭检验的证据。"
       },
       {
         "type": "cloze",
@@ -1837,7 +1881,12 @@
         ],
         "tip": "关键词是 evidence，表示“证据”；注意 turn...into... 表示“把……转化为……”。",
         "errorTag": "关键词听写",
-        "id": "talks-the-digital-detectives-prese-1-ex2"
+        "id": "talks-the-digital-detectives-prese-1-ex2",
+        "keywords": [
+          "evidence of crimes",
+          "holds up in court"
+        ],
+        "zhText": "他的团队将人们发布的社交媒体内容转化为在法庭上具有效力的犯罪证据。"
       }
     ]
   },
@@ -1880,7 +1929,14 @@
         "tip": "音频提到 ephebeia 是两年公民服务项目，训练青年了解法律和保卫民主；Reich 强调公民需要培养，而非天生。",
         "errorTag": "主旨细节",
         "id": "talks-could-this-ancient-greek-ide-2-ex1",
-        "audioUrl": "https://sphinx.acast.com/p/open/s/67587e77c705e441797aff96/e/6af5f82c43d8776fbbb21b35/media.mp3"
+        "audioUrl": "https://sphinx.acast.com/p/open/s/67587e77c705e441797aff96/e/6af5f82c43d8776fbbb21b35/media.mp3",
+        "keywords": [
+          "ancient Athens",
+          "civic service",
+          "citizens",
+          "trained"
+        ],
+        "zhText": "两千多年前的古雅典，年轻公民需要完成名为“ephebeia”的为期两年的公民服务项目。斯科特·赖希认为，这一做法提醒我们：公民并非天生，而是培养出来的。"
       },
       {
         "type": "cloze",
@@ -1892,7 +1948,13 @@
         ],
         "tip": "核心表达是 citizens aren’t born—they’re trained（公民不是天生的，而是训练出来的），空格处听写 born。",
         "errorTag": "关键词听写",
-        "id": "talks-could-this-ancient-greek-ide-2-ex2"
+        "id": "talks-could-this-ancient-greek-ide-2-ex2",
+        "keywords": [
+          "reflects",
+          "crucial",
+          "trained"
+        ],
+        "zhText": "作家兼历史学家斯科特·赖希认为，这一传统折射出我们常忽略的关键一点：公民不是天生的，而是后天训练造就的。"
       }
     ]
   },
@@ -1935,7 +1997,14 @@
         "tip": "主旨细节题：听力中明确说化石燃料会逐渐被挤出，而且不需要禁令，因此选 B。",
         "errorTag": "主旨细节",
         "id": "talks-how-we-ll-actually-ditch-fos-3-ex1",
-        "audioUrl": "https://sphinx.acast.com/p/open/s/67587e77c705e441797aff96/e/6af5e8e843d8776fbbb21b34/media.mp3"
+        "audioUrl": "https://sphinx.acast.com/p/open/s/67587e77c705e441797aff96/e/6af5e8e843d8776fbbb21b34/media.mp3",
+        "keywords": [
+          "energy analyst",
+          "spreadsheet model",
+          "fossil fuels",
+          "squeezed out"
+        ],
+        "zhText": "能源分析师迈克尔·利布赖希认为应该换个角度看问题。他用一个简单的四行全球能源系统电子表格模型说明，即便没有禁令，化石燃料假以时日也必然会被逐步挤出市场。"
       },
       {
         "type": "cloze",
@@ -1947,7 +2016,13 @@
         ],
         "tip": "关键词听写：核心表达是 looks different than many of us expected，注意 different 的拼写。",
         "errorTag": "关键词听写",
-        "id": "talks-how-we-ll-actually-ditch-fos-3-ex2"
+        "id": "talks-how-we-ll-actually-ditch-fos-3-ex2",
+        "keywords": [
+          "shift",
+          "well underway",
+          "expected"
+        ],
+        "zhText": "他解释说，这场转型其实已经全面展开，只是它的呈现方式和许多人预想的不太一样。"
       }
     ]
   },
@@ -1990,7 +2065,13 @@
         "tip": "主旨细节题：讲话者强调真正的修复远不止金钱层面。",
         "errorTag": "主旨细节",
         "id": "talks-how-to-repair-harm-in-relati-4-ex1",
-        "audioUrl": "https://sphinx.acast.com/p/open/s/67587e77c705e441797aff96/e/6af38974ac84158342c9ed3d/media.mp3"
+        "audioUrl": "https://sphinx.acast.com/p/open/s/67587e77c705e441797aff96/e/6af38974ac84158342c9ed3d/media.mp3",
+        "keywords": [
+          "reparations",
+          "true repair",
+          "beyond the financial"
+        ],
+        "zhText": "大多数人以为赔偿只关乎金钱，但真正的修复远不止于经济层面。"
       },
       {
         "type": "cloze",
@@ -2002,7 +2083,13 @@
         ],
         "tip": "关键词听写：注意 four-step 表示“四步的”，修饰 process。",
         "errorTag": "关键词听写",
-        "id": "talks-how-to-repair-harm-in-relati-4-ex2"
+        "id": "talks-how-to-repair-harm-in-relati-4-ex2",
+        "keywords": [
+          "lays out",
+          "four-step process",
+          "repairing harm"
+        ],
+        "zhText": "阿里娅·弗洛兰特梳理出了一套修复伤害的四步流程。"
       }
     ]
   },
@@ -2045,7 +2132,14 @@
         "tip": "主旨是手机常被忽视，却是细菌和病毒的温床，因此应纳入日常清洁习惯。",
         "errorTag": "主旨细节",
         "id": "talks-your-phone-is-disgusting-her-5-ex1",
-        "audioUrl": "https://sphinx.acast.com/p/open/s/67587e77c705e441797aff96/e/6af23934e1219d878fcb3b47/media.mp3"
+        "audioUrl": "https://sphinx.acast.com/p/open/s/67587e77c705e441797aff96/e/6af23934e1219d878fcb3b47/media.mp3",
+        "keywords": [
+          "dirtier",
+          "molecular biologist",
+          "gaping hole",
+          "hygiene routine"
+        ],
+        "zhText": "你的手机和你的手，哪个更脏？分子生物学家洛蒂·塔朱里指出，我们的日常卫生习惯存在一个巨大的漏洞。"
       },
       {
         "type": "cloze",
@@ -2057,7 +2151,14 @@
         ],
         "tip": "humid 表示“潮湿的”，与 warm、mobile 一起描述手机为微生物提供适宜环境。",
         "errorTag": "关键词听写",
-        "id": "talks-your-phone-is-disgusting-her-5-ex2"
+        "id": "talks-your-phone-is-disgusting-her-5-ex2",
+        "keywords": [
+          "scrub",
+          "reach right for",
+          "warm, humid",
+          "bacteria and viruses"
+        ],
+        "zhText": "我们把手搓洗干净后，紧接着就去拿手机——而手机恰恰是温暖、潮湿又随身携带的细菌和病毒温床。"
       }
     ]
   }

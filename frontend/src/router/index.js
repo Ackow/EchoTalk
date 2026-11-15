@@ -25,7 +25,9 @@ const router = createRouter({
         { path: 'practice', name: 'practice', component: () => import('../views/Practice.vue'), meta: { title: '语音对话', loadText: '正在准备练习场景' } }, // 一期文字轮次 + TTS 播报，录音转写后续接入
         { path: 'listening', name: 'listening', component: () => import('../views/ListeningStudio.vue'), meta: { title: '听力工作室', loadText: '正在准备听力工作室' } },
         { path: 'cet', name: 'cet', redirect: { name: 'listening', query: { channel: 'cet' } } },
-        module('debate', 'debate', '多角色辩论', '主持、对方与评估角色的回合制辩论。'),
+        { path: 'debate', name: 'debate', component: () => import('../views/Debate.vue'), meta: { title: '多角色对话', loadText: '正在准备多角色对话' } },
+        { path: 'debate/create', name: 'debate-create', component: () => import('../views/DebateEditor.vue'), meta: { title: '新建多角色场景', loadText: '正在准备多角色编辑器' } },
+        { path: 'debate/:id/edit', name: 'debate-edit', component: () => import('../views/DebateEditor.vue'), meta: { title: '编辑多角色场景', loadText: '正在打开多角色场景' } },
         { path: 'scenes', name: 'scenes', component: () => import('../views/Scenes.vue'), meta: { title: '场景探索', loadText: '正在加载场景' } },
         { path: 'scenes/create', name: 'scene-create', component: () => import('../views/SceneEditor.vue'), meta: { title: '新建场景', loadText: '正在准备场景编辑器' } },
         { path: 'scenes/:id/edit', name: 'scene-edit', component: () => import('../views/SceneEditor.vue'), meta: { title: '编辑场景', loadText: '正在打开场景' } },

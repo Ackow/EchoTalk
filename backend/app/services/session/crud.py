@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from app.agents.context import opening_message
 from app.core.errors import AppError
 from app.core.timeutil import utcnow
-from app.models import PracticeSession, PracticeTurn, User
+from app.models import DebateSession, DebateTurn, ListeningProgress, ListeningUnit, PracticeSession, PracticeTurn, User
 from app.scenes.registry import validate
 from app.services.scene_runtime import advance, initial_state
 from app.services.scene_service import ensure_visible, load_scene
@@ -111,13 +111,15 @@ def list_sessions(
     *,
     scene_id: str | None = None,
     status: str | None = None,
+    mode: str | None = None,
     page: int = 1,
     page_size: int = 12,
 ) -> dict:
-    """分页读取本人有实际轮次的会话，附带最后一轮预览与全局统计。
+    """分页读取本人有实际记录的练习历史（对话、听力、辩论），附带全局统计。"""
+    target_mode = mode or "all"
+    all_items: list[dict] = []
 
-    空会话（创建后未发言）不计入历史；统计口径与筛选条件无关，始终反映全部记录。
-    """
+    # 1. 对话练习会话
     agg = (
         select(
             PracticeTurn.session_id.label("sid"),
@@ -127,55 +129,109 @@ def list_sessions(
         .group_by(PracticeTurn.session_id)
         .subquery()
     )
-    conditions = [PracticeSession.user_id == user_id]
-    if scene_id:
-        conditions.append(PracticeSession.scene_id == scene_id)
-    if status:
-        conditions.append(PracticeSession.state_json["status"].as_string() == status)
-    total = (
-        db.scalar(
-            select(func.count()).select_from(PracticeSession).join(agg, agg.c.sid == PracticeSession.id).where(*conditions)
-        )
-        or 0
-    )
-    rows = db.execute(
+    conv_rows = db.execute(
         select(PracticeSession, agg.c.turns, agg.c.last_at)
         .join(agg, agg.c.sid == PracticeSession.id)
-        .where(*conditions)
-        .order_by(agg.c.last_at.desc(), PracticeSession.id.desc())
-        .offset((page - 1) * page_size)
-        .limit(page_size)
+        .where(PracticeSession.user_id == user_id)
     ).all()
-    items = [_session_summary(row, turns, last_at) for row, turns, last_at in rows]
-    previews: dict[str, str] = {}
-    ids = [item["id"] for item in items]
-    if ids:
+    conv_ids = [row.id for row, _, _ in conv_rows]
+    conv_previews: dict[str, str] = {}
+    if conv_ids:
         for sid, text in db.execute(
             select(PracticeTurn.session_id, PracticeTurn.input_text)
-            .where(PracticeTurn.session_id.in_(ids))
+            .where(PracticeTurn.session_id.in_(conv_ids))
             .order_by(PracticeTurn.session_id, PracticeTurn.number.desc())
         ).all():
-            previews[sid] = text
-        for item in items:
-            item["preview"] = (previews.get(item["id"]) or "").strip().replace("\n", " ")[:80]
-    joined = PracticeSession.id.in_(select(PracticeTurn.session_id))
+            conv_previews[sid] = text
+
+    conv_items: list[dict] = []
+    for row, turns, last_at in conv_rows:
+        item = _session_summary(row, turns, last_at)
+        item["record_type"] = "conversation"
+        item["preview"] = (conv_previews.get(item["id"]) or "").strip().replace("\n", " ")[:80]
+        conv_items.append(item)
+
+    # 2. 多角色辩论会话
+    DebateSession.__table__.create(bind=db.get_bind(), checkfirst=True)
+    DebateTurn.__table__.create(bind=db.get_bind(), checkfirst=True)
+    debate_rows = db.scalars(
+        select(DebateSession).where(DebateSession.user_id == user_id)
+    ).all()
+    debate_items: list[dict] = []
+    for d in debate_rows:
+        if d.turn_count <= 1 and d.status != "finished":
+            continue
+        debate_items.append({
+            "id": d.id,
+            "record_type": "debate",
+            "scene_id": d.topic_id,
+            "scene_name": d.topic_title,
+            "category": "debate",
+            "difficulty": d.difficulty,
+            "description": d.motion_en,
+            "turn_count": d.turn_count,
+            "goals_done": 1 if d.status == "finished" else 0,
+            "goals_total": 1,
+            "status": d.status,
+            "finish_reason": None,
+            "stage_name": f"胜率 {d.win_rate}%",
+            "stage_index": min(4, d.stage_index + 1),
+            "stage_total": 4,
+            "created_at": d.created_at,
+            "last_active_at": d.updated_at or d.created_at,
+            "preview": d.motion_en[:80],
+        })
+
+    # 3. 听力工作室单元进度
+    listening_rows = db.execute(
+        select(ListeningProgress, ListeningUnit)
+        .join(ListeningUnit, ListeningUnit.id == ListeningProgress.unit_id)
+        .where(ListeningProgress.user_id == user_id, ListeningProgress.progress > 0)
+    ).all()
+    listening_items: list[dict] = []
+    for prog, unit in listening_rows:
+        listening_items.append({
+            "id": f"listening:{unit.id}",
+            "record_type": "listening",
+            "scene_id": unit.id,
+            "scene_name": unit.title,
+            "category": "listening",
+            "difficulty": "intermediate",
+            "description": unit.subtitle,
+            "turn_count": max(1, prog.completed_count or 1),
+            "goals_done": 1 if prog.progress >= 100 else 0,
+            "goals_total": 1,
+            "status": "finished" if prog.progress >= 100 else "active",
+            "finish_reason": None,
+            "stage_name": f"完成度 {prog.progress}%",
+            "stage_index": 1 if prog.progress >= 100 else 0,
+            "stage_total": 1,
+            "created_at": prog.updated_at,
+            "last_active_at": prog.updated_at,
+            "preview": (unit.subtitle or unit.channel_label)[:80],
+        })
+
+    all_records = conv_items + debate_items + listening_items
     stats = {
-        "sessions": db.scalar(select(func.count()).select_from(PracticeSession).where(PracticeSession.user_id == user_id, joined)) or 0,
-        "turns": db.scalar(
-            select(func.count())
-            .select_from(PracticeTurn)
-            .join(PracticeSession, PracticeSession.id == PracticeTurn.session_id)
-            .where(PracticeSession.user_id == user_id)
-        )
-        or 0,
-        "finished": db.scalar(
-            select(func.count())
-            .select_from(PracticeSession)
-            .where(PracticeSession.user_id == user_id, joined, PracticeSession.state_json["status"].as_string() == "finished")
-        )
-        or 0,
+        "sessions": len(all_records),
+        "turns": sum(int(item.get("turn_count") or 0) for item in all_records),
+        "finished": sum(1 for item in all_records if item.get("status") == "finished"),
     }
-    return {"items": items, "total": total, "page": page, "page_size": page_size, "stats": stats}
+
+    filtered = all_records
+    if target_mode != "all":
+        filtered = [item for item in filtered if item.get("record_type") == target_mode]
+    if scene_id:
+        filtered = [item for item in filtered if item.get("scene_id") == scene_id]
+    if status:
+        filtered = [item for item in filtered if item.get("status") == status]
+
+    filtered.sort(key=lambda item: item.get("last_active_at") or utcnow(), reverse=True)
+    total = len(filtered)
+    start = (page - 1) * page_size
+    paged = filtered[start : start + page_size]
+
+    return {"items": paged, "total": total, "page": page, "page_size": page_size, "stats": stats}
 
 
 def _user_audio_path(turn_id: str):
