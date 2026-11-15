@@ -24,9 +24,14 @@
           class="topic-card"
           @click="openSetupModal(topic)"
         >
+          <SceneCover
+            :scene="topicCoverModel(topic)"
+            :category-label="topic.categoryLabel || '多角色'"
+            mark-icon="arrow-right"
+          />
+          <div class="topic-card-body">
           <div class="topic-head">
             <div class="topic-badges">
-              <span class="cat-badge">{{ topic.categoryLabel }}</span>
               <span class="submode-badge" :class="topic.sceneType === 'panel' ? 'panel' : 'debate'">
                 {{ topic.sceneType === 'panel' ? '多人对话' : '正反辩论' }}
               </span>
@@ -36,17 +41,6 @@
 
           <h3 class="topic-title">{{ topic.titleZh }}</h3>
           <p class="topic-motion">{{ topic.motionEn }}</p>
-
-          <div class="stance-preview">
-            <div class="stance-row pro">
-              <span class="stance-tag">{{ topic.sceneType === 'panel' ? '亮点' : '正方' }}</span>
-              <p>{{ topic.proSummary }}</p>
-            </div>
-            <div class="stance-row con">
-              <span class="stance-tag">{{ topic.sceneType === 'panel' ? '追问' : '反方' }}</span>
-              <p>{{ topic.conSummary }}</p>
-            </div>
-          </div>
 
           <div class="topic-foot">
             <span class="topic-meta">
@@ -77,6 +71,7 @@
               </button>
             </div>
           </div>
+          </div>
         </article>
 
         <div v-if="!topicsLoading && !topicsError && !filteredTopics.length" class="debate-empty-card">
@@ -105,9 +100,8 @@
     <div v-else class="debate-arena">
       <header class="arena-head">
         <div class="arena-head-left">
-          <button type="button" class="back-btn" @click="exitArena">
-            <AppIcon name="chevron-left" :size="16" />
-            <span>返回</span>
+          <button type="button" class="back-btn" aria-label="返回" title="返回" @click="exitArena">
+            <AppIcon name="chevron-left" :size="19" />
           </button>
           <div class="arena-title-wrap">
             <div class="arena-title-row">
@@ -205,11 +199,19 @@
               :class="msg.role === 'user' ? 'is-user' : 'is-ai'"
             >
               <div v-if="msg.role !== 'user'" class="msg-avatar" :class="msg.role">
-                {{ msg.speaker.slice(0, 1) }}
+                <CharacterPortrait
+                  :character="roleAvatarObj(findRoleIdForMessage(msg) || msg.role).id"
+                  :appearance="roleAvatarObj(findRoleIdForMessage(msg) || msg.role).appearance || null"
+                  :animated="false"
+                  :lip-sync="false"
+                  state="idle"
+                  :name="msg.speaker"
+                />
               </div>
+              <UserAvatar v-if="msg.role === 'user'" class="msg-avatar-user" :user="session.user" :size="34" />
               <div class="msg-col">
                 <div class="msg-meta">
-                  <span class="role-tag" :class="msg.role">{{ msg.roleLabel }}</span>
+                  <span class="role-tag" :class="msg.role">{{ formatRoleLabel(msg.role, msg.roleLabel) }}</span>
                   <span class="msg-speaker">{{ msg.speaker }}</span>
                   <span class="msg-stage">{{ msg.stageLabel }}</span>
                 </div>
@@ -229,6 +231,23 @@
                   @toggle-play="toggleMsgAudio(msg)"
                   @toggle-original="toggleMsgText(msg.id)"
                 />
+              </div>
+            </div>
+            <div v-if="sending" class="msg-row is-ai thinking-row" role="status">
+              <div class="msg-avatar" :class="activeSpeakerRole?.roleType || 'opponent'">
+                <CharacterPortrait
+                  v-if="activeSpeakerRole"
+                  :character="roleAvatarObj(activeSpeakerRole).id"
+                  :appearance="roleAvatarObj(activeSpeakerRole).appearance || null"
+                  :animated="false"
+                  :lip-sync="false"
+                  state="thinking"
+                  :name="activeSpeakerRole.name"
+                />
+              </div>
+              <div class="thinking-bubble">
+                <span class="thinking-dots"><i></i><i></i><i></i></span>
+                <small>正在组织回复…</small>
               </div>
             </div>
           </div>
@@ -274,192 +293,51 @@
         </div>
 
         <!-- 右侧：多角色同屏圆桌舞台 + 四维雷达战况面板 -->
-        <aside class="arena-side">
-          <div class="side-card roundtable-stage">
-            <div class="side-card-head">
-              <h4>{{ isPanelMode ? '同台对话席位' : '圆桌辩论席' }}</h4>
-              <label class="auto-play-check">
-                <input v-model="autoPlayAudio" type="checkbox" />
-                <span>自动播报</span>
-              </label>
-            </div>
-            <div
-              class="stage-seats"
-              :style="{ gridTemplateColumns: `repeat(${Math.min(4, Math.max(2, aiRoles.length))}, minmax(0, 1fr))` }"
-            >
-              <button
-                v-for="role in aiRoles"
-                :key="role.id"
-                type="button"
-                class="seat-stage-card"
-                :class="[role.roleType, { speaking: speakingRole === role.id }]"
-                @click="speakingRole = role.id"
-              >
-                <span v-if="speakingRole === role.id" class="live-dot" aria-hidden="true"></span>
-                <div class="seat-portrait-box">
-                  <CharacterPortrait
-                    :character="roleAvatarObj(role).id"
-                    :appearance="roleAvatarObj(role).appearance || null"
-                    :state="roleStageState(role.id)"
-                    :lip-sync="true"
-                    :theme="roleAvatarObj(role).theme || 'amber'"
-                    :name="role.name"
-                  />
-                </div>
-                <strong class="seat-name">{{ role.name }}</strong>
-                <span class="seat-role">{{ role.title }}</span>
-              </button>
-            </div>
-          </div>
-
-          <div class="side-card">
-            <div class="side-card-head">
-              <h4>{{ isPanelMode ? '实时评估雷达' : '战况雷达' }}</h4>
-              <span class="momentum-tag" :class="winRate >= 50 ? 'up' : 'down'">
-                {{ isPanelMode ? '认可度' : (winRate >= 50 ? '占优' : '胶着') }} {{ winRate }}%
-              </span>
-            </div>
-
-            <!-- 4 维 SVG 迷你雷达图 -->
-            <div class="radar-wrap">
-              <svg viewBox="0 0 248 184" class="radar-svg" aria-label="四维能力雷达图">
-                <polygon
-                  v-for="(ring, rIdx) in [0.35, 0.65, 1]"
-                  :key="rIdx"
-                  :points="radarRingPoints(ring)"
-                  class="radar-grid"
-                />
-                <line x1="124" y1="38" x2="124" y2="146" class="radar-axis" />
-                <line x1="70" y1="92" x2="178" y2="92" class="radar-axis" />
-                <polygon :points="radarDataPoints" class="radar-area" />
-                <circle
-                  v-for="(pt, pIdx) in radarDataCoords"
-                  :key="pIdx"
-                  :cx="pt.x"
-                  :cy="pt.y"
-                  r="3.5"
-                  class="radar-dot"
-                />
-                <text x="124" y="24" text-anchor="middle" class="radar-label">逻辑 {{ scores.logic }}</text>
-                <text x="186" y="96" text-anchor="start" class="radar-label">{{ isPanelMode ? '应变' : '反驳' }} {{ scores.rebuttal }}</text>
-                <text x="124" y="168" text-anchor="middle" class="radar-label">气场 {{ scores.presence }}</text>
-                <text x="62" y="96" text-anchor="end" class="radar-label">地道 {{ scores.fluency }}</text>
-              </svg>
-            </div>
-
-            <div class="mini-kpi-row">
-              <span class="kpi-chip">阶段目标：{{ activeStages[stageIndex]?.shortTag || '推进' }}</span>
-              <span class="kpi-chip xp">+40 XP</span>
-            </div>
-          </div>
-        </aside>
+        <MultiRoleArena
+          v-model:auto-play-audio="autoPlayAudio"
+          v-model:speaking-role="speakingRole"
+          :is-panel-mode="isPanelMode"
+          :active-speaker-role="activeSpeakerRole"
+          :ai-roles="aiRoles"
+          :playing-msg-id="playingMsgId"
+          :voice-busy="voiceBusy"
+          :role-avatar-obj="roleAvatarObj"
+          :user-side="userSide"
+          :win-rate="winRate"
+          :turn-count="turnCount"
+          :max-turns="maxTurns"
+          :scores="scores"
+          :active-stages="activeStages"
+          :stage-index="stageIndex"
+        />
       </div>
     </div>
 
     <!-- 选边与配置弹窗 -->
-    <div v-if="setupTopic" class="modal-backdrop" @click.self="setupTopic = null">
-      <div class="setup-modal">
-        <div class="setup-head">
-          <div class="topic-badges">
-            <span class="cat-badge">{{ setupTopic.categoryLabel }}</span>
-            <span class="submode-badge" :class="setupTopic.sceneType === 'panel' ? 'panel' : 'debate'">
-              {{ setupTopic.sceneType === 'panel' ? '多人对话 / 群面' : '正反辩论' }}
-            </span>
-          </div>
-          <h3>{{ setupTopic.titleZh }}</h3>
-          <p>{{ setupTopic.motionEn }}</p>
-        </div>
-
-        <div v-if="setupTopic.sceneType !== 'panel'" class="setup-section">
-          <label>选择你的辩论立场</label>
-          <div class="side-picker">
-            <button
-              type="button"
-              class="side-option pro"
-              :class="{ selected: userSide === 'pro' }"
-              @click="userSide = 'pro'"
-            >
-              <strong>正方（支持）</strong>
-              <span>{{ setupTopic.proSummary }}</span>
-            </button>
-            <button
-              type="button"
-              class="side-option con"
-              :class="{ selected: userSide === 'con' }"
-              @click="userSide = 'con'"
-            >
-              <strong>反方（反对）</strong>
-              <span>{{ setupTopic.conSummary }}</span>
-            </button>
-          </div>
-        </div>
-
-        <div v-else class="setup-section">
-          <label>本场身份与同台 AI 阵容</label>
-          <div class="panel-lineup-card">
-            <div class="panel-user-row">
-              <span>你的身份</span>
-              <strong>{{ setupTopic.userRoleLabel || '候选人 / 主讲人' }}</strong>
-            </div>
-            <div class="panel-roles-chips">
-              <span v-for="r in (setupTopic.roles || [])" :key="r.id || r.name" class="panel-role-pill">
-                <b>{{ r.name }}</b> · {{ r.title || '评审成员' }}
-              </span>
-            </div>
-          </div>
-        </div>
-
-        <div class="setup-section">
-          <label>{{ setupTopic.sceneType === 'panel' ? 'AI 追问压力等级' : 'AI 对手交锋风格' }}</label>
-          <div class="style-pills">
-            <button
-              v-for="opt in OPPONENT_STYLES"
-              :key="opt.id"
-              type="button"
-              class="style-pill"
-              :class="{ selected: opponentStyle === opt.id }"
-              @click="opponentStyle = opt.id"
-            >
-              {{ opt.label }}
-            </button>
-          </div>
-        </div>
-
-        <p v-if="setupError" class="setup-error">{{ setupError }}</p>
-
-        <div class="setup-actions">
-          <button type="button" class="btn-cancel" @click="setupTopic = null">取消</button>
-          <button type="button" class="btn-start" @click="enterArena">
-            {{ setupTopic.sceneType === 'panel' ? '进入多人对话场' : '进入辩论场' }}
-          </button>
-        </div>
-      </div>
-    </div>
+    <MultiRoleSetupModal
+      v-model:user-side="userSide"
+      v-model:opponent-style="opponentStyle"
+      :topic="setupTopic"
+      :opponent-styles="OPPONENT_STYLES"
+      :latest-session="latestTopicSession"
+      :active-max-turns="activeMaxTurns"
+      :resuming="resumingTopicSession"
+      :setup-error="setupError"
+      @close="setupTopic = null"
+      @start="enterArena"
+      @resume="resumeTopicSession"
+    />
 
     <!-- 终场评估 / 裁决报告弹窗 -->
-    <div v-if="showVerdictModal" class="modal-backdrop" @click.self="showVerdictModal = false">
-      <div class="verdict-modal">
-        <div class="verdict-head">
-          <span class="xp-badge">+{{ verdictResult?.xp_awarded ?? 40 }} XP</span>
-          <h3>{{ isPanelMode ? '多角色综合评估报告' : '评委终场裁决报告' }}</h3>
-          <p>{{ activeTopic?.titleZh }}</p>
-        </div>
-        <div class="verdict-scores">
-          <div class="v-score">
-            <strong>{{ verdictResult?.avg_score ?? Math.round((scores.logic + scores.rebuttal + scores.fluency + scores.presence) / 4) }}</strong>
-            <span>综合表现分</span>
-          </div>
-          <div class="v-summary">
-            <strong>{{ isPanelMode ? '委员会评语' : '裁决评语' }}</strong>
-            <p>{{ verdictResult?.summary || '表达清晰切题、回应结构稳定；建议后续多补充具体数据或真实案例进一步提升说服力。' }}</p>
-          </div>
-        </div>
-        <div class="setup-actions">
-          <button type="button" class="btn-cancel" @click="showVerdictModal = false">{{ isPanelMode ? '继续对话' : '继续辩论' }}</button>
-          <button type="button" class="btn-start" @click="finishToHub">返回场景大厅</button>
-        </div>
-      </div>
-    </div>
+    <MultiRoleReportModal
+      :open="showVerdictModal"
+      :is-panel-mode="isPanelMode"
+      :topic-title="activeTopic?.titleZh || ''"
+      :verdict-result="verdictResult"
+      :scores="scores"
+      @close="showVerdictModal = false"
+      @finish="finishToHub"
+    />
 
     <!-- 删除确认弹窗 -->
     <div v-if="deletingTopic" class="modal-backdrop" @click.self="deletingTopic = null">
@@ -483,16 +361,24 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import AppIcon from '../components/AppIcon.vue'
 import AppTabs from '../components/AppTabs.vue'
-import CharacterPortrait from '../components/avatar/CharacterPortrait.vue'
+import MultiRoleArena from '../components/debate/MultiRoleArena.vue'
+import MultiRoleReportModal from '../components/debate/MultiRoleReportModal.vue'
+import MultiRoleSetupModal from '../components/debate/MultiRoleSetupModal.vue'
+import SceneCover from '../components/scene/SceneCover.vue'
+import UserAvatar from '../components/UserAvatar.vue'
+import { session } from '../auth/session'
 import PracticeComposer from '../components/practice/PracticeComposer.vue'
 import VoiceBubbleRow from '../components/practice/VoiceBubbleRow.vue'
 import { usePageLoading } from '../app/loading'
-import { FALLBACK_AVATARS, listAvatars, synthesizeSpeech } from '../api/avatar'
+import { FALLBACK_AVATARS, listAvatars } from '../api/avatar'
+import { useMultiRoleSession } from '../composables/useMultiRoleSession'
 import {
   createDebateSession,
+  debateCoverUrl,
   deleteDebateTopic,
   finishDebateSession,
   getDebateSession,
+  getLatestDebateSession,
   listDebateTopics,
   submitDebateTurn,
   suggestDebateReply,
@@ -552,7 +438,7 @@ const activeStages = computed(() => (Array.isArray(activeTopic.value?.stages) &&
 const maxTurns = computed(() => activeMaxTurns.value || activeTopic.value?.maxTurns || 6)
 
 const stageIndex = ref(0)
-const turnCount = ref(1)
+const turnCount = ref(0)
 const speakingRole = ref('moderator')
 const showZh = ref(true)
 const showVerdictModal = ref(false)
@@ -563,17 +449,10 @@ const suggesting = ref(false)
 const draft = ref('')
 const feedRef = ref(null)
 const debateSuggestions = ref([])
-const scores = ref({ logic: 78, rebuttal: 74, fluency: 82, presence: 80 })
-const winRate = ref(54)
-const comboCount = ref(1)
-const autoPlayAudio = ref(true)
-const playingMsgId = ref('')
-const loadingMsgId = ref('')
-const msgAudioProgress = ref(0)
+const scores = ref({ logic: 0, rebuttal: 0, fluency: 0, presence: 0 })
+const winRate = ref(50)
+const comboCount = ref(0)
 const expandedMsgIds = ref(new Set())
-let msgAudioEl = null
-let seqPlaybackToken = 0
-const debateTtsCache = new Map()
 
 // 语音输入状态（与语音对话页 Practice.vue 保持一致）
 const inputMode = ref('voice')
@@ -742,6 +621,34 @@ function findRoleIdForMessage(msg) {
   return list[0]?.id || ''
 }
 
+const COVER_CAT_MAP = {
+  tech: 'academic',
+  workplace: 'business',
+  education: 'campus',
+  society: 'daily',
+}
+function topicCoverModel(topic) {
+  return {
+    id: topic.id,
+    name: topic.titleZh,
+    category: COVER_CAT_MAP[topic.category] || 'academic',
+    cover_image_url: topic.coverUrl ? debateCoverUrl(topic.id) : '',
+  }
+}
+
+const activeSpeakerRole = computed(() => aiRoles.value.find((r) => r.id === speakingRole.value) || aiRoles.value[0] || null)
+
+function formatRoleLabel(roleType, rawTitle) {
+  const title = String(rawTitle || '').trim()
+  if (!isPanelMode.value && roleType === 'opponent') {
+    const oppSide = userSide.value === 'pro' ? '反方' : '正方'
+    if (!title) return oppSide
+    if (title.includes('反方') || title.includes('正方')) return title
+    return `${oppSide} · ${title}`
+  }
+  return title || '参与角色'
+}
+
 function roleStageState(roleId) {
   if (playingMsgId.value && speakingRole.value === roleId) return 'speaking'
   if (voiceBusy.value && speakingRole.value === roleId) return 'listening'
@@ -781,100 +688,18 @@ function toggleMsgText(id) {
   expandedMsgIds.value = next
 }
 
-function stopMsgAudio(cancelSequence = true) {
-  if (cancelSequence) seqPlaybackToken += 1
-  if (msgAudioEl) {
-    msgAudioEl.pause()
-    msgAudioEl.onended = null
-    msgAudioEl.ontimeupdate = null
-    msgAudioEl.onerror = null
-    msgAudioEl = null
-  }
-  playingMsgId.value = ''
-  msgAudioProgress.value = 0
-}
-
-function clearMsgAudioCache() {
-  stopMsgAudio(true)
-}
-
-async function fetchMsgTtsUrl(msg) {
-  const cacheKey = `${msg.voiceStyle || 'brian'}:${msg.en}`
-  let url = debateTtsCache.get(cacheKey)
-  if (!url) {
-    loadingMsgId.value = msg.id
-    try {
-      const blob = await synthesizeSpeech(msg.en, msg.voiceStyle || 'brian', 1.0)
-      url = URL.createObjectURL(blob)
-      if (debateTtsCache.size >= 50) {
-        const oldestKey = debateTtsCache.keys().next().value
-        const oldestUrl = debateTtsCache.get(oldestKey)
-        if (oldestUrl) URL.revokeObjectURL(oldestUrl)
-        debateTtsCache.delete(oldestKey)
-      }
-      debateTtsCache.set(cacheKey, url)
-    } finally {
-      if (loadingMsgId.value === msg.id) loadingMsgId.value = ''
-    }
-  }
-  return url
-}
-
-function playSingleMsgAudio(msg, token) {
-  return new Promise((resolve) => {
-    if (!msg?.en || !inArena.value || token !== seqPlaybackToken) {
-      resolve()
-      return
-    }
-    const rid = findRoleIdForMessage(msg)
-    if (rid) speakingRole.value = rid
-    fetchMsgTtsUrl(msg)
-      .then((url) => {
-        if (!inArena.value || token !== seqPlaybackToken) {
-          resolve()
-          return
-        }
-        stopMsgAudio(false)
-        msgAudioEl = new Audio(url)
-        playingMsgId.value = msg.id
-        msgAudioProgress.value = 0
-        const finish = () => {
-          stopMsgAudio(false)
-          resolve()
-        }
-        msgAudioEl.ontimeupdate = () => {
-          if (msgAudioEl?.duration) {
-            msgAudioProgress.value = Math.min(100, (msgAudioEl.currentTime / msgAudioEl.duration) * 100)
-          }
-        }
-        msgAudioEl.onended = finish
-        msgAudioEl.onerror = finish
-        msgAudioEl.play().catch(finish)
-      })
-      .catch(() => resolve())
-  })
-}
-
-async function playMessagesSequentially(msgList) {
-  if (!Array.isArray(msgList) || !msgList.length) return
-  stopMsgAudio(true)
-  const token = seqPlaybackToken
-  for (const msg of msgList) {
-    if (!inArena.value || token !== seqPlaybackToken) break
-    await playSingleMsgAudio(msg, token)
-  }
-}
-
-async function toggleMsgAudio(msg) {
-  if (!msg?.en) return
-  if (playingMsgId.value === msg.id) {
-    stopMsgAudio(true)
-    return
-  }
-  stopMsgAudio(true)
-  const token = seqPlaybackToken
-  await playSingleMsgAudio(msg, token)
-}
+const {
+  playingMsgId,
+  loadingMsgId,
+  autoPlayAudio,
+  msgAudioProgress,
+  stopMsgAudio,
+  clearMsgAudioCache,
+  revealAndPlayMessages,
+  playMessagesSequentially,
+  toggleMsgAudio,
+  disposeTtsCache,
+} = useMultiRoleSession({ inArena, feedRef, messages, findRoleIdForMessage, speakingRole })
 
 const messages = ref([])
 
@@ -914,9 +739,65 @@ function applyDebateTip(en) {
   debateSuggestions.value = []
 }
 
-function openSetupModal(topic) {
+const latestTopicSession = ref(null)
+const resumingTopicSession = ref(false)
+let setupCheckGen = 0
+
+async function openSetupModal(topic) {
   setupError.value = ''
+  latestTopicSession.value = null
   setupTopic.value = topic
+  if (!session.token || !topic?.id) return
+  const gen = ++setupCheckGen
+  try {
+    const { data } = await getLatestDebateSession(topic.id)
+    if (gen === setupCheckGen && setupTopic.value?.id === topic.id) {
+      latestTopicSession.value = data?.session || null
+    }
+  } catch {
+    // 忽略查询失败，保留新开一场流程
+  }
+}
+
+async function restoreDebateSession(sessionId) {
+  const { data } = await getDebateSession(sessionId)
+  debateSessionId.value = data.session.id
+  activeTopic.value = data.topic || {
+    id: data.session.topic_id,
+    titleZh: data.session.topic_title,
+    motionEn: data.session.motion_en,
+    sceneType: data.session.scene_type || 'debate',
+  }
+  activeSessionSceneType.value = data.session.scene_type || activeTopic.value?.sceneType || 'debate'
+  activeMaxTurns.value = data.session.max_turns || activeTopic.value?.maxTurns || 6
+  userSide.value = data.session.user_side || 'pro'
+  stageIndex.value = data.session.stage_index || 0
+  turnCount.value = data.session.turn_count ?? 0
+  winRate.value = data.session.win_rate ?? 50
+  comboCount.value = data.session.combo_count ?? 0
+  scores.value = data.session.scores || { logic: 0, rebuttal: 0, fluency: 0, presence: 0 }
+  verdictResult.value = data.session.verdict || null
+  messages.value = data.messages || []
+  const lastAi = [...messages.value].reverse().find((m) => m.role !== 'user')
+  speakingRole.value = findRoleIdForMessage(lastAi) || aiRoles.value[0]?.id || 'moderator'
+  inArena.value = true
+  await nextTick()
+  if (feedRef.value) feedRef.value.scrollTop = feedRef.value.scrollHeight
+}
+
+async function resumeTopicSession(sessionId) {
+  if (!sessionId || resumingTopicSession.value) return
+  resumingTopicSession.value = true
+  setupError.value = ''
+  try {
+    await restoreDebateSession(sessionId)
+    setupTopic.value = null
+    latestTopicSession.value = null
+  } catch (err) {
+    setupError.value = err?.message || '恢复上次对话失败，请重试'
+  } finally {
+    resumingTopicSession.value = false
+  }
 }
 
 function normalizeTopicItem(t) {
@@ -1029,6 +910,20 @@ async function submitUserTurn(voicePayload = null) {
   if (!isVoice) draft.value = ''
   debateSuggestions.value = []
   voiceError.value = ''
+  const tempId = `temp-user-${Date.now()}`
+  messages.value.push({
+    id: tempId,
+    role: 'user',
+    roleLabel: isPanelMode.value ? (activeTopic.value?.userRoleLabel || '我方') : (userSide.value === 'pro' ? '正方 · 我方' : '反方 · 我方'),
+    speaker: '我',
+    stageLabel: activeStages.value[stageIndex.value]?.label || '',
+    en: text,
+    zh: '',
+    isVoice,
+    duration: voicePayload?.duration || 0,
+  })
+  await nextTick()
+  if (feedRef.value) feedRef.value.scrollTop = feedRef.value.scrollHeight
   sending.value = true
   try {
     const { data } = await submitDebateTurn(debateSessionId.value, {
@@ -1037,7 +932,14 @@ async function submitUserTurn(voicePayload = null) {
       duration: voicePayload?.duration || null
     })
     const newMsgs = data.new_messages || []
-    messages.value.push(...newMsgs)
+    const serverUserMsg = newMsgs.find((m) => m.role === 'user')
+    const tempIdx = messages.value.findIndex((m) => m.id === tempId)
+    if (tempIdx >= 0) {
+      if (serverUserMsg) messages.value.splice(tempIdx, 1, serverUserMsg)
+      else messages.value.splice(tempIdx, 1)
+    } else if (serverUserMsg) {
+      messages.value.push(serverUserMsg)
+    }
     stageIndex.value = data.session.stage_index
     turnCount.value = data.session.turn_count
     if (data.session.max_turns) activeMaxTurns.value = data.session.max_turns
@@ -1045,17 +947,13 @@ async function submitUserTurn(voicePayload = null) {
     winRate.value = data.session.win_rate
     scores.value = data.session.scores
     const aiMsgs = newMsgs.filter((m) => m.role !== 'user')
-    const firstAi = aiMsgs[0]
-    if (firstAi) {
-      const rid = findRoleIdForMessage(firstAi)
-      if (rid) speakingRole.value = rid
-    }
-    await nextTick()
-    if (feedRef.value) feedRef.value.scrollTop = feedRef.value.scrollHeight
-    if (autoPlayAudio.value && aiMsgs.length) {
-      void playMessagesSequentially(aiMsgs)
+    sending.value = false
+    if (aiMsgs.length) {
+      void revealAndPlayMessages(aiMsgs)
     }
   } catch (err) {
+    const tempIdx = messages.value.findIndex((m) => m.id === tempId)
+    if (tempIdx >= 0) messages.value.splice(tempIdx, 1)
     if (!isVoice) draft.value = text
     voiceError.value = err?.message || '提交发言失败，请重试'
   } finally {
@@ -1103,27 +1001,7 @@ onMounted(async () => {
     const resumeId = String(route.query?.session || '').trim()
     if (resumeId) {
       try {
-        const { data } = await getDebateSession(resumeId)
-        debateSessionId.value = data.session.id
-        activeTopic.value = data.topic || {
-          id: data.session.topic_id,
-          titleZh: data.session.topic_title,
-          motionEn: data.session.motion_en,
-          sceneType: data.session.scene_type || 'debate',
-        }
-        activeSessionSceneType.value = data.session.scene_type || activeTopic.value?.sceneType || 'debate'
-        activeMaxTurns.value = data.session.max_turns || activeTopic.value?.maxTurns || 6
-        userSide.value = data.session.user_side || 'pro'
-        stageIndex.value = data.session.stage_index || 0
-        turnCount.value = data.session.turn_count || 1
-        winRate.value = data.session.win_rate || 54
-        comboCount.value = data.session.combo_count || 1
-        scores.value = data.session.scores || { logic: 78, rebuttal: 74, fluency: 82, presence: 80 }
-        verdictResult.value = data.session.verdict || null
-        messages.value = data.messages || []
-        const lastAi = [...messages.value].reverse().find((m) => m.role !== 'user')
-        speakingRole.value = findRoleIdForMessage(lastAi) || aiRoles.value[0]?.id || 'moderator'
-        inArena.value = true
+        await restoreDebateSession(resumeId)
       } catch {
         // 忽略无效的 session query
       }
@@ -1136,6 +1014,7 @@ onMounted(async () => {
 onBeforeUnmount(() => {
   clearPendingVoice()
   clearMsgAudioCache()
+  disposeTtsCache()
 })
 </script>
 
@@ -1209,13 +1088,21 @@ onBeforeUnmount(() => {
 .topic-card {
   display: flex;
   flex-direction: column;
-  padding: 16px 18px;
+  padding: 0;
+  overflow: visible;
   border: 1.5px solid #ebe7f5;
   border-bottom: 4px solid #e3dcf2;
-  border-radius: 18px;
+  border-radius: 19px;
   background: #ffffff;
   cursor: pointer;
   transition: border-color 0.16s, transform 0.16s, box-shadow 0.16s;
+}
+
+.topic-card-body {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  padding: 14px 16px 16px;
 }
 
 .topic-card:hover {
@@ -1276,9 +1163,13 @@ onBeforeUnmount(() => {
 
 .topic-motion {
   margin: 0 0 12px;
-  font-size: 12px;
+  font-size: 12.5px;
   color: var(--muted);
   line-height: 1.5;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 .stance-preview {
@@ -1608,11 +1499,9 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 14px;
-  padding: 13px 16px;
-  border: 1px solid var(--line);
-  border-radius: 14px;
-  background: var(--surface);
+  gap: 12px;
+  min-height: 60px;
+  padding: 6px 0 4px;
 }
 
 .arena-head-left {
@@ -1622,18 +1511,39 @@ onBeforeUnmount(() => {
   min-width: 0;
 }
 
-.back-btn,
+.back-btn {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  background: white;
+  border: 1.5px solid #e7e1f5;
+  border-bottom: 3px solid #dcd3f0;
+  border-radius: 11px;
+  color: #6e6886;
+  transition: border-color 0.15s, background 0.15s, color 0.15s, transform 0.12s;
+}
+
+.back-btn:hover {
+  border-color: #c9bdf0;
+  background: #f8f5ff;
+  color: #5b43b0;
+}
+
 .ghost-btn {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  height: 32px;
-  padding: 0 11px;
-  border: 1px solid var(--line);
-  border-radius: 9px;
+  height: 34px;
+  padding: 0 12px;
+  border: 1.5px solid #e7e1f5;
+  border-bottom: 3px solid #dcd3f0;
+  border-radius: 11px;
   background: var(--surface);
   color: var(--ink-soft);
   font-size: 12.5px;
+  font-weight: 600;
   flex: 0 0 auto;
 }
 
@@ -1652,9 +1562,10 @@ onBeforeUnmount(() => {
 
 .arena-title-row h2 {
   margin: 0;
-  font-size: 15.5px;
-  font-weight: 600;
-  color: var(--ink);
+  font-size: 18px;
+  font-weight: 750;
+  line-height: 1.4;
+  color: #393451;
 }
 
 .my-side-pill {
@@ -1883,17 +1794,74 @@ onBeforeUnmount(() => {
 }
 
 .msg-avatar {
-  display: grid;
-  place-items: center;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
   width: 34px;
   height: 34px;
   flex: 0 0 34px;
+  overflow: hidden;
   margin-top: 18px;
-  border-radius: 50%;
+  border-radius: 12px;
   background: #eee9ff;
   color: #654ab8;
   font-size: 13.5px;
   font-weight: 700;
+}
+
+.msg-avatar :deep(.portrait) {
+  width: 144%;
+  height: 144%;
+  flex: 0 0 auto;
+  transform: translateY(-2px);
+  display: block;
+  pointer-events: none;
+}
+
+.msg-avatar-user {
+  flex: 0 0 34px;
+  margin-top: 18px;
+  border-radius: 12px;
+}
+
+.thinking-row {
+  align-items: center;
+}
+
+.thinking-row .msg-avatar {
+  margin-top: 0;
+}
+
+.thinking-bubble {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border: 1px solid #ece8f5;
+  border-radius: 14px;
+  background: #faf9fd;
+  color: var(--muted);
+  font-size: 12.5px;
+}
+
+.thinking-dots {
+  display: inline-flex;
+  gap: 4px;
+}
+
+.thinking-dots i {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--brand);
+  animation: debate-dot 1.2s ease-in-out infinite;
+}
+
+.thinking-dots i:nth-child(2) { animation-delay: 0.15s; }
+.thinking-dots i:nth-child(3) { animation-delay: 0.3s; }
+
+@keyframes debate-dot {
+  50% { opacity: 0.25; transform: translateY(-2px); }
 }
 
 .msg-avatar.opponent { background: #fdeee9; color: #b84a39; }
@@ -2075,55 +2043,47 @@ onBeforeUnmount(() => {
   gap: 8px;
 }
 
-.stage-seats {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 7px;
-}
-
-.seat-stage-card {
-  position: relative;
+.speaker-stage-focus {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 4px;
-  padding: 8px 4px 7px;
+  gap: 8px;
+  padding: 12px 12px 10px;
   border: 1.5px solid #ebe7f5;
   border-bottom: 3px solid #dfd8f0;
-  border-radius: 12px;
+  border-radius: 14px;
   background: #faf9fe;
-  text-align: center;
-  transition: border-color 0.16s, background 0.16s, transform 0.14s;
+  transition: border-color 0.18s, background 0.18s;
 }
 
-.seat-stage-card.speaking {
+.speaker-stage-focus.speaking {
   border-color: #8b73dd;
   border-bottom-color: #6951b8;
   background: #f5f1ff;
 }
 
-.seat-stage-card.opponent.speaking {
+.speaker-stage-focus.opponent.speaking {
   border-color: #df9d8f;
   border-bottom-color: #c87462;
   background: #fdf6f4;
 }
 
-.seat-stage-card.interviewer.speaking {
+.speaker-stage-focus.interviewer.speaking {
   border-color: #93b7f2;
   border-bottom-color: #4f79cc;
   background: #f3f7ff;
 }
 
-.seat-stage-card.judge.speaking {
+.speaker-stage-focus.judge.speaking {
   border-color: #82cca4;
   border-bottom-color: #4aa777;
   background: #f3fbf7;
 }
 
-.seat-portrait-box {
-  width: 68px;
-  height: 76px;
-  border-radius: 12px;
+.speaker-stage-portrait {
+  width: 156px;
+  height: 168px;
+  border-radius: 14px;
   background: #ffffff;
   border: 1px solid #ece7f6;
   overflow: hidden;
@@ -2132,57 +2092,117 @@ onBeforeUnmount(() => {
   justify-content: center;
 }
 
-.seat-portrait-box :deep(svg) {
+.speaker-stage-portrait :deep(svg) {
   width: 100%;
   height: 100%;
   display: block;
 }
 
-.live-dot {
-  position: absolute;
-  top: 6px;
-  right: 6px;
-  width: 7px;
-  height: 7px;
+.speaker-stage-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  text-align: center;
+}
+
+.speaker-stage-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.speaker-stage-title strong {
+  font-size: 14.5px;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.speaker-stage-role {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.speaker-state-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 20px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: #f1eefb;
+  color: #6650b8;
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.speaker-state-pill.speaking {
+  background: #e9e2ff;
+  color: #543ba8;
+}
+
+.speaker-state-pill.listening {
+  background: #eaf4ff;
+  color: #365fb3;
+}
+
+.live-dot-inline {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.speaker-roster {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.roster-pill {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 6px 8px;
+  border: 1.5px solid #ebe7f5;
+  border-bottom: 2.5px solid #dfd8f0;
+  border-radius: 10px;
+  background: #fff;
+  color: var(--ink-soft);
+  font-size: 12px;
+  font-weight: 600;
+  transition: border-color 0.15s, background 0.15s, color 0.15s;
+}
+
+.roster-pill small {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.roster-pill.active {
+  border-color: #8b73dd;
+  background: #f5f1ff;
+  color: #5b43b0;
+}
+
+.roster-dot {
+  width: 6px;
+  height: 6px;
+  flex: 0 0 6px;
   border-radius: 50%;
   background: #7c5fd6;
 }
 
-.seat-stage-card.opponent .seat-portrait-box {
-  width: 68px;
-  height: 76px;
-  border-radius: 12px;
-  background: #ffffff;
-  border: 1px solid #ece7f6;
-  overflow: hidden;
-  display: flex;
-  align-items: flex-end;
-  justify-content: center;
-}
-
-.seat-portrait-box :deep(svg) {
-  width: 100%;
-  height: 100%;
-  display: block;
-}
-
-.live-dot { background: #c85845; }
-.seat-stage-card.judge .seat-portrait-box {
-  width: 68px;
-  height: 76px;
-  border-radius: 12px;
-  background: #ffffff;
-  border: 1px solid #ece7f6;
-  overflow: hidden;
-  display: flex;
-  align-items: flex-end;
-  justify-content: center;
-}
-
-.seat-portrait-box :deep(svg) {
-  width: 100%;
-  height: 100%;
-  display: block;
+.momentum-tag.even {
+  background: #f3f2f8;
+  color: #666380;
 }
 
 .live-dot { background: #298a5b; }
@@ -2516,7 +2536,31 @@ onBeforeUnmount(() => {
   transform: translateY(-1px);
 }
 
-.hub-state-banner.error,
+.hub-state-banner.error {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 14px;
+  padding: 11px 13px;
+  border: 1.5px solid #dfd6f6;
+  border-radius: 12px;
+  background: #f7f4ff;
+}
+
+.resume-hint {
+  margin: 14px 0 0;
+  font-size: 13px;
+  color: #5b517c;
+  line-height: 1.5;
+}
+
+.btn-cancel:disabled,
+.btn-start:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 .setup-error {
   background: #fff5f5;
   border: 1px solid #f7caca;

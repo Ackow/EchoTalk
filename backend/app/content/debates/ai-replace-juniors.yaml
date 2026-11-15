@@ -1,0 +1,48 @@
+id: ai-replace-juniors
+sceneType: debate
+category: tech
+categoryLabel: 科技伦理
+difficulty: intermediate
+difficultyLabel: 进阶
+duration: 8 分钟
+titleZh: AI 是否会取代初级软件工程师？
+motionEn: This house believes AI coding tools will replace most entry-level software engineering jobs within five years.
+proSummary: AI 已能自动生成测试与脚手架代码，初级岗位需求将大幅萎缩。
+conSummary: 理解需求边界、系统排错与跨团队沟通仍高度依赖人类工程师。
+backgroundContext: GitHub Copilot、Cursor 等工具已承担大量模板化编码工作，但线上故障定位、架构演进与需求澄清仍需人工把关。
+keyExpressions:
+  - boilerplate code generation
+  - debugging ambiguous requirements
+  - long-term talent pipeline
+opponentName: Sonia
+opponentTitle: 工程总监
+opponentVoice: sonia
+opponentAvatarId: sarah_2d
+opponentPersona: 务实犀利的互联网研发总监，善于从生产事故责任、代码维护成本和团队梯队建设角度发起反驳。
+roles:
+  - id: moderator
+    roleType: moderator
+    name: Brian
+    title: 主持人
+    avatarId: david_2d
+    voice: brian
+    persona: 把控议程节奏与交锋秩序的中立主持人。
+  - id: opponent
+    roleType: opponent
+    name: Sonia
+    title: 工程总监
+    avatarId: sarah_2d
+    voice: sonia
+    persona: 务实犀利的互联网研发总监，善于从生产事故责任、代码维护成本和团队梯队建设角度发起反驳。
+  - id: judge
+    roleType: judge
+    name: Andrew
+    title: 特邀评委
+    avatarId: leo_2d
+    voice: andrew
+    persona: 客观评估双方逻辑严密性与临场举证质量的行业评委。
+tools:
+  - search_knowledge
+  - rebuttal_hint
+  - judge_score
+  - add_review_task

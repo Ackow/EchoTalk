@@ -141,13 +141,18 @@ def duplicate_scene(db: Session, user: User, scene_id: str) -> dict[str, Any]:
     new_row = Scene(id=new_id, source="custom", author_id=user.id, created_at=utcnow())
     registry.apply_package(new_row, package, data)
     # 封面随场景一并复制
+    source_cover = None
     if row.cover_path:
-        source_cover = knowledge_svc.cover_file(row.cover_path)
-        if source_cover.exists():
-            target_dir = knowledge_svc.STORAGE_ROOT / "scenes" / new_id
-            target_dir.mkdir(parents=True, exist_ok=True)
-            target_dir.joinpath(f"cover{source_cover.suffix}").write_bytes(source_cover.read_bytes())
-            new_row.cover_path = f"scenes/{new_id}/cover{source_cover.suffix}"
+        candidate = knowledge_svc.cover_file(row.cover_path)
+        if candidate.exists():
+            source_cover = candidate
+    if source_cover is None and row.source == "builtin":
+        source_cover = registry.builtin_cover_file(row.id)
+    if source_cover is not None and source_cover.exists():
+        target_dir = knowledge_svc.STORAGE_ROOT / "scenes" / new_id
+        target_dir.mkdir(parents=True, exist_ok=True)
+        target_dir.joinpath(f"cover{source_cover.suffix}").write_bytes(source_cover.read_bytes())
+        new_row.cover_path = f"scenes/{new_id}/cover{source_cover.suffix}"
     db.add(new_row)
     db.flush()  # 先落 Scene 行：documents/chunks 的 FK 指向新 id，须等场景行存在（两表无 ORM relationship，单元工作不会自动排序）
 
@@ -282,10 +287,13 @@ def set_cover(db: Session, user: User, scene_id: str, filename: str | None, cont
 def get_cover_file(db: Session, scene_id: str):
     """封面文件路径；未设置或文件缺失返回 None（调用方转 404）。"""
     row = load_scene(db, scene_id)
-    if not row.cover_path:
-        return None
-    path = knowledge_svc.cover_file(row.cover_path)
-    return path if path.exists() else None
+    if row.cover_path:
+        path = knowledge_svc.cover_file(row.cover_path)
+        if path.exists():
+            return path
+    if row.source == "builtin":
+        return registry.builtin_cover_file(row.id)
+    return None
 
 
 def remove_cover(db: Session, user: User, scene_id: str) -> bool:

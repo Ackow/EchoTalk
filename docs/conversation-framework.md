@@ -1,113 +1,96 @@
-# EchoTalk 2.0 对话 Agent 框架
+# EchoTalk 2.0 系统与对话 Agent 架构说明
 
-当前交付包含后端对话框架与前端练习页：使用 LangChain 消息/工具/模型适配与 LangGraph StateGraph，复用现有 FastAPI、SQLAlchemy 和 ScenePackage。前端支持文字输入、录音后 ASR 转写、确认发送与 TTS 回放，语音配置见 [录音与转写接入](speech-input.md)。
+EchoTalk 2.0 采用 **1v1 语音对话（`Practice`）+ 1vN 多角色对话（`Debate / Panel`）** 双轨架构，结合场景知识库检索（Vector + FTS5 + RRF）、流式句子级 TTS 播报、听力工作室、SM-2 间隔重复复习计划以及后台管理端，形成完整的英语口语与听力训练闭环。
 
-## 执行结构
+---
+
+## 一、1v1 与 1vN 双轨对话架构
+
+### 1. 1v1 语音对话（`Practice`）
+专注单角色沉浸式任务流（日常情景、任务达成、1v1 模拟面试），基于 LangChain + LangGraph `StateGraph` 构建：
 
 ```text
-POST /api/sessions/{id}/turns
-  → 身份与会话归属校验、request_id 去重
-  → 读取场景快照、任务状态、最近 8 轮对话
-  → 释放读取事务
-  → LangGraph：agent → tools → agent … → finalize
-  → 乐观版本检查，原子提交轮次、状态和内部轨迹
-  → 返回公开回复与任务状态
+POST /api/sessions/{id}/turns[/stream]
+  → 身份与会话归属校验、request_id 幂等去重
+  → 读取场景快照、任务状态、最近 8 轮对话，释放读取事务
+  → LangGraph：agent → tools → agent … → finalize（每轮最多 4 次模型调用、6 次工具执行）
+  → 流式输出（/turns/stream）：边生成英文回复边通过 _SentenceBuffer 切句合成 edge-tts，推送 text / audio / done SSE 事件
+  → 乐观版本检查，原子提交轮次、状态、目标达成进度与内部轨迹（trace_json）
 ```
 
-每个 HTTP 请求运行一轮图。模型选择工具和交流内容；程序校验工具、修改业务状态、计算目标/阶段和完成条件。图结束不等于会话结束。ASR 和 TTS 后续在图前后接入。
+**核心模块职责：**
 
-## 文件职责
-
-| 文件 | 职责 |
+| 模块 | 职责 |
 |---|---|
-| `app/agents/conversation.py` | 图结构、工具循环、调用预算和模型错误处理 |
+| `app/agents/conversation.py` | LangGraph 图结构、工具循环、调用预算与模型异常处理 |
 | `app/agents/state.py` | 单轮图状态契约 |
-| `app/agents/context.py` | 场景模板、运行状态与近期消息上下文 |
-| `app/agents/model_gateway.py` | 对话模型配置与 LangChain ChatOpenAI 适配 |
-| `app/agents/tools.py` | 场景白名单与当前已实现工具的交集、参数和证据校验 |
-| `app/services/scene_runtime.py` | 场景初值、累计目标、声明式阶段推进、结束判定 |
-| `app/services/session_service.py` | 会话快照、历史、幂等、版本控制与持久化 |
-| `app/api/endpoints/sessions.py` | 登录后的文字练习接口 |
+| `app/agents/context.py` | 场景模板、运行状态、目标提示与近期对话上下文拼接 |
+| `app/agents/model_gateway.py` | 对话模型配置与 `ChatOpenAI` 适配（支持 `ECHOTALK_CHAT_*` 配置） |
+| `app/agents/tools.py` | `ToolRegistry`：场景白名单与已实现工具交集、归一化原文证据校验 |
+| `app/services/scene_runtime.py` | 场景初值、目标完成判定、声明式阶段推进与结束判定 |
+| `app/services/session/` | 会话 CRUD、流式轮次编排（`turn.py`）、复盘报告（`report.py`）、TTS 缓存 |
+| `app/api/endpoints/sessions.py` | 会话创建、恢复、同步/流式轮次提交与复盘报告接口 |
 
-当前注册了 `search_knowledge` 与 `update_scene_state`：
+### 2. 1vN 多角色对话（`Debate / Panel`）
+专注多角色协同与交锋，统一支持两种子模式：
+- **`debate`（正反辩论对抗）**：用户选择 `pro / con` 立场与交锋风格，主持人控场、对手辩手反驳、评委打分并维护四维战况雷达与胜率变化。
+- **`panel`（多人圆桌 / 群面委员会）**：无需选择正反方，由 2–4 个独立 AI 角色（如技术总监、HRBP、财务/产品负责人）按议程阶段轮流追问、补充与合议评估。
 
-- 检索仅作用于会话场景，服务端注入范围，并重新校验资料访问权限；个人资料尚未接入。
-- 状态更新仅支持包内声明的标量根键，类型须与非空初值一致，且必须引用本轮用户原话。证据引用只验证来源，不保证模型的语义判断正确。
-- 未实现的工具不会绑定给模型，并在运行提示词中列为不可用。咖啡厅计价/改单、面试阶段切换、Coach、复习工具仍需实现，不应把当前框架当成这些业务已完成。
-- `exit_when` 由程序推进一个阶段；缺省没有推进规则时保持当前阶段。无 `check` 的目标保留未判定，待课后评价接入。
-- 每轮最多 4 次模型调用、6 次工具执行。最后一次模型调用不绑定工具，若仍返回工具调用则整轮失败。
+内置多角色场景存放于 `backend/app/content/debates/*.yaml`，封面位于 `backend/app/content/debates/covers/`，服务启动时自动同步至 `debate_topics` 表，并与用户自建场景共用 `/api/debate/*` 接口及历史/复习/成长分析闭环。
 
-## 配置与启动
+---
 
-在 `backend/.env` 增加以下字段；它们与 LightRAG 的模型配置相互独立：
+## 二、工具注册表（Tool Registry）
 
-```dotenv
-ECHOTALK_CHAT_API_KEY=你的服务端密钥
-ECHOTALK_CHAT_MODEL=你的模型名称
-ECHOTALK_CHAT_API_BASE=https://api.openai.com/v1
-```
+### 1. 1v1 场景包白名单（`app/scenes/schema.py` & `app/agents/tools.py`）
+场景包在 `tools.allowed` 中声明允许使用的工具，运行时 `ToolRegistry.schemas()` 仅暴露同时已实现且在白名单内的工具：
 
-模型端点须支持标准 Chat Completions 与 Tool Calling。此适配器不处理供应商特有的推理字段；如需此类功能，在 `model_gateway.py` 换用对应的 LangChain 集成。没有配置时可以创建/读取会话，提交轮次返回 `503 CHAT_NOT_CONFIGURED`，不回退假回复。
+| 工具名 | 用途说明 |
+|---|---|
+| `search_knowledge` | 检索当前场景及关联资料库片段（混合检索 + RRF 重排） |
+| `update_scene_state` | 使用本轮用户原话证据更新标量状态字段 |
+| `append_state_item` | 向声明的列表状态追加条目（如订单、症状、清单） |
+| `remove_state_item` | 从声明的列表状态移除匹配条目 |
+| `adjust_state_number` | 对声明的数值状态字段执行加减运算 |
+| `calculate_expression` | 安全计算算术表达式（价格、总计、数量换算） |
+| `lookup_word` | 检索场景资料中的词句释义与用法 |
+| `get_hint` | 获取当前场景目标与关键词提示 |
+| `next_interview_stage` | 请求推进面试或分阶段对话至下一阶段 |
+| `add_review_task` | 将重点表达或纠错点加入后续复习任务 |
 
-```powershell
+> `schema.py` 的 `REGISTERED_TOOLS` 同时兼容预留声明（如 `get_learning_profile`、`calculate_order`、`modify_order`、`record_feedback`），未在 `ToolRegistry` 中实现的工具不会绑定给模型。
+
+### 2. 多角色工具开关（`tools_config`）
+多角色场景在 `tools` / `tools_config` 中配置可用能力：`search_knowledge`、`rebuttal_hint`、`judge_score`、`fact_check`、`calculate_expression`、`add_review_task`，由 `debate_service.py` 与前端 `Debate.vue` 按配置启停。
+
+---
+
+## 三、扩展功能模块
+
+| 模块 | 后端入口与服务 | 核心能力 |
+|---|---|---|
+| **听力工作室** | `app/api/endpoints/listening.py`<br>`app/services/listening_service.py` | 精听 / 盲听 / 听写单元、音频合成缓存、答题批改与学习 XP 累计 |
+| **SM-2 复习计划** | `app/api/endpoints/review.py`<br>`app/services/review_service.py` | 基于 SM-2 间隔重复算法安排今日待复习卡片，支持 1v1 / 多角色 / 手动建卡 |
+| **成长分析与历史** | `app/services/analytics_service.py`<br>`app/services/session/crud.py` | 聚合 1v1、多角色对话与听力训练数据，输出趋势与复盘回看入口 |
+| **后台管理端** | `app/api/endpoints/admin.py`<br>`app/services/admin/` + `admin/` 前端 | 独立的管理端界面与 API（`/api/admin/*`），支持用户、场景包与内容治理 |
+
+---
+
+## 四、配置、迁移与测试
+
+### 1. 环境变量与启动
+在 `backend/.env` 中配置数据库连接及对话模型（`ECHOTALK_CHAT_API_KEY`、`ECHOTALK_CHAT_MODEL`、`ECHOTALK_CHAT_API_BASE`）。表结构补齐与幂等列迁移统一收敛在 `app/core/migrations.py`，由 FastAPI `lifespan` 启动流程调用：
+
+```bash
 cd backend
-uv sync --locked
-uv run --locked python init_db.py
-uv run --locked python main.py
+python init_db.py
+python main.py
 ```
 
-`init_db.py` 创建新增的 `practice_sessions`、`practice_turns` 表。API 不自动执行建表。此次框架搭建未对开发 MySQL 执行 DDL。
-
-## 接口试用
-
-启动后可通过 `http://127.0.0.1:8000/docs` 登录授权并调用接口，Bearer token 沿用现有账户 API。
-
-1. `POST /api/sessions`，建议先用会议场景验证状态工具：
-
-```json
-{"scene_id": "launch_alignment"}
-```
-
-返回 `id`、渲染后的 `greeting`、初始 `state` 与 `version`。不暴露场景系统提示词或完整快照。
-
-2. `POST /api/sessions/{id}/turns`：
-
-```json
-{
-  "request_id": "turn_001",
-  "text": "The frontend is delayed because the payment API is not ready."
-}
-```
-
-返回 `turn_id`、输入、AI 文本、任务状态与新版本号。同一输入使用同一 `request_id` 重试会返回已提交结果；同 ID 换输入返回 409。客户端重试失败轮次时也应沿用原 ID。
-
-3. `GET /api/sessions/{id}`：恢复最后成功提交的状态和按序轮次。结束会话只能读取/重试已完成轮次，新轮次返回 409。
-
-会话接口要求登录。独立的 `/api/speech/transcriptions` 提供录音上传与转写，文字经用户确认后仍通过轮次接口提交。当前没有 SSE、手动结束、会话列表或报告接口。
-
-## 状态与失败边界
-
-- 业务状态与场景快照保存在 MySQL；未配置 LangGraph checkpoint。重启后可恢复到最后提交的轮次，不能恢复到失败轮次的中间节点。
-- 场景包被冻结，知识资料仍读取当前场景的资料，尚未冻结资料版本。场景删除或权限撤销后检索失败，历史会话仍可查看。
-- 近期聊天仅载入最近 8 轮和开场白；结构化任务状态完整保留。尚未实现旧对话摘要或长期学习记忆。
-- 网络调用不持有读取事务。工具先修改本轮私有状态，最后用版本比较更新会话。并发请求可能重复花费模型调用，但至多一个版本提交成功，其他返回 409。
-- 模型失败不提交本轮状态。检索失败/参数错误作为工具结果返回模型，可澄清或给出受限回复。
-- 工具结果与参数保存在 `trace_json`，不通过公开接口下发，避免直接泄露 `ai_only` 片段。模型收到不引用隐藏资料的指令；这不构成对自然语言泄漏的严格保证。
-- 当前工具仅检索或修改内存状态。增加支付、发消息等外部副作用之前，必须增加持久化操作幂等/事务消息；不能直接沿用内存回滚假设。
-
-## 后续扩展
-
-1. 在 `agents/tools.py` 中为业务工具增加参数模型与 handler，并加入可绑定 schema；场景包白名单继续限制可用工具。
-2. 实现结构化菜单、计价、改单、确认和模拟支付；业务约束应放工具服务中。
-3. 实现 `next_interview_stage` 的合法迁移校验，再接面试场景。
-4. 在现有录音转写、TTS 回放与练习前端之上增加 SSE 事件和更自然的语音交互。
-5. 会话结束触发独立 Learning 工作流，生成带原话证据的评价，不占实时对话关键路径。
-
-## 离线验证
-
-```powershell
+### 2. 自动化测试
+```bash
 cd backend
-uv run --locked python -m unittest discover -s tests -p 'test_*.py' -v
+.venv/bin/python -m unittest discover -s tests -p 'test_*.py' -v
 ```
 
-测试注入脚本模型和检索函数，使用临时内存 SQLite，不连接开发 MySQL，也不消耗真实模型额度。覆盖幂等、权限、快照、工具失败、状态恢复、并发版本冲突与预算。真实供应商的 Tool Calling 兼容性需配置后另行联调。
+测试使用临时内存 SQLite 与注入的伪模型/检索函数，不连接外部 MySQL，也不消耗真实模型额度。

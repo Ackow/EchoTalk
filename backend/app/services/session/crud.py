@@ -159,7 +159,7 @@ def list_sessions(
     ).all()
     debate_items: list[dict] = []
     for d in debate_rows:
-        if d.turn_count <= 1 and d.status != "finished":
+        if d.turn_count < 1 and d.status != "finished":
             continue
         debate_items.append({
             "id": d.id,
@@ -174,7 +174,7 @@ def list_sessions(
             "goals_total": 1,
             "status": d.status,
             "finish_reason": None,
-            "stage_name": f"胜率 {d.win_rate}%",
+            "stage_name": f"{'认可度' if d.scene_type == 'panel' else '胜率'} {d.win_rate}%",
             "stage_index": min(4, d.stage_index + 1),
             "stage_total": 4,
             "created_at": d.created_at,

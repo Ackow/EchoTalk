@@ -71,10 +71,10 @@ class DebateSession(Base):
     user_side = Column(String(8), nullable=False, default="pro")  # pro | con
     difficulty_level = Column(String(24), nullable=False, default="balanced")  # supportive | balanced | sharp
     stage_index = Column(Integer, nullable=False, default=0)
-    turn_count = Column(Integer, nullable=False, default=1)
+    turn_count = Column(Integer, nullable=False, default=0)
     status = Column(String(20), nullable=False, default="active")  # active | finished
-    win_rate = Column(Integer, nullable=False, default=54)
-    combo_count = Column(Integer, nullable=False, default=1)
+    win_rate = Column(Integer, nullable=False, default=50)
+    combo_count = Column(Integer, nullable=False, default=0)
     scores_json = Column(JSON, nullable=False)
     verdict_json = Column(JSON, nullable=True)
     created_at = Column(DateTime, nullable=False, default=utcnow, index=True)

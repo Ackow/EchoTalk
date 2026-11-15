@@ -4,7 +4,10 @@ import json
 import re
 import uuid
 import zipfile
+from pathlib import Path
 from typing import Any
+
+import yaml
 
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
@@ -14,6 +17,22 @@ from app.core.errors import AppError
 from app.core.timeutil import utcnow
 from app.models import DebateSession, DebateTopic, DebateTurn, PersonalChunk, ReviewItem, User, UserXpState
 from app.models.debate import DebateTopicReaction
+
+_BUILTIN_COVER_DIRS = (
+    Path(__file__).resolve().parent.parent / "content" / "debates" / "covers",
+    Path(__file__).resolve().parent.parent / "content" / "scenes" / "covers",
+)
+_COVER_EXTENSIONS = (".png", ".jpg", ".jpeg", ".webp")
+
+
+def _builtin_cover_file(topic_id: str) -> Path | None:
+    for cover_dir in _BUILTIN_COVER_DIRS:
+        for ext in _COVER_EXTENSIONS:
+            candidate = cover_dir / f"{topic_id}{ext}"
+            if candidate.is_file():
+                return candidate
+    return None
+
 
 STAGES = [
     {"id": "opening", "label": "开篇立论", "shortTag": "立论"},
@@ -142,230 +161,25 @@ def resolve_topic_stages(topic: Any) -> list[dict]:
             return cleaned
     return [dict(x) for x in (PANEL_STAGES if scene_type == "panel" else STAGES)]
 
-DEBATE_TOPICS = [
-    {
-        "id": "ai-replace-juniors",
-        "sceneType": "debate",
-        "category": "tech",
-        "categoryLabel": "科技伦理",
-        "difficulty": "intermediate",
-        "difficultyLabel": "进阶",
-        "duration": "8 分钟",
-        "titleZh": "AI 是否会取代初级软件工程师？",
-        "motionEn": "This house believes AI coding tools will replace most entry-level software engineering jobs within five years.",
-        "proSummary": "AI 已能自动生成测试与脚手架代码，初级岗位需求将大幅萎缩。",
-        "conSummary": "理解需求边界、系统排错与跨团队沟通仍高度依赖人类工程师。",
-        "backgroundContext": "GitHub Copilot、Cursor 等工具已承担大量模板化编码工作，但线上故障定位、架构演进与需求澄清仍需人工把关。",
-        "keyExpressions": [
-            "boilerplate code generation",
-            "debugging ambiguous requirements",
-            "long-term talent pipeline",
-        ],
-        "opponentName": "Sonia",
-        "opponentTitle": "工程总监",
-        "opponentVoice": "sonia",
-        "opponentAvatarId": "sarah_2d",
-        "opponentPersona": "务实犀利的互联网研发总监，善于从生产事故责任、代码维护成本和团队梯队建设角度发起反驳。",
-        "roles": [
-            {
-                "id": "moderator",
-                "roleType": "moderator",
-                "name": "Brian",
-                "title": "主持人",
-                "avatarId": "david_2d",
-                "voice": "brian",
-                "persona": "把控议程节奏与交锋秩序的中立主持人。",
-            },
-            {
-                "id": "opponent",
-                "roleType": "opponent",
-                "name": "Sonia",
-                "title": "工程总监",
-                "avatarId": "sarah_2d",
-                "voice": "sonia",
-                "persona": "务实犀利的互联网研发总监，善于从生产事故责任、代码维护成本和团队梯队建设角度发起反驳。",
-            },
-            {
-                "id": "judge",
-                "roleType": "judge",
-                "name": "Andrew",
-                "title": "特邀评委",
-                "avatarId": "leo_2d",
-                "voice": "andrew",
-                "persona": "客观评估双方逻辑严密性与临场举证质量的行业评委。",
-            },
-        ],
-        "stages": [dict(x) for x in STAGES],
-        "tools": ["search_knowledge", "rebuttal_hint", "judge_score", "add_review_task"],
-    },
-    {
-        "id": "four-day-workweek",
-        "sceneType": "debate",
-        "category": "workplace",
-        "categoryLabel": "职场文化",
-        "difficulty": "intermediate",
-        "difficultyLabel": "进阶",
-        "duration": "8 分钟",
-        "titleZh": "四天工作制能否在保持薪资不变下推广？",
-        "motionEn": "A four-day workweek with full pay is sustainable and beneficial for most industries.",
-        "proSummary": "精力恢复会显著提升单位小时产出，降低员工倦怠与离职率。",
-        "conSummary": "服务业与交付密集型行业难以压缩工时，最终可能推高人力成本。",
-        "backgroundContext": "英国与冰岛试点显示部分知识型企业产出持平，但医疗、零售、制造业面临排班与客户响应时长约束。",
-        "keyExpressions": [
-            "output per hour worked",
-            "client-facing coverage",
-            "operational overhead",
-        ],
-        "opponentName": "David",
-        "opponentTitle": "运营合伙人",
-        "opponentVoice": "brian",
-        "opponentAvatarId": "david_2d",
-        "opponentPersona": "注重财务模型与客户履约的运营合伙人，喜欢追问现金流、服务业排班成本与中小企业承受力。",
-        "roles": [
-            {
-                "id": "moderator",
-                "roleType": "moderator",
-                "name": "Brian",
-                "title": "主持人",
-                "avatarId": "leo_2d",
-                "voice": "brian",
-                "persona": "引导双方聚焦效率与成本平衡的辩论主持人。",
-            },
-            {
-                "id": "opponent",
-                "roleType": "opponent",
-                "name": "David",
-                "title": "运营合伙人",
-                "avatarId": "david_2d",
-                "voice": "brian",
-                "persona": "注重财务模型与客户履约的运营合伙人，喜欢追问现金流、服务业排班成本与中小企业承受力。",
-            },
-            {
-                "id": "judge",
-                "roleType": "judge",
-                "name": "Claire",
-                "title": "特邀评委",
-                "avatarId": "claire_2d",
-                "voice": "emma",
-                "persona": "关注组织生产力数据与行业差异性的组织发展评委。",
-            },
-        ],
-        "stages": [dict(x) for x in STAGES],
-        "tools": ["search_knowledge", "rebuttal_hint", "judge_score", "calculate_expression", "add_review_task"],
-    },
-    {
-        "id": "panel-final-interview",
-        "sceneType": "panel",
-        "category": "workplace",
-        "categoryLabel": "职场文化",
-        "difficulty": "advanced",
-        "difficultyLabel": "挑战",
-        "duration": "10 分钟",
-        "userRoleLabel": "高级工程师候选人",
-        "titleZh": "终面多面试官群面（Tech Lead + HRBP）",
-        "motionEn": "Senior Backend Engineer Final Panel: Defend a high-stakes production architecture trade-off and cross-team delivery decision.",
-        "proSummary": "清晰阐述系统架构取舍逻辑与可量化线上收益",
-        "conSummary": "坦诚复盘跨团队分歧处理与降级保障预案",
-        "backgroundContext": "本场模拟外企资深研发岗位终面圆桌：由技术总监追问高并发可靠性与技术深度，资深 HRBP 考察跨团队协同与失败复盘，研发副总裁统筹评估工程判断力与文化契合度。",
-        "keyExpressions": [
-            "high-stakes architectural trade-off",
-            "cross-functional alignment",
-            "blameless post-mortem",
-            "measurable tail-latency reduction",
-        ],
-        "opponentName": "Claire",
-        "opponentTitle": "技术总监 Tech Lead",
-        "opponentVoice": "emma",
-        "opponentAvatarId": "claire_2d",
-        "opponentPersona": "冷静严谨的技术总监，善于从候选人项目陈述中挖掘系统单点风险并追问量化线上结果。",
-        "roles": [
-            {
-                "id": "tech_lead",
-                "roleType": "interviewer",
-                "name": "Claire",
-                "title": "技术总监 Tech Lead",
-                "voice": "emma",
-                "avatarId": "claire_2d",
-                "persona": "专注高并发架构权衡、稳定性指标与工程落地成本的技术总监，追问具体且直接。",
-            },
-            {
-                "id": "hrbp",
-                "roleType": "interviewer",
-                "name": "Emily",
-                "title": "资深 HRBP",
-                "voice": "aria",
-                "avatarId": "emily_2d",
-                "persona": "关注跨团队意见冲突、推进阻力与失败复盘透明度的资深 HRBP，提问温和但直指协作本质。",
-            },
-            {
-                "id": "vp",
-                "roleType": "judge",
-                "name": "Leo",
-                "title": "研发副总裁 VP",
-                "voice": "brian",
-                "avatarId": "leo_2d",
-                "persona": "站在业务全局收益与组织长期发展视角追问关键取舍并给出终审评估的决策官。",
-            },
-        ],
-        "stages": PANEL_STAGES,
-    },
-    {
-        "id": "panel-product-pitch",
-        "sceneType": "panel",
-        "category": "workplace",
-        "categoryLabel": "职场文化",
-        "difficulty": "intermediate",
-        "difficultyLabel": "进阶",
-        "duration": "8 分钟",
-        "userRoleLabel": "项目负责人 Proposer",
-        "titleZh": "跨部门产品评审圆桌（PM + 研发 + 财务）",
-        "motionEn": "Cross-Functional Launch Review: Defend your Q3 AI assistant launch roadmap against product, engineering, and budget scrutiny.",
-        "proSummary": "讲清核心用户痛点、里程碑节奏与留存验证闭环",
-        "conSummary": "回应研发排期风险、成本边界与上线回滚预案",
-        "backgroundContext": "围绕 Q3 AI 助手新版本立项展开跨部门评审圆桌：产品负责人把控用户价值与需求优先级，研发总监审视工期与架构降级方案，财务运营BP核算算力投入产出比与预算红线。",
-        "keyExpressions": [
-            "prioritize ruthlessly",
-            "engineering bandwidth",
-            "return on investment",
-            "phased rollout with fallback",
-        ],
-        "opponentName": "Sarah",
-        "opponentTitle": "产品负责人 Head of Product",
-        "opponentVoice": "sonia",
-        "opponentAvatarId": "sarah_2d",
-        "opponentPersona": "结果导向的产品负责人，要求每一项功能投入都绑定明确的用户留存或转化指标。",
-        "roles": [
-            {
-                "id": "pm",
-                "roleType": "moderator",
-                "name": "Sarah",
-                "title": "产品负责人 Head of Product",
-                "voice": "sonia",
-                "avatarId": "sarah_2d",
-                "persona": "主持评审并重点检验核心用户价值与指标验证闭环的产品负责人。",
-            },
-            {
-                "id": "eng",
-                "roleType": "interviewer",
-                "name": "David",
-                "title": "研发总监 Eng Director",
-                "voice": "andrew",
-                "avatarId": "david_2d",
-                "persona": "关注接口延迟、研发排期缓冲与灰度回滚机制的务实工程负责人。",
-            },
-            {
-                "id": "finance",
-                "roleType": "judge",
-                "name": "Leo",
-                "title": "财务运营与预算评审 Finance BP",
-                "voice": "brian",
-                "avatarId": "leo_2d",
-                "persona": "严格核算模型调用成本、回本周期与预算红线的商业评审官。",
-            },
-        ],
-        "stages": PANEL_STAGES,
-    },
-]
+_BUILTIN_DEBATE_DIR = Path(__file__).resolve().parent.parent / "content" / "debates"
+
+
+def _load_builtin_debate_topics() -> list[dict[str, Any]]:
+    topics: list[dict[str, Any]] = []
+    if not _BUILTIN_DEBATE_DIR.is_dir():
+        return topics
+    for path in sorted(_BUILTIN_DEBATE_DIR.glob("*.yaml")):
+        data = yaml.safe_load(path.read_text(encoding="utf-8"))
+        if not isinstance(data, dict) or not data.get("id"):
+            continue
+        if not data.get("stages"):
+            scene_type = data.get("sceneType") or "debate"
+            data["stages"] = [dict(x) for x in (PANEL_STAGES if scene_type == "panel" else STAGES)]
+        topics.append(data)
+    return topics
+
+
+DEBATE_TOPICS = _load_builtin_debate_topics()
 
 _TOPIC_MAP = {t["id"]: t for t in DEBATE_TOPICS}
 
@@ -384,57 +198,10 @@ _DIFFICULTY_LABELS = {
 }
 
 
-_DEBATE_SCHEMA_CHECKED = False
-
-
 def ensure_debate_tables(db: Session) -> None:
-    global _DEBATE_SCHEMA_CHECKED
-    bind = db.get_bind()
-    DebateTopic.__table__.create(bind=bind, checkfirst=True)
-    DebateTopicReaction.__table__.create(bind=bind, checkfirst=True)
-    DebateSession.__table__.create(bind=bind, checkfirst=True)
-    DebateTurn.__table__.create(bind=bind, checkfirst=True)
-    ReviewItem.__table__.create(bind=bind, checkfirst=True)
-    UserXpState.__table__.create(bind=bind, checkfirst=True)
-    if not _DEBATE_SCHEMA_CHECKED:
-        from sqlalchemy import inspect as sa_inspect, text
-        inspector = sa_inspect(bind)
-        table_migrations = {
-            "debate_topics": {
-                "background_context": "TEXT NULL",
-                "key_expressions": "JSON NULL",
-                "default_style": "VARCHAR(24) NOT NULL DEFAULT 'balanced'",
-                "scene_type": "VARCHAR(24) NOT NULL DEFAULT 'debate'",
-                "user_role_label": "VARCHAR(64) NOT NULL DEFAULT '候选人 / 主讲人'",
-                "roles_config": "JSON NULL",
-                "stages_config": "JSON NULL",
-                "opponent_name": "VARCHAR(64) NOT NULL DEFAULT 'Sonia'",
-                "opponent_title": "VARCHAR(64) NOT NULL DEFAULT '对手辩手'",
-                "opponent_persona": "TEXT NULL",
-                "opponent_voice": "VARCHAR(32) NOT NULL DEFAULT 'sonia'",
-                "opponent_avatar_id": "VARCHAR(32) NOT NULL DEFAULT 'sarah_2d'",
-                "knowledge_doc_ids": "JSON NULL",
-                "cover_path": "VARCHAR(512) NULL",
-                "tools_config": "JSON NULL",
-                "status": "VARCHAR(24) NOT NULL DEFAULT 'private'",
-                "likes_count": "INT NOT NULL DEFAULT 0",
-                "favorites_count": "INT NOT NULL DEFAULT 0",
-            },
-            "debate_sessions": {
-                "scene_type": "VARCHAR(24) NOT NULL DEFAULT 'debate'",
-            },
-            "debate_turns": {
-                "role_title": "VARCHAR(64) NOT NULL DEFAULT ''",
-                "avatar_id": "VARCHAR(32) NOT NULL DEFAULT ''",
-            },
-        }
-        with bind.begin() as conn:
-            for tbl_name, cols_map in table_migrations.items():
-                existing_cols = {c["name"] for c in inspector.get_columns(tbl_name)}
-                for col_name, col_ddl in cols_map.items():
-                    if col_name not in existing_cols:
-                        conn.execute(text(f"ALTER TABLE {tbl_name} ADD COLUMN {col_name} {col_ddl}"))
-        _DEBATE_SCHEMA_CHECKED = True
+    from app.core.migrations import ensure_debate_schema
+
+    ensure_debate_schema(db.get_bind())
     _seed_builtin_topics(db)
 
 
@@ -625,7 +392,11 @@ def serialize_topic(
         "roles": roles,
         "stages": stages,
         "knowledgeDocIds": topic.knowledge_doc_ids or [],
-        "coverUrl": f"/api/v1/debate/topics/{topic.id}/cover" if getattr(topic, "cover_path", None) else "",
+        "coverUrl": (
+            f"/api/debate/topics/{topic.id}/cover"
+            if (getattr(topic, "cover_path", None) or _builtin_cover_file(topic.id))
+            else ""
+        ),
         "tools": tools,
         "status": resolved_status,
         "authorId": topic.owner_id,
@@ -1226,11 +997,14 @@ def set_debate_cover(db: Session, user: User, topic_id: str, filename: str | Non
 def get_debate_cover_file(db: Session, topic_id: str):
     ensure_debate_tables(db)
     topic = db.scalar(select(DebateTopic).where(DebateTopic.id == topic_id))
-    if not topic or not getattr(topic, "cover_path", None):
+    if not topic:
         return None
-    from app.scenes import knowledge as knowledge_svc
-    path = knowledge_svc.cover_file(topic.cover_path)
-    return path if path.exists() else None
+    if getattr(topic, "cover_path", None):
+        from app.scenes import knowledge as knowledge_svc
+        path = knowledge_svc.cover_file(topic.cover_path)
+        if path.exists():
+            return path
+    return _builtin_cover_file(topic_id)
 
 
 def remove_debate_cover(db: Session, user: User, topic_id: str) -> bool:
@@ -1311,7 +1085,7 @@ def serialize_session(session: DebateSession, max_turns: int = 6) -> dict:
         "status": session.status,
         "win_rate": session.win_rate,
         "combo_count": session.combo_count,
-        "scores": session.scores_json or {"logic": 78, "rebuttal": 74, "fluency": 82, "presence": 80},
+        "scores": session.scores_json or {"logic": 0, "rebuttal": 0, "fluency": 0, "presence": 0},
         "verdict": session.verdict_json,
         "created_at": session.created_at.isoformat() if session.created_at else None,
         "updated_at": session.updated_at.isoformat() if session.updated_at else None,
@@ -1350,11 +1124,11 @@ def create_debate_session(
         user_side=side,
         difficulty_level=level,
         stage_index=0,
-        turn_count=1,
+        turn_count=0,
         status="active",
-        win_rate=62 if scene_type == "panel" else 54,
-        combo_count=1,
-        scores_json={"logic": 78, "rebuttal": 74, "fluency": 82, "presence": 80},
+        win_rate=50,
+        combo_count=0,
+        scores_json={"logic": 0, "rebuttal": 0, "fluency": 0, "presence": 0},
     )
     db.add(session)
 
@@ -1408,6 +1182,21 @@ def create_debate_session(
         "topic": topic,
         "messages": [serialize_turn(opening_turn, side, scene_type=scene_type)],
     }
+
+
+def get_latest_debate_session(db: Session, user_id: int, topic_id: str) -> dict:
+    ensure_debate_tables(db)
+    row = db.scalar(
+        select(DebateSession)
+        .where(
+            DebateSession.user_id == user_id,
+            DebateSession.topic_id == topic_id,
+            DebateSession.status == "active",
+            DebateSession.turn_count >= 1,
+        )
+        .order_by(DebateSession.updated_at.desc(), DebateSession.created_at.desc())
+    )
+    return {"session": serialize_session(row) if row else None}
 
 
 def get_debate_session(db: Session, user_id: int, session_id: str) -> dict:
@@ -1564,6 +1353,7 @@ async def _generate_ai_turn(
     tools: list[str],
     topic: DebateTopic | None = None,
     knowledge_text: str = "",
+    show_eval: bool | None = None,
 ) -> dict[str, Any]:
     judge_score_enabled = "judge_score" in tools
     fact_check_enabled = "fact_check" in tools
@@ -1600,7 +1390,12 @@ async def _generate_ai_turn(
         if judge_score_enabled
         else "Return 0 for all score_deltas and win_rate_delta, and empty strings for judge_en and judge_zh."
     )
-    show_eval = judge_score_enabled and bool(eval_role) and next_stage >= max(1, len(stages) - 2)
+    if show_eval is None:
+        show_eval = judge_score_enabled and bool(eval_role) and (
+            next_stage > session.stage_index or next_stage >= max(1, len(stages) - 1)
+        )
+    if not show_eval:
+        scoring_rule += " Leave judge_en and judge_zh as empty strings \"\" on this turn."
 
     speaker_name = speaker_role.get("name") or "Claire"
     speaker_title = speaker_role.get("title") or "Participant"
@@ -1767,6 +1562,10 @@ async def submit_debate_turn(
             "avatarId": "leo_2d",
         }
 
+    judge_score_enabled = "judge_score" in tools
+    should_eval_speak = judge_score_enabled and bool(eval_role) and (
+        next_stage > session.stage_index or user_turns_done >= max_turns
+    )
     knowledge_text = _load_topic_knowledge(db, topic_row, include_docs=("search_knowledge" in tools))
     ai_data = await _generate_ai_turn(
         session,
@@ -1780,11 +1579,10 @@ async def submit_debate_turn(
         tools=tools,
         topic=topic_row,
         knowledge_text=knowledge_text,
+        show_eval=should_eval_speak,
     )
-
-    judge_score_enabled = "judge_score" in tools
     deltas = ai_data.get("score_deltas") or {}
-    cur_scores = dict(session.scores_json or {"logic": 78, "rebuttal": 74, "fluency": 82, "presence": 80})
+    cur_scores = dict(session.scores_json or {"logic": 0, "rebuttal": 0, "fluency": 0, "presence": 0})
     if judge_score_enabled:
         for k in ("logic", "rebuttal", "fluency", "presence"):
             try:
@@ -1792,7 +1590,8 @@ async def submit_debate_turn(
             except (TypeError, ValueError):
                 raw_d = 1
             clamped_d = max(-5, min(6, raw_d))
-            cur_scores[k] = max(45, min(98, int(cur_scores.get(k, 76)) + clamped_d))
+            base = int(cur_scores.get(k, 0)) or 60
+            cur_scores[k] = max(45, min(98, base + clamped_d))
         try:
             raw_win = int(ai_data.get("win_rate_delta", 2))
         except (TypeError, ValueError):
@@ -1829,7 +1628,7 @@ async def submit_debate_turn(
     db.add(opp_turn)
     new_turns.append(opp_turn)
 
-    judge_en = str(ai_data.get("judge_en") or "").strip() if judge_score_enabled else ""
+    judge_en = str(ai_data.get("judge_en") or "").strip() if should_eval_speak else ""
     if judge_en and eval_role:
         judge_turn = DebateTurn(
             id=str(uuid.uuid4()),
@@ -1914,7 +1713,7 @@ def finish_debate_session(db: Session, user: User, session_id: str) -> dict:
     max_turns = _resolve_duration_turns(topic_row.duration if topic_row else None)
 
     already_finished = session.status == "finished"
-    scores = session.scores_json or {"logic": 78, "rebuttal": 74, "fluency": 82, "presence": 80}
+    scores = session.scores_json or {"logic": 0, "rebuttal": 0, "fluency": 0, "presence": 0}
     avg_score = round(sum(scores.values()) / max(1, len(scores)))
     xp_awarded = 0 if already_finished else 40
 

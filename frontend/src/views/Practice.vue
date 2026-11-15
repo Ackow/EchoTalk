@@ -39,13 +39,21 @@
           <p>{{ categoryLabel(sceneMeta?.package?.meta?.category) }}<span>·</span>{{ finished ? '本次练习已完成' : '场景口语练习' }}<span>·</span>{{ stateInfo.turn_count || 0 }} 轮对话</p>
         </div>
         <button class="ghost-button reference-button" :class="{ active: knowledgeOpen }" type="button" @click="knowledgeOpen = !knowledgeOpen"><AppIcon name="book-open" :size="14" />{{ knowledgeOpen ? '收起参考板' : '参考板' }}</button>
-        <button class="exit-button" type="button" :disabled="sending" @click="finishAndExit"><AppIcon name="log-out" :size="14" />退出练习</button>
       </header>
 
       <div class="chat-layout" :class="{ 'has-knowledge': knowledgeOpen }">
         <section class="chat-card" aria-label="对话内容">
           <header class="chat-head">
-            <span class="role-avatar">{{ roleInitial }}</span>
+            <span class="role-avatar">
+              <CharacterPortrait
+                :character="companionAvatar?.id || 'leo_2d'"
+                :appearance="companionAvatar?.appearance || null"
+                :animated="false"
+                :lip-sync="false"
+                state="idle"
+                :name="roleName"
+              />
+            </span>
             <div class="role-info"><b>{{ roleName }}</b><span class="role-status"><i class="status-dot" :class="{ busy: sending }" />{{ conversationStatus }}</span></div>
             <button class="text-toggle" type="button" :aria-pressed="showOriginal" @click="showOriginal = !showOriginal"><AppIcon name="file-text" :size="14" />{{ showOriginal ? '原文已显示' : '原文已隐藏' }}</button>
           </header>
@@ -77,165 +85,55 @@
             </div>
           </div>
 
-          <div ref="chatBody" class="chat-body" role="log" aria-label="聊天记录" :aria-busy="sending" @mouseup="lookupRef?.handleSelection(chatBody)" @scroll="lookupRef?.close()">
-            <div class="conversation-start"><span></span><small>练习开始 · 放轻松，试着用英语表达</small><span></span></div>
-            <article v-for="msg in messages" :key="msg.key" class="msg-row" :class="msg.role">
-              <span v-if="msg.role === 'agent'" class="msg-avatar">{{ roleInitial }}</span>
-              <div class="message-content">
-                <span class="message-author">{{ msg.role === 'agent' ? activeRole?.display_name || '交流伙伴' : '你' }}</span>
-                <VoiceBubbleRow
-                  v-if="msg.role === 'user'"
-                  role="user"
-                  :is-user="true"
-                  :is-voice="Boolean(msg.isVoice)"
-                  :text="msg.text"
-                  :duration="msg.duration || 0"
-                  :capsule-width="capsuleWidth(msg)"
-                  :playing="playingKey === msg.key"
-                  :is-static="!msg.audioUrl && !msg.hasUserAudio"
-                  :progress="playbackTime / (playbackDuration || msg.duration || estimateSeconds(msg.text)) * 100"
-                  :show-original="showOriginal"
-                  :expanded="expandedMessages.has(msg.key)"
-                  :play-aria-label="playingKey === msg.key ? '停止播放我的语音' : '播放我的语音'"
-                  @toggle-play="playingKey === msg.key ? stopAudio() : playUserVoice(msg)"
-                  @toggle-original="toggleOriginal(msg.key, $event)"
-                >
-                  <template #after-bubble>
-                    <div v-if="msg.pronunciationScore || msg.grammarCorrection" class="user-feedback-wrap">
-                      <button
-                        type="button"
-                        class="fb-collapse-pill"
-                        :class="{ 'is-open': expandedFeedback.has(msg.key) }"
-                        :aria-expanded="expandedFeedback.has(msg.key)"
-                        @click="toggleFeedback(msg.key)"
-                      >
-                        <template v-if="msg.pronunciationScore">
-                          <AppIcon name="mic" :size="12" />
-                          <span>发音 <b :class="scoreTier(msg.pronunciationScore.total_score)">{{ Math.round(msg.pronunciationScore.total_score) }}</b></span>
-                          <span v-if="msg.pronunciationScore.intonation_score != null" class="fb-sep" aria-hidden="true">·</span>
-                          <span v-if="msg.pronunciationScore.intonation_score != null">语调 <b :class="scoreTier(msg.pronunciationScore.intonation_score)">{{ Math.round(msg.pronunciationScore.intonation_score) }}</b></span>
-                          <span v-if="msg.pronunciationScore.speech_rate_wpm != null" class="fb-sep" aria-hidden="true">·</span>
-                          <span v-if="msg.pronunciationScore.speech_rate_wpm != null">{{ msg.pronunciationScore.speech_rate_wpm }} WPM</span>
-                          <span v-if="msg.grammarCorrection?.has_error" class="fb-dot-hint" title="有表达建议" />
-                        </template>
-                        <template v-else-if="msg.grammarCorrection?.has_error">
-                          <AppIcon name="sparkles" :size="12" />
-                          <span>{{ msg.grammarCorrection.issue_type === 'naturalness' ? '更地道表达建议' : '表达纠正建议' }}</span>
-                      </template>
-                      <template v-else>
-                        <AppIcon name="check" :size="12" />
-                        <span>表达自然准确</span>
-                      </template>
-                      <AppIcon name="chevron-down" :size="12" :class="{ flip: expandedFeedback.has(msg.key) }" />
-                    </button>
-
-                    <transition
-                      name="panel"
-                      @enter="onPanelEnter"
-                      @after-enter="onPanelAfterEnter"
-                      @leave="onPanelLeave"
-                      @after-leave="onPanelAfterLeave"
-                    >
-                      <div v-show="expandedFeedback.has(msg.key)" class="user-feedback-card">
-                        <div v-if="msg.pronunciationScore" class="fb-summary">
-                          <div class="fb-stats">
-                            <span class="fb-stat">
-                              <AppIcon name="mic" :size="12" />
-                              <span>发音</span>
-                              <b :class="scoreTier(msg.pronunciationScore.total_score)">{{ Math.round(msg.pronunciationScore.total_score) }}</b>
-                            </span>
-                            <span v-if="msg.pronunciationScore.intonation_score != null" class="fb-sep" aria-hidden="true">·</span>
-                            <span v-if="msg.pronunciationScore.intonation_score != null" class="fb-stat">
-                              <span>语调</span>
-                              <b :class="scoreTier(msg.pronunciationScore.intonation_score)">{{ Math.round(msg.pronunciationScore.intonation_score) }}</b>
-                            </span>
-                            <span v-if="msg.pronunciationScore.speech_rate_wpm != null" class="fb-sep" aria-hidden="true">·</span>
-                            <span v-if="msg.pronunciationScore.speech_rate_wpm != null" class="fb-stat">
-                              <span>{{ msg.pronunciationScore.speech_rate_wpm }} WPM</span>
-                              <small>{{ rateLabel(msg.pronunciationScore.rate_level) }}</small>
-                            </span>
-                          </div>
-                        </div>
-
-                        <div v-if="msg.pronunciationScore?.words?.length" class="fb-words">
-                          <span
-                            v-for="(w, wi) in msg.pronunciationScore.words"
-                            :key="`${msg.key}-w-${wi}`"
-                            class="fb-word"
-                            :class="scoreTier(w.score ?? w.total_score)"
-                            :title="`得分 ${Math.round(w.score ?? w.total_score ?? 0)}`"
-                          >{{ w.word }}<small>{{ Math.round(w.score ?? w.total_score ?? 0) }}</small></span>
-                        </div>
-
-                        <div v-if="msg.grammarCorrection" class="fb-correction" :class="{ 'is-good': !msg.grammarCorrection.has_error }">
-                          <template v-if="msg.grammarCorrection.has_error">
-                            <div class="fb-corr-label">
-                              <AppIcon name="sparkles" :size="12" />
-                              <span>{{ msg.grammarCorrection.issue_type === 'naturalness' ? '更地道表达' : '表达纠正' }}</span>
-                            </div>
-                            <p class="fb-corr-sentence">{{ msg.grammarCorrection.corrected }}</p>
-                            <p v-if="msg.grammarCorrection.explanation" class="fb-corr-note">{{ msg.grammarCorrection.explanation }}</p>
-                            <div v-if="msg.grammarCorrection.better_expressions?.length" class="fb-alts">
-                              <span v-for="(alt, ai) in msg.grammarCorrection.better_expressions" :key="`${msg.key}-alt-${ai}`" class="fb-alt">{{ alt }}</span>
-                            </div>
-                          </template>
-                          <template v-else>
-                            <div class="fb-corr-ok">
-                              <AppIcon name="check" :size="12" />
-                              <span>表达自然准确</span>
-                            </div>
-                          </template>
-                        </div>
-                      </div>
-                    </transition>
-                    </div>
-                  </template>
-                </VoiceBubbleRow>
-                <!-- agent 消息：复用 VoiceBubbleRow 组件 -->
-                <VoiceBubbleRow
-                  v-else
-                  role="agent"
-                  :is-user="false"
-                  :is-voice="true"
-                  :text="msg.text"
-                  :html-text="renderMessageMd(msg.text)"
-                  :duration="msg.duration || 0"
-                  :capsule-width="capsuleWidth(msg)"
-                  :playing="playingKey === msg.key"
-                  :busy="ttsBusyKey === msg.key"
-                  :progress="playbackTime / (playbackDuration || estimateSeconds(msg.text)) * 100"
-                  :show-original="showOriginal"
-                  :expanded="expandedMessages.has(msg.key)"
-                  :play-aria-label="playingKey === msg.key ? '停止播放回复' : '播放回复语音'"
-                  @toggle-play="playingKey === msg.key ? stopAudio() : playMessage(msg)"
-                  @toggle-original="toggleOriginal(msg.key, $event)"
-                />
-              </div>
-              <span v-if="msg.role === 'user'" class="msg-avatar user">{{ userInitial }}</span>
-            </article>
-            <div v-if="sending && (!messages.length || messages[messages.length - 1]?.role !== 'agent' || !messages[messages.length - 1]?.text.trim())" class="thinking-message" role="status"><span class="msg-avatar">{{ roleInitial }}</span><span class="thinking-dots"><i></i><i></i><i></i></span><small>正在组织回复…</small></div>
-
-            <PracticeEndingCard
-              :finished="finished"
-              :paying="paying"
-              :starting="starting"
-              :report-loading="reportLoading"
-              :finish-text="finishText"
-              :completed-goals="completedGoals"
-              :goals-count="stateInfo.goals?.length || 0"
-              :turn-count="stateInfo.turn_count || 0"
-              :stage="stateInfo.stage || ''"
-              :stages="sceneMeta?.package?.stages || []"
-              :scene-id="sessionInfo?.scene_id || ''"
-              :scene-mode="sceneMeta?.package?.meta?.mode || ''"
-              :scenario-state="stateInfo.scenario_state || {}"
-              :messages="messages"
-              @action="runSessionAction"
-              @open-report="openSessionReport"
-              @back-to-select="backToSelect"
-              @restart="restartCurrentScene"
-            />
-          </div>
+          <PracticeChatStream
+            ref="chatStreamRef"
+            :messages="messages"
+            :sending="sending"
+            :companion-avatar="companionAvatar"
+            :role-name="roleName"
+            :active-role="activeRole"
+            :user="session.user"
+            :playing-key="playingKey"
+            :tts-busy-key="ttsBusyKey"
+            :playback-time="playbackTime"
+            :playback-duration="playbackDuration"
+            :show-original="showOriginal"
+            :expanded-messages="expandedMessages"
+            :expanded-feedback="expandedFeedback"
+            :capsule-width="capsuleWidth"
+            :estimate-seconds="estimateSeconds"
+            :render-message-md="renderMessageMd"
+            :score-tier="scoreTier"
+            :rate-label="rateLabel"
+            :on-panel-enter="onPanelEnter"
+            :on-panel-after-enter="onPanelAfterEnter"
+            :on-panel-leave="onPanelLeave"
+            :on-panel-after-leave="onPanelAfterLeave"
+            :finished="finished"
+            :paying="paying"
+            :starting="starting"
+            :report-loading="reportLoading"
+            :finish-text="finishText"
+            :completed-goals="completedGoals"
+            :goals-count="stateInfo.goals?.length || 0"
+            :turn-count="stateInfo.turn_count || 0"
+            :stage="stateInfo.stage || ''"
+            :stages="sceneMeta?.package?.stages || []"
+            :scene-id="sessionInfo?.scene_id || ''"
+            :scene-mode="sceneMeta?.package?.meta?.mode || ''"
+            :scenario-state="stateInfo.scenario_state || {}"
+            @selection="lookupRef?.handleSelection($event)"
+            @scroll="lookupRef?.close()"
+            @stop-audio="stopAudio()"
+            @play-user-voice="playUserVoice($event)"
+            @play-message="playMessage($event)"
+            @toggle-original="toggleOriginal"
+            @toggle-feedback="toggleFeedback($event)"
+            @action="runSessionAction"
+            @open-report="openSessionReport"
+            @back-to-select="backToSelect"
+            @restart="restartCurrentScene"
+          />
 
           <PracticeComposer
             ref="composerRef"
@@ -277,58 +175,32 @@
           />
         </section>
 
-        <aside class="chat-side" aria-label="练习辅助">
-          <section class="companion-card">
-            <div class="side-head"><h3>交流伙伴</h3></div>
-            <div class="companion-stage">
-              <AvatarStage :avatar="companionAvatar" :state="voiceBusy ? (voiceStatus === 'recording' ? 'listening' : 'thinking') : avatarState" :size="238" />
-            </div>
-            <div class="companion-identity"><b>{{ activeRole?.display_name || '交流伙伴' }}</b><span>{{ activeRole?.title || '英语练习伙伴' }}</span></div>
-            <div class="companion-meta">
-              <label class="autoplay-control"><input v-model="autoPlayReplies" type="checkbox" @change="saveAutoPlayPreference" />自动播放</label>
-              <span class="voice-summary" :title="selectedVoiceLabel"><AppIcon name="volume" :size="12" />{{ selectedVoiceLabel }}</span>
-            </div>
-            <div class="companion-rate">
-              <span class="rate-label">语速</span>
-              <input
-                v-model.number="speechRate"
-                type="range"
-                min="0.75"
-                max="1.25"
-                step="0.05"
-                class="rate-slider"
-                aria-label="语速调节"
-                @change="saveSpeechRatePreference"
-              />
-              <span class="rate-value">{{ speechRate.toFixed(2) }}×</span>
-            </div>
-          </section>
-
-          <!-- 目标清单：阶段与进度已上移到对话卡顶部，这里只留可勾选的细项 -->
-          <section class="support-card">
-            <div class="support-head">
-              <h3>训练目标</h3>
-              <span>{{ completedGoals }} / {{ stateInfo.goals?.length || 0 }}</span>
-            </div>
-            <progress class="goal-progress" :value="completedGoals" :max="stateInfo.goals?.length || 1" aria-label="训练目标完成进度"></progress>
-            <ul v-if="stateInfo.goals?.length" class="goal-list">
-              <li v-for="(goal, index) in stateInfo.goals" :key="goal.id" :class="{ done: goal.done }">
-                <span class="goal-number"><AppIcon v-if="goal.done" name="check" :size="12" /><template v-else>{{ index + 1 }}</template></span>
-                <span>{{ goal.label }}<small v-if="!goalHasCheck(goal.id)">尚未接入自动判定</small></span>
-              </li>
-            </ul>
-            <p v-else class="support-empty">这个场景采用开放交流，按自己的节奏继续。</p>
-          </section>
-        </aside>
-
-        <PracticeKnowledge
-          v-if="knowledgeOpen"
-          class="chat-knowledge-dock"
-          :scene-id="sessionInfo.scene_id"
-          :description="sceneMeta?.package?.meta?.description || ''"
+        <PracticeCoachDrawer
+          v-model:auto-play-replies="autoPlayReplies"
+          v-model:speech-rate="speechRate"
+          :companion-avatar="companionAvatar"
+          :voice-busy="voiceBusy"
+          :voice-status="voiceStatus"
+          :avatar-state="avatarState"
+          :active-role="activeRole"
+          :selected-voice-label="selectedVoiceLabel"
+          :completed-goals="completedGoals"
           :goals="stateInfo.goals || []"
-          @close="knowledgeOpen = false"
+          :goal-has-check="goalHasCheck"
+          @save-auto-play="saveAutoPlayPreference"
+          @save-speech-rate="saveSpeechRatePreference"
         />
+
+        <transition name="dock-slide">
+          <PracticeKnowledge
+            v-if="knowledgeOpen"
+            class="chat-knowledge-dock"
+            :scene-id="sessionInfo.scene_id"
+            :description="sceneMeta?.package?.meta?.description || ''"
+            :goals="stateInfo.goals || []"
+            @close="knowledgeOpen = false"
+          />
+        </transition>
       </div>
     </div>
 
@@ -362,7 +234,7 @@
         </div>
       </template>
 
-      <PracticeReportModal :open="reportOpen" :report="sessionReport" @close="reportOpen = false" />
+      <PracticeReviewModal :open="reportOpen" :report="sessionReport" @close="reportOpen = false" />
     </Teleport>
 
     <PracticeLookupPopover
@@ -379,14 +251,15 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { marked } from 'marked'
 import AppIcon from '../components/AppIcon.vue'
-import AvatarStage from '../components/avatar/AvatarStage.vue'
+import CharacterPortrait from '../components/avatar/CharacterPortrait.vue'
+import PracticeChatStream from '../components/practice/PracticeChatStream.vue'
+import PracticeCoachDrawer from '../components/practice/PracticeCoachDrawer.vue'
 import PracticeComposer from '../components/practice/PracticeComposer.vue'
-import VoiceBubbleRow from '../components/practice/VoiceBubbleRow.vue'
-import PracticeEndingCard from '../components/practice/PracticeEndingCard.vue'
 import PracticeKnowledge from '../components/practice/PracticeKnowledge.vue'
 import PracticeLookupPopover from '../components/practice/PracticeLookupPopover.vue'
-import PracticeReportModal from '../components/practice/PracticeReportModal.vue'
+import PracticeReviewModal from '../components/practice/PracticeReviewModal.vue'
 import PracticeScenePicker from '../components/practice/PracticeScenePicker.vue'
+import { base64ToMp3Blob, useTtsAudioQueue } from '../composables/useTtsAudioQueue'
 import { getScene, listScenes } from '../api/scenes'
 import { applySessionAction, createSession, getSession, getSessionReport, getLatestSession, getGreetingAudio, getTurnAudio, getUserTurnAudio, submitTurnStream, suggestReply } from '../api/sessions'
 import { loadingVisible, usePageLoading } from '../app/loading'
@@ -430,7 +303,8 @@ const sceneMeta = ref(null) // 场景详情（阶段名/角色/描述）
 const messages = ref([]) // { key, role: 'user'|'agent', text }
 const draft = ref('')
 const sending = ref(false)
-const chatBody = ref(null)
+const chatStreamRef = ref(null)
+const chatBody = computed(() => chatStreamRef.value?.chatBody || null)
 const composerRef = ref(null)
 const asrAvailable = ref(null)
 const inputMode = ref('voice') // 语音优先：voice=麦克风主输入 / text=文字备选
@@ -971,11 +845,6 @@ function backToSelect() {
   if (route.query.session) { router.replace({ name: 'history' }); return } // 由历史记录进入时退回列表，而非场景选择
 }
 
-function finishAndExit() {
-  // 复盘报告依赖训练报告模块（未接入），先做客户端确认后返回
-  if (window.confirm(route.query.session ? '退出回放并返回历史记录？' : '退出当前练习并返回场景列表？')) backToSelect()
-}
-
 // ---- 对话轮次 ---------------------------------------------------------------
 
 function startRecording() {
@@ -1021,11 +890,24 @@ function toggleInputMode() {
 }
 
 let activeStreamController = null
-let streamAudioQueue = []
-let streamPlayedOffset = 0
-let streamKnownDuration = 0
-let streamAudioEnded = false
-let streamPlaybackGen = 0
+const {
+  resetStreamAudioQueue,
+  getStreamPlaybackGen,
+  enqueueStreamAudioChunk,
+  markStreamAudioEnded,
+  pumpStreamAudio,
+} = useTtsAudioQueue({
+  messages,
+  playingKey,
+  playbackTime,
+  playbackDuration,
+  avatarState,
+  speechRate,
+  playbackNotice,
+  estimateSeconds,
+  getCurrentAudio: () => currentAudio,
+  setCurrentAudio: (audio) => { currentAudio = audio },
+})
 const suggesting = ref(false)
 const replySuggestions = ref([])
 
@@ -1051,83 +933,6 @@ async function applySuggestion(enText) {
   if (inputMode.value !== 'text') inputMode.value = 'text'
   await nextTick()
   composerRef.value?.focusInput()
-}
-
-function resetStreamAudioQueue() {
-  streamPlaybackGen += 1
-  for (const item of streamAudioQueue) {
-    if (item.url?.startsWith('blob:')) URL.revokeObjectURL(item.url)
-  }
-  streamAudioQueue = []
-  streamAudioEnded = false
-  streamPlayedOffset = 0
-  streamKnownDuration = 0
-}
-
-function base64ToMp3Blob(b64) {
-  const bin = atob(b64)
-  const bytes = new Uint8Array(bin.length)
-  for (let i = 0; i < bin.length; i += 1) bytes[i] = bin.charCodeAt(i)
-  return new Blob([bytes], { type: 'audio/mpeg' })
-}
-
-async function pumpStreamAudio(msgKey, expectedGen) {
-  if (expectedGen !== streamPlaybackGen || currentAudio) return
-  const next = streamAudioQueue.shift()
-  if (!next) {
-    if (streamAudioEnded) {
-      const displayed = messages.value.find((item) => item.key === msgKey)
-      if (displayed && streamPlayedOffset > 0) displayed.duration = streamPlayedOffset
-      playingKey.value = ''
-      playbackTime.value = 0
-      playbackDuration.value = 0
-      if (avatarState.value === 'speaking') avatarState.value = 'idle'
-    }
-    return
-  }
-  const audio = new Audio(next.url)
-  audio.preservesPitch = true
-  audio.playbackRate = speechRate.value
-  currentAudio = audio
-  playingKey.value = msgKey
-  avatarState.value = 'speaking'
-  let chunkDuration = 0
-  const displayed = messages.value.find((item) => item.key === msgKey)
-  if (!playbackDuration.value) {
-    playbackDuration.value = estimateSeconds(displayed?.text || next.text || '')
-  }
-  audio.ontimeupdate = () => {
-    playbackTime.value = streamPlayedOffset + (currentAudio?.currentTime || 0)
-  }
-  audio.onloadedmetadata = () => {
-    chunkDuration = Number.isFinite(audio.duration) ? audio.duration : 0
-    if (chunkDuration > 0) {
-      streamKnownDuration += chunkDuration
-      const est = estimateSeconds(displayed?.text || '')
-      playbackDuration.value = Math.max(streamKnownDuration, est)
-    }
-  }
-  const finishChunk = () => {
-    const actual = Number.isFinite(audio.duration) && audio.duration > 0 ? audio.duration : (audio.currentTime || chunkDuration)
-    streamPlayedOffset += actual
-    if (next.url?.startsWith('blob:')) URL.revokeObjectURL(next.url)
-    if (currentAudio === audio) currentAudio = null
-    if (expectedGen === streamPlaybackGen) void pumpStreamAudio(msgKey, expectedGen)
-  }
-  audio.onended = finishChunk
-  audio.onerror = finishChunk
-  try {
-    await audio.play()
-  } catch (err) {
-    if (next.url?.startsWith('blob:')) URL.revokeObjectURL(next.url)
-    if (currentAudio === audio) currentAudio = null
-    resetStreamAudioQueue()
-    playingKey.value = ''
-    if (avatarState.value === 'speaking') avatarState.value = 'idle'
-    if (err?.name === 'NotAllowedError') {
-      playbackNotice.value = '浏览器阻止了自动播放，请点击回复下方的「听语音」。'
-    }
-  }
 }
 
 function discardPendingVoice() {
@@ -1211,7 +1016,7 @@ async function sendTurn(voiceMeta = null) {
   }
   const controller = new AbortController()
   activeStreamController = controller
-  const expectedStreamGen = streamPlaybackGen
+  const expectedStreamGen = getStreamPlaybackGen()
   const streamedBlobs = []
   let hadAudioError = false
 
@@ -1260,12 +1065,12 @@ async function sendTurn(voiceMeta = null) {
       },
       onAudio(chunk) {
         if (generation !== sessionGeneration || !autoPlayReplies.value || !chunk?.audio_b64) return
-        if (expectedStreamGen !== streamPlaybackGen) return
+        if (expectedStreamGen !== getStreamPlaybackGen()) return
         const msgKey = replyMessage?.key || ''
         if (ttsBusyKey.value === msgKey) ttsBusyKey.value = ''
         const blob = base64ToMp3Blob(chunk.audio_b64)
         streamedBlobs.push(blob)
-        streamAudioQueue.push({ url: URL.createObjectURL(blob), text: chunk.text || '' })
+        enqueueStreamAudioChunk(blob, chunk.text || '')
         if (!currentAudio && msgKey) void pumpStreamAudio(msgKey, expectedStreamGen)
       },
       onAudioError() {
@@ -1277,11 +1082,7 @@ async function sendTurn(voiceMeta = null) {
         if (!hadAudioError && streamedBlobs.length && replyMessage) {
           audioCache.set(JSON.stringify([replyMessage.key, voiceStyle.value]), new Blob(streamedBlobs, { type: 'audio/mpeg' }))
         }
-        streamAudioEnded = true
-        if (!currentAudio && streamAudioQueue.length === 0) {
-          playingKey.value = ''
-          if (avatarState.value === 'speaking' || avatarState.value === 'thinking') avatarState.value = 'idle'
-        }
+        markStreamAudioEnded(replyMessage?.key || '')
       },
     })
     if (doneReceived) void syncGlobalXpProfile()
@@ -1570,7 +1371,11 @@ button:focus-visible, a:focus-visible, summary:focus-visible { outline: 2px soli
 }
 .chat-card { display: flex; flex-direction: column; min-width: 0; min-height: 0; background: white; border: 1px solid var(--line); border-radius: 14px; overflow: hidden; }
 .chat-head { display: flex; align-items: center; gap: 10px; padding: 14px 20px; border-bottom: 1px solid var(--line); flex-shrink: 0; }
-.role-avatar { display: grid; place-items: center; flex: 0 0 36px; width: 36px; height: 36px; border-radius: 12px; background: #eee9ff; color: #694ec0; font-size: 14px; font-weight: 750; }
+.role-avatar { display: flex; align-items: flex-start; justify-content: center; flex: 0 0 36px; width: 36px; height: 36px; overflow: hidden; border-radius: 12px; background: #eee9ff; color: #694ec0; font-size: 14px; font-weight: 750; }
+.role-avatar :deep(.portrait), .msg-avatar :deep(.portrait) { width: 144%; height: 144%; flex: 0 0 auto; transform: translateY(-2px); display: block; pointer-events: none; }
+.dock-slide-enter-active, .dock-slide-leave-active { transition: opacity .22s cubic-bezier(.22, .8, .32, 1), transform .24s cubic-bezier(.22, .8, .32, 1); }
+.dock-slide-enter-from, .dock-slide-leave-to { opacity: 0; transform: translateX(18px) scale(.98); }
+.msg-avatar-user { margin-top: 21px; flex: 0 0 30px; border-radius: 12px; }
 .role-info { flex: 1; min-width: 0; }.role-info b { display: block; color: #2d294b; font-size: 14px; font-weight: 750; }.role-status { display: flex; align-items: center; gap: 5px; margin-top: 4px; color: #7c7693; font-size: 12px; }.status-dot { width: 6px; height: 6px; border-radius: 50%; background: #48b884; }.status-dot.busy { background: #8b73dd; }
 .text-toggle { display: inline-flex; align-items: center; gap: 5px; border: 1.5px solid #e6e3f2; border-bottom: 3px solid #dad4ec; border-radius: 999px; padding: 6px 11px; background: #faf9ff; color: #6b6485; font-size: 12px; font-weight: 650; transition: border-color .15s, background .15s, color .15s; }.text-toggle:hover { border-color: #c9bdf0; color: #5b43b0; }.text-toggle[aria-pressed="true"] { color: #694ec0; background: #eee9ff; border-color: #cfc1f1; border-bottom-color: #bfb0ea; }
 /* 顶部信息条：阶段 / 场景状态，横向一条读完，不占右栏高度 */
@@ -1600,7 +1405,7 @@ button:focus-visible, a:focus-visible, summary:focus-visible { outline: 2px soli
 .rail-pop li b { font-weight: 600; text-align: right; overflow-wrap: anywhere; }
 .chat-body { flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; padding: 20px 24px 28px; scrollbar-width: thin; background: #f8f9fc; }
 .conversation-start { display: flex; align-items: center; justify-content: center; gap: 12px; margin: 0 0 28px; color: #7c7693; }.conversation-start span { height: 1px; flex: 1; max-width: 60px; background: #e6e1f2; }.conversation-start small { font-size: 12px; text-align: center; }
-.msg-row { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 25px; }.msg-row.user { justify-content: flex-end; }.msg-avatar { display: grid; place-items: center; width: 30px; height: 30px; flex: 0 0 30px; margin-top: 21px; border-radius: 10px; background: #f0effa; color: #7771ac; font-size: 12.5px; font-weight: 600; }.msg-avatar.user { background: #e9edf7; color: #6c7a9a; }
+.msg-row { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 25px; }.msg-row.user { justify-content: flex-end; }.msg-avatar { display: flex; align-items: flex-start; justify-content: center; width: 30px; height: 30px; flex: 0 0 30px; overflow: hidden; margin-top: 21px; border-radius: 10px; background: #f0effa; color: #7771ac; font-size: 12.5px; font-weight: 600; }.msg-avatar.user { background: #e9edf7; color: #6c7a9a; }
 .message-content { display: flex; flex-direction: column; align-items: flex-start; max-width: min(82%, 640px); }.msg-row.user .message-content { align-items: flex-end; }.message-author { margin-bottom: 6px; font-size: 12px; color: #7c7693; font-weight: 600; }
 .bubble { padding: 11px 15px; background: white; border: 1px solid #ededf3; border-radius: 4px 15px 15px 15px; }.msg-row.user .bubble { background: #e4e2ff; border-color: #dedbfc; color: #37365e; border-radius: 15px 4px 15px 15px; }.bubble-text { margin: 0; font-size: 14px; line-height: 1.75; white-space: pre-wrap; overflow-wrap: anywhere; }
 /* agent 语音气泡：交互结构沿用 1.0（胶囊常驻+进度条+原文面板），外观对齐 2.0 */

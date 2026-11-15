@@ -1,0 +1,45 @@
+id: panel-product-pitch
+sceneType: panel
+category: workplace
+categoryLabel: 职场文化
+difficulty: intermediate
+difficultyLabel: 进阶
+duration: 8 分钟
+userRoleLabel: 项目负责人 Proposer
+titleZh: 跨部门产品评审圆桌（PM + 研发 + 财务）
+motionEn: "Cross-Functional Launch Review: Defend your Q3 AI assistant launch roadmap against product, engineering, and budget scrutiny."
+proSummary: 讲清核心用户痛点、里程碑节奏与留存验证闭环
+conSummary: 回应研发排期风险、成本边界与上线回滚预案
+backgroundContext: 围绕 Q3 AI 助手新版本立项展开跨部门评审圆桌：产品负责人把控用户价值与需求优先级，研发总监审视工期与架构降级方案，财务运营BP核算算力投入产出比与预算红线。
+keyExpressions:
+  - prioritize ruthlessly
+  - engineering bandwidth
+  - return on investment
+  - phased rollout with fallback
+opponentName: Sarah
+opponentTitle: 产品负责人 Head of Product
+opponentVoice: sonia
+opponentAvatarId: sarah_2d
+opponentPersona: 结果导向的产品负责人，要求每一项功能投入都绑定明确的用户留存或转化指标。
+roles:
+  - id: pm
+    roleType: moderator
+    name: Sarah
+    title: 产品负责人 Head of Product
+    voice: sonia
+    avatarId: sarah_2d
+    persona: 主持评审并重点检验核心用户价值与指标验证闭环的产品负责人。
+  - id: eng
+    roleType: interviewer
+    name: David
+    title: 研发总监 Eng Director
+    voice: andrew
+    avatarId: david_2d
+    persona: 关注接口延迟、研发排期缓冲与灰度回滚机制的务实工程负责人。
+  - id: finance
+    roleType: judge
+    name: Leo
+    title: 财务运营与预算评审 Finance BP
+    voice: brian
+    avatarId: leo_2d
+    persona: 严格核算模型调用成本、回本周期与预算红线的商业评审官。

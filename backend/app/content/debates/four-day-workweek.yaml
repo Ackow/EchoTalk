@@ -1,0 +1,49 @@
+id: four-day-workweek
+sceneType: debate
+category: workplace
+categoryLabel: 职场文化
+difficulty: intermediate
+difficultyLabel: 进阶
+duration: 8 分钟
+titleZh: 四天工作制能否在保持薪资不变下推广？
+motionEn: A four-day workweek with full pay is sustainable and beneficial for most industries.
+proSummary: 精力恢复会显著提升单位小时产出，降低员工倦怠与离职率。
+conSummary: 服务业与交付密集型行业难以压缩工时，最终可能推高人力成本。
+backgroundContext: 英国与冰岛试点显示部分知识型企业产出持平，但医疗、零售、制造业面临排班与客户响应时长约束。
+keyExpressions:
+  - output per hour worked
+  - client-facing coverage
+  - operational overhead
+opponentName: David
+opponentTitle: 运营合伙人
+opponentVoice: brian
+opponentAvatarId: david_2d
+opponentPersona: 注重财务模型与客户履约的运营合伙人，喜欢追问现金流、服务业排班成本与中小企业承受力。
+roles:
+  - id: moderator
+    roleType: moderator
+    name: Brian
+    title: 主持人
+    avatarId: leo_2d
+    voice: brian
+    persona: 引导双方聚焦效率与成本平衡的辩论主持人。
+  - id: opponent
+    roleType: opponent
+    name: David
+    title: 运营合伙人
+    avatarId: david_2d
+    voice: brian
+    persona: 注重财务模型与客户履约的运营合伙人，喜欢追问现金流、服务业排班成本与中小企业承受力。
+  - id: judge
+    roleType: judge
+    name: Claire
+    title: 特邀评委
+    avatarId: claire_2d
+    voice: emma
+    persona: 关注组织生产力数据与行业差异性的组织发展评委。
+tools:
+  - search_knowledge
+  - rebuttal_hint
+  - judge_score
+  - calculate_expression
+  - add_review_task

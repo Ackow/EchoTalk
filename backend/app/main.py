@@ -5,11 +5,11 @@
 import logging
 import time
 import uuid
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from sqlalchemy import text
 
 from app import models  # noqa: F401 导入即注册 SQLAlchemy 表定义
 from app.api.endpoints.admin import router as admin_router
@@ -26,53 +26,20 @@ from app.api.endpoints.debate import router as debate_router
 from app.core.config import CORS_ORIGINS
 from app.core.database import engine, SessionLocal
 from app.core.errors import register_exception_handlers
+from app.core.migrations import run_startup_migrations
 
 logger = logging.getLogger("echotalk")
 
-app = FastAPI(title="EchoTalk 2.0 API", version="2.0.0")
-register_exception_handlers(app)  # 全局异常处理器：规范化错误响应
 
-
-@app.on_event("startup")
-def sync_builtin_scenes() -> None:
-    """启动时同步内置场景包种子与数字人预设（表未初始化时仅告警，不影响服务启动）。"""
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    """应用生命周期管理：启动时执行幂等建表/迁移并同步内置种子数据。"""
     from app.api.endpoints.avatars import sync_builtin_avatars
-    from app.models.avatar import AvatarPreset
-    from app.models.debate import DebateSession, DebateTopic, DebateTopicReaction, DebateTurn
-    from app.models.listening import ListeningAttempt, ListeningProgress, ListeningUnit, UserXpState
     from app.scenes.registry import sync_seeds
     from app.services.listening_service import sync_builtin_listening
 
     try:
-        from sqlalchemy import inspect as sa_inspect
-        AvatarPreset.__table__.create(bind=engine, checkfirst=True)
-        for tbl in (ListeningUnit, ListeningProgress, ListeningAttempt, UserXpState, DebateTopic, DebateTopicReaction, DebateSession, DebateTurn):
-            tbl.__table__.create(bind=engine, checkfirst=True)
-        inspector = sa_inspect(engine)
-        existing_turn_cols = {c["name"] for c in inspector.get_columns("practice_turns")}
-        existing_debate_cols = {c["name"] for c in inspector.get_columns("debate_topics")}
-        with engine.begin() as conn:
-            if "pronunciation_score" not in existing_turn_cols:
-                conn.execute(text("ALTER TABLE practice_turns ADD COLUMN pronunciation_score JSON NULL"))
-            if "grammar_correction" not in existing_turn_cols:
-                conn.execute(text("ALTER TABLE practice_turns ADD COLUMN grammar_correction JSON NULL"))
-            debate_migrations = {
-                "background_context": "TEXT NULL",
-                "key_expressions": "JSON NULL",
-                "default_style": "VARCHAR(24) NOT NULL DEFAULT 'balanced'",
-                "opponent_name": "VARCHAR(64) NOT NULL DEFAULT 'Sonia'",
-                "opponent_title": "VARCHAR(64) NOT NULL DEFAULT '对手辩手'",
-                "opponent_persona": "TEXT NULL",
-                "opponent_voice": "VARCHAR(32) NOT NULL DEFAULT 'sonia'",
-                "opponent_avatar_id": "VARCHAR(32) NOT NULL DEFAULT 'sarah_2d'",
-                "knowledge_doc_ids": "JSON NULL",
-                "status": "VARCHAR(24) NOT NULL DEFAULT 'private'",
-                "likes_count": "INT NOT NULL DEFAULT 0",
-                "favorites_count": "INT NOT NULL DEFAULT 0",
-            }
-            for col_name, col_ddl in debate_migrations.items():
-                if col_name not in existing_debate_cols:
-                    conn.execute(text(f"ALTER TABLE debate_topics ADD COLUMN {col_name} {col_ddl}"))
+        run_startup_migrations(engine)
         with SessionLocal() as db:
             count = sync_seeds(db)
             avatar_count = sync_builtin_avatars(db)
@@ -85,6 +52,11 @@ def sync_builtin_scenes() -> None:
             logger.info("内置听力单元同步完成：%d 个", listening_count)
     except Exception:
         logger.warning("内置场景包种子同步跳过（请先运行 python init_db.py 初始化表）", exc_info=True)
+    yield
+
+
+app = FastAPI(title="EchoTalk 2.0 API", version="2.0.0", lifespan=lifespan)
+register_exception_handlers(app)  # 全局异常处理器：规范化错误响应
 
 
 @app.middleware("http")

@@ -256,7 +256,7 @@
     <template v-else>
       <div v-if="!initializing" class="scene-grid debate-explore-grid">
         <article
-          v-for="(topic, index) in filteredDebateTopics"
+          v-for="(topic, index) in pagedDebateTopics"
           :key="topic.id"
           class="scene-card"
           :style="{ animationDelay: `${Math.min(index, 8) * 45}ms` }"
@@ -364,6 +364,25 @@
           <p>尝试更换关键词或前往多角色对话工作台新建自定义场景。</p>
         </div>
       </div>
+
+      <nav v-if="!initializing && filteredDebateTopics.length" class="pagination" aria-label="多角色场景分页">
+        <span class="page-info">共 {{ filteredDebateTopics.length }} 个场景 · 第 {{ debatePage }} / {{ debateTotalPages }} 页</span>
+        <button class="page-btn" type="button" :disabled="debatePage === 1" @click="debatePage -= 1">
+          <AppIcon name="chevron-left" :size="14" />上一页
+        </button>
+        <button
+          v-for="p in debateTotalPages"
+          :key="p"
+          class="page-btn page-num"
+          :class="{ active: p === debatePage }"
+          type="button"
+          :aria-current="p === debatePage ? 'page' : undefined"
+          @click="debatePage = p"
+        >{{ p }}</button>
+        <button class="page-btn" type="button" :disabled="debatePage === debateTotalPages" @click="debatePage += 1">
+          下一页<AppIcon name="arrow-right" :size="14" />
+        </button>
+      </nav>
     </template>
 
     <!-- 全局骨架：首屏加载（独立条件，避免与分页器的 v-if 串联） -->
@@ -1065,6 +1084,12 @@ const totalPages = computed(() => Math.max(1, Math.ceil(sortedItems.value.length
 const pagedItems = computed(() => sortedItems.value.slice((page.value - 1) * PAGE_SIZE, page.value * PAGE_SIZE))
 watch([filter, category, keyword, sortBy], () => { page.value = 1 })
 watch(totalPages, (total) => { if (page.value > total) page.value = total }) // 删除场景后收缩页码
+
+const debatePage = ref(1)
+const debateTotalPages = computed(() => Math.max(1, Math.ceil(filteredDebateTopics.value.length / PAGE_SIZE)))
+const pagedDebateTopics = computed(() => filteredDebateTopics.value.slice((debatePage.value - 1) * PAGE_SIZE, debatePage.value * PAGE_SIZE))
+watch([debateSourceFilter, keyword], () => { debatePage.value = 1 })
+watch(debateTotalPages, (total) => { if (debatePage.value > total) debatePage.value = total })
 const emptyTitle = computed(() => {
   if (keyword.value || category.value !== 'all') return '没有符合条件的内容'
   if (filter.value === 'favorited') return '还没有收藏的场景'

@@ -66,7 +66,7 @@ def get_growth_analytics(db: Session, user_id: int, days: int = 30) -> dict:
     )
     if cutoff is not None:
         debate_stmt = debate_stmt.where(DebateSession.created_at >= cutoff)
-    debate_sessions = [d for d in db.scalars(debate_stmt).all() if d.turn_count > 1 or d.status == "finished"]
+    debate_sessions = [d for d in db.scalars(debate_stmt).all() if d.turn_count >= 1 or d.status == "finished"]
 
     attempt_stmt = (
         select(ListeningAttempt)

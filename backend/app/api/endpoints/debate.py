@@ -1,5 +1,5 @@
 """多角色辩论接口：话题列表、创建会话、提交发言（含 AI 辩手与评委协同）、结束裁决。"""
-from fastapi import APIRouter, Depends, File, Response, UploadFile
+from fastapi import APIRouter, Depends, File, Query, Response, UploadFile
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
@@ -240,6 +240,16 @@ def create_debate_session(
         user_side=payload.user_side,
         difficulty_level=payload.difficulty_level,
     )
+
+
+@router.get("/sessions/latest")
+def get_latest_debate_session(
+    topic_id: str = Query(..., min_length=1),
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """查询指定多角色场景最近一条未结束的练习会话。"""
+    return debate_service.get_latest_debate_session(db, user.id, topic_id)
 
 
 @router.get("/sessions/{session_id}")

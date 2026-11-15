@@ -470,7 +470,7 @@ const form = ref({
   backgroundContext: '',
   keyExpressionsText: '',
   knowledgeDocIds: [],
-  tools: ['search_knowledge', 'rebuttal_hint', 'judge_score'],
+  tools: ['search_knowledge', 'rebuttal_hint', 'judge_score', 'add_review_task'],
 })
 
 function notify(msg) {

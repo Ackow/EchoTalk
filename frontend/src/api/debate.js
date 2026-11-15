@@ -1,7 +1,7 @@
 import { baseUrl, http } from './http'
 
 export const debateCoverUrl = (topicId, version) =>
-  `${baseUrl}/debate/topics/${encodeURIComponent(topicId)}/cover${version ? `?v=${version}` : ''}`
+  `${baseUrl}/api/debate/topics/${encodeURIComponent(topicId)}/cover${version ? `?v=${version}` : ''}`
 
 export function uploadDebateCover(topicId, file) {
   const form = new FormData()
@@ -76,6 +76,10 @@ export function importDebateTopic(file) {
 
 export function createDebateSession(payload) {
   return http.post('/debate/sessions', payload)
+}
+
+export function getLatestDebateSession(topicId) {
+  return http.get('/debate/sessions/latest', { params: { topic_id: topicId } })
 }
 
 export function getDebateSession(sessionId) {

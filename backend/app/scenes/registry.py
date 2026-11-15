@@ -145,23 +145,12 @@ def sync_seeds(db: Session) -> int:
             row.status = "published"
             db.add(row)
 
-        # 内置场景：若尚未设置封面图，优先关联 storage/scenes/{id}/cover.*，其次从 content/scenes/covers/{id}.* 物化
-        if row.source == "builtin" and not row.cover_path:
-            import shutil
+        # 内置场景：封面直接从 content/scenes/covers/{id}.* 读取，不再复制到 storage
+        if row.source == "builtin" and row.cover_path and row.cover_path.startswith(f"scenes/{package.meta.id}/cover"):
             from app.scenes import knowledge as knowledge_svc
-            for ext in (".png", ".jpg", ".jpeg", ".webp"):
-                target = knowledge_svc.STORAGE_ROOT / "scenes" / package.meta.id / f"cover{ext}"
-                if target.exists():
-                    row.cover_path = f"scenes/{package.meta.id}/cover{ext}"
-                    db.add(row)
-                    break
-                seed_cover = CONTENT_DIR / "covers" / f"{package.meta.id}{ext}"
-                if seed_cover.exists():
-                    target.parent.mkdir(parents=True, exist_ok=True)
-                    shutil.copy2(seed_cover, target)
-                    row.cover_path = f"scenes/{package.meta.id}/cover{ext}"
-                    db.add(row)
-                    break
+            if not knowledge_svc.cover_file(row.cover_path).exists():
+                row.cover_path = None
+                db.add(row)
 
         # 内置场景：把包声明的知识资料物化为文件 + documents/chunks（幂等）
         if row.source == "builtin" and package.knowledge.files:
@@ -209,6 +198,15 @@ def row_to_package(row: Scene) -> ScenePackage:
     return package
 
 
+def builtin_cover_file(scene_id: str) -> Path | None:
+    """查找内置场景封面（content/scenes/covers/{id}.*）。"""
+    for ext in (".png", ".jpg", ".jpeg", ".webp"):
+        candidate = CONTENT_DIR / "covers" / f"{scene_id}{ext}"
+        if candidate.is_file():
+            return candidate
+    return None
+
+
 def summary(row: Scene) -> dict[str, Any]:
     """SceneSummary：场景卡与列表所需的摘要字段（§5.1）。"""
     try:
@@ -236,7 +234,11 @@ def summary(row: Scene) -> dict[str, Any]:
         "author_id": row.author_id,  # 「我的场景」筛选依据
         "author_name": row.author.username if row.author is not None else None,  # 卡片作者署名
         "author_avatar_path": row.author.avatar_path if row.author is not None else None,  # 作者头像相对路径
-        "cover_path": row.cover_path,  # 封面图相对路径（前端拼 URL）
+        "cover_path": row.cover_path or (
+            f"builtin/{builtin_cover.name}"
+            if row.source == "builtin" and (builtin_cover := builtin_cover_file(row.id))
+            else None
+        ),  # 封面图相对路径（前端拼 URL）
         "tags": tags,
         "knowledge_count": knowledge_count,
         "objective_count": objective_count,

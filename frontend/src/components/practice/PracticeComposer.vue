@@ -285,7 +285,13 @@ kbd { font-family: inherit; font-size: 10.5px; }
 .ai-mini-btn:hover:not(:disabled) { background: #f2ecff; }
 .ai-mini-close { border: 0; background: transparent; color: #8c85a6; padding: 2px; display: inline-flex; cursor: pointer; border-radius: 6px; }
 .ai-mini-close:hover { background: #ede7fa; color: #583eb0; }
-.ai-suggest-list { display: grid; gap: 6px; }
+.ai-suggest-list {
+  display: grid;
+  gap: 6px;
+  max-height: 180px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
 .ai-suggest-chip {
   display: flex; flex-direction: column; align-items: flex-start; gap: 2px; width: 100%;
   padding: 8px 11px; border-radius: 11px; border: 1.5px solid #ece6f8; border-bottom-width: 2.5px;

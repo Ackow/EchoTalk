@@ -80,15 +80,9 @@ BUILTIN_AVATAR_SEEDS = [
 
 def sync_builtin_avatars(db: Session) -> int:
     """确保 4 个内置角色存在于 avatars 表（幂等 upsert），并按需补齐发布字段。"""
-    bind = db.get_bind()
-    cols = {c["name"] for c in inspect(bind).get_columns("avatars")}
-    if "is_public" not in cols:
-        db.execute(text("ALTER TABLE avatars ADD COLUMN is_public INTEGER NOT NULL DEFAULT 0"))
-    if "author_name" not in cols:
-        db.execute(text("ALTER TABLE avatars ADD COLUMN author_name VARCHAR(100) NOT NULL DEFAULT ''"))
-    if "source_avatar_id" not in cols:
-        db.execute(text("ALTER TABLE avatars ADD COLUMN source_avatar_id VARCHAR(50)"))
-    db.commit()
+    from app.core.migrations import ensure_avatar_columns
+
+    ensure_avatar_columns(db.get_bind())
 
     added = 0
     for seed in BUILTIN_AVATAR_SEEDS:
