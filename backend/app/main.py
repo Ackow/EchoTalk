@@ -10,6 +10,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from sqlalchemy import text
 
 from app import models  # noqa: F401 导入即注册 SQLAlchemy 表定义
 from app.api.endpoints.admin import router as admin_router
