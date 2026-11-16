@@ -18,7 +18,16 @@ from app.schemas.admin import (
     BatchStrIds,
 )
 from app.schemas.auth import AuthResponse, Credentials
-from app.services import admin_service, auth_service
+from app.schemas.saas import (
+    AdminCampaignCreate,
+    AdminCampaignUpdate,
+    AdminPlanUpdate,
+    AdminRedeemGenerateRequest,
+    AdminTaskUpdate,
+    AdminUserGrantRequest,
+)
+from app.services import admin_service, auth_service, saas_service
+from app.services.admin import saas_and_modules as admin_ext
 
 router = APIRouter(prefix="/admin", tags=["管理端"])
 
@@ -347,3 +356,324 @@ def token_stats(
         page=page,
         page_size=page_size,
     )
+
+
+# ---- 用户会员与积分调账 ----
+@router.post("/users/{user_id}/grant")
+def grant_user_saas(
+    user_id: int,
+    payload: AdminUserGrantRequest,
+    _: User = Depends(get_admin_user),
+    db: Session = Depends(get_db),
+):
+    return admin_ext.grant_user_saas(
+        db,
+        user_id,
+        plan_tier=payload.plan_tier,
+        plan_days=payload.plan_days,
+        credits_delta=payload.credits_delta,
+        remark=payload.remark,
+    )
+
+
+# ---- 多角色场景管理 ----
+@router.get("/debates")
+def list_admin_debates(
+    q: str | None = Query(default=None),
+    scene_type: str | None = Query(default=None),
+    status_filter: str | None = Query(default=None, alias="status"),
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=1, le=100),
+    _: User = Depends(get_admin_user),
+    db: Session = Depends(get_db),
+):
+    return admin_ext.list_admin_debates(db, q=q, scene_type=scene_type, status=status_filter, page=page, page_size=page_size)
+
+
+@router.patch("/debates/{topic_id}")
+def update_admin_debate(
+    topic_id: str,
+    payload: dict,
+    _: User = Depends(get_admin_user),
+    db: Session = Depends(get_db),
+):
+    return admin_ext.update_admin_debate(db, topic_id, payload)
+
+
+@router.delete("/debates/{topic_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_admin_debate(
+    topic_id: str,
+    _: User = Depends(get_admin_user),
+    db: Session = Depends(get_db),
+):
+    admin_ext.delete_admin_debate(db, topic_id)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+# ---- 多角色会话记录 ----
+@router.get("/debate-sessions")
+def list_admin_debate_sessions(
+    q: str | None = Query(default=None),
+    scene_type: str | None = Query(default=None),
+    status_filter: str | None = Query(default=None, alias="status"),
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=1, le=100),
+    _: User = Depends(get_admin_user),
+    db: Session = Depends(get_db),
+):
+    return admin_ext.list_admin_debate_sessions(db, q=q, scene_type=scene_type, status=status_filter, page=page, page_size=page_size)
+
+
+@router.get("/debate-sessions/{session_id}")
+def get_admin_debate_session(
+    session_id: str,
+    _: User = Depends(get_admin_user),
+    db: Session = Depends(get_db),
+):
+    return admin_ext.get_admin_debate_session_detail(db, session_id)
+
+
+@router.delete("/debate-sessions/{session_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_admin_debate_session(
+    session_id: str,
+    _: User = Depends(get_admin_user),
+    db: Session = Depends(get_db),
+):
+    admin_ext.delete_admin_debate_session(db, session_id)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+# ---- 知识库文档管理 ----
+@router.get("/knowledge")
+def list_admin_knowledge(
+    scope: str = Query(default="scene"),
+    q: str | None = Query(default=None),
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=1, le=100),
+    _: User = Depends(get_admin_user),
+    db: Session = Depends(get_db),
+):
+    return admin_ext.list_admin_knowledge(db, scope=scope, q=q, page=page, page_size=page_size)
+
+
+@router.delete("/knowledge/{scope}/{doc_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_admin_knowledge(
+    scope: str,
+    doc_id: int,
+    _: User = Depends(get_admin_user),
+    db: Session = Depends(get_db),
+):
+    admin_ext.delete_admin_knowledge(db, scope, doc_id)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.get("/knowledge/lightrag-config")
+def get_lightrag_config(_: User = Depends(get_admin_user)):
+    from app.core import config
+    from app.scenes import lightrag_service
+
+    return {
+        "enabled": bool(config.LIGHTRAG_ENABLED),
+        "available": bool(lightrag_service.available()),
+        "has_llm_key": bool(config.LIGHTRAG_LLM_API_KEY),
+        "has_embedding_key": bool(config.EMBEDDING_API_KEY),
+    }
+
+
+@router.put("/knowledge/lightrag-config")
+def update_lightrag_config(
+    payload: dict,
+    _: User = Depends(get_admin_user),
+):
+    from app.core import config
+    from app.scenes import lightrag_service
+
+    if "enabled" in payload:
+        config.LIGHTRAG_ENABLED = bool(payload["enabled"])
+    return {
+        "enabled": bool(config.LIGHTRAG_ENABLED),
+        "available": bool(lightrag_service.available()),
+        "has_llm_key": bool(config.LIGHTRAG_LLM_API_KEY),
+        "has_embedding_key": bool(config.EMBEDDING_API_KEY),
+    }
+
+
+# ---- 复习计划与听力记录 ----
+@router.get("/reviews")
+def list_admin_reviews(
+    q: str | None = Query(default=None),
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=1, le=100),
+    _: User = Depends(get_admin_user),
+    db: Session = Depends(get_db),
+):
+    return admin_ext.list_admin_reviews(db, page=page, page_size=page_size, q=q)
+
+
+@router.delete("/reviews/{item_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_admin_review(
+    item_id: int,
+    _: User = Depends(get_admin_user),
+    db: Session = Depends(get_db),
+):
+    admin_ext.delete_admin_review(db, item_id)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.get("/listening/attempts")
+def list_admin_listening_attempts(
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=1, le=100),
+    _: User = Depends(get_admin_user),
+    db: Session = Depends(get_db),
+):
+    return admin_ext.list_admin_listening_attempts(db, page=page, page_size=page_size)
+
+
+# ---- SaaS 套餐、任务、活动、订单与兑换码 ----
+@router.get("/saas/plans")
+def get_admin_saas_plans(
+    _: User = Depends(get_admin_user),
+    db: Session = Depends(get_db),
+):
+    return {"plans": saas_service.list_plans(db), "action_meta": saas_service.ACTION_META}
+
+
+@router.put("/saas/plans/{tier}")
+def update_admin_saas_plan(
+    tier: str,
+    payload: AdminPlanUpdate,
+    _: User = Depends(get_admin_user),
+    db: Session = Depends(get_db),
+):
+    return {"plans": admin_ext.update_admin_plan(db, tier, payload.model_dump(exclude_unset=True))}
+
+
+@router.get("/saas/tasks")
+def list_admin_tasks(
+    _: User = Depends(get_admin_user),
+    db: Session = Depends(get_db),
+):
+    return {"items": admin_ext.list_admin_tasks(db)}
+
+
+@router.put("/saas/tasks/{task_code}")
+def update_admin_task(
+    task_code: str,
+    payload: AdminTaskUpdate,
+    _: User = Depends(get_admin_user),
+    db: Session = Depends(get_db),
+):
+    return admin_ext.update_admin_task(db, task_code, payload.model_dump(exclude_unset=True))
+
+
+@router.get("/saas/campaigns")
+def list_admin_campaigns(
+    _: User = Depends(get_admin_user),
+    db: Session = Depends(get_db),
+):
+    return {"items": admin_ext.list_admin_campaigns(db)}
+
+
+@router.post("/saas/campaigns", status_code=status.HTTP_201_CREATED)
+def create_admin_campaign(
+    payload: AdminCampaignCreate,
+    _: User = Depends(get_admin_user),
+    db: Session = Depends(get_db),
+):
+    return admin_ext.create_admin_campaign(db, payload.model_dump())
+
+
+@router.patch("/saas/campaigns/{campaign_id}")
+def update_admin_campaign(
+    campaign_id: int,
+    payload: AdminCampaignUpdate,
+    _: User = Depends(get_admin_user),
+    db: Session = Depends(get_db),
+):
+    return admin_ext.update_admin_campaign(db, campaign_id, payload.model_dump(exclude_unset=True))
+
+
+@router.delete("/saas/campaigns/{campaign_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_admin_campaign(
+    campaign_id: int,
+    _: User = Depends(get_admin_user),
+    db: Session = Depends(get_db),
+):
+    admin_ext.delete_admin_campaign(db, campaign_id)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.get("/saas/orders")
+def list_admin_orders(
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=1, le=100),
+    _: User = Depends(get_admin_user),
+    db: Session = Depends(get_db),
+):
+    return admin_ext.list_admin_orders(db, page=page, page_size=page_size)
+
+
+@router.get("/saas/ledger")
+def list_admin_ledger(
+    user_id: int | None = Query(default=None),
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=1, le=100),
+    _: User = Depends(get_admin_user),
+    db: Session = Depends(get_db),
+):
+    return admin_ext.list_admin_ledger(db, user_id=user_id, page=page, page_size=page_size)
+
+
+@router.get("/saas/redeem-codes")
+def list_admin_redeem_codes(
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=1, le=100),
+    _: User = Depends(get_admin_user),
+    db: Session = Depends(get_db),
+):
+    return admin_ext.list_admin_redeem_codes(db, page=page, page_size=page_size)
+
+
+@router.post("/saas/redeem-codes", status_code=status.HTTP_201_CREATED)
+def generate_admin_redeem_codes(
+    payload: AdminRedeemGenerateRequest,
+    _: User = Depends(get_admin_user),
+    db: Session = Depends(get_db),
+):
+    return {"codes": admin_ext.generate_admin_redeem_codes(db, payload.model_dump())}
+
+
+@router.get("/saas/billing-config")
+def get_admin_billing_config(
+    _: User = Depends(get_admin_user),
+    db: Session = Depends(get_db),
+):
+    cfg = saas_service.get_billing_config(db)
+    return {
+        "tokens_per_credit": cfg.tokens_per_credit,
+        "prompt_price_per_million": cfg.prompt_price_per_million,
+        "completion_price_per_million": cfg.completion_price_per_million,
+    }
+
+
+@router.put("/saas/billing-config")
+def update_admin_billing_config(
+    payload: dict,
+    _: User = Depends(get_admin_user),
+    db: Session = Depends(get_db),
+):
+    cfg = saas_service.get_billing_config(db)
+    if "tokens_per_credit" in payload:
+        cfg.tokens_per_credit = max(1, int(payload["tokens_per_credit"]))
+    if "prompt_price_per_million" in payload:
+        cfg.prompt_price_per_million = max(0.0, float(payload["prompt_price_per_million"]))
+    if "completion_price_per_million" in payload:
+        cfg.completion_price_per_million = max(0.0, float(payload["completion_price_per_million"]))
+    db.add(cfg)
+    db.commit()
+    return {
+        "tokens_per_credit": cfg.tokens_per_credit,
+        "prompt_price_per_million": cfg.prompt_price_per_million,
+        "completion_price_per_million": cfg.completion_price_per_million,
+    }

@@ -56,3 +56,42 @@ export const fetchTokenStats = (params) => http.get('/admin/token-stats', { para
 export const fetchListeningUnits = () => http.get('/admin/listening/units')
 export const importListeningUnits = (payload) => http.post('/admin/listening/import', payload)
 export const deleteListeningUnit = (unitId) => http.delete(`/admin/listening/units/${unitId}`)
+
+// 用户权益与积分调账
+export const grantUserSaas = (userId, payload) => http.post(`/admin/users/${userId}/grant`, payload)
+
+// 多角色场景管理
+export const fetchAdminDebates = (params) => http.get('/admin/debates', { params })
+export const updateAdminDebate = (topicId, payload) => http.patch(`/admin/debates/${topicId}`, payload)
+export const deleteAdminDebate = (topicId) => http.delete(`/admin/debates/${topicId}`)
+
+// 多角色会话记录
+export const fetchAdminDebateSessions = (params) => http.get('/admin/debate-sessions', { params })
+export const fetchAdminDebateSessionDetail = (sessionId) => http.get(`/admin/debate-sessions/${sessionId}`)
+export const deleteAdminDebateSession = (sessionId) => http.delete(`/admin/debate-sessions/${sessionId}`)
+
+// 知识库文档管理
+export const fetchAdminKnowledge = (params) => http.get('/admin/knowledge', { params })
+export const deleteAdminKnowledge = (scope, docId) => http.delete(`/admin/knowledge/${scope}/${docId}`)
+export const fetchLightragConfig = () => http.get('/admin/knowledge/lightrag-config')
+export const updateLightragConfig = (payload) => http.put('/admin/knowledge/lightrag-config', payload)
+
+// 复习计划与听力记录
+export const fetchAdminReviews = (params) => http.get('/admin/reviews', { params })
+export const deleteAdminReview = (itemId) => http.delete(`/admin/reviews/${itemId}`)
+export const fetchAdminListeningAttempts = (params) => http.get('/admin/listening/attempts', { params })
+
+// SaaS 套餐、任务、活动、订单与兑换码
+export const fetchAdminSaasPlans = () => http.get('/admin/saas/plans')
+export const updateAdminSaasPlan = (tier, payload) => http.put(`/admin/saas/plans/${tier}`, payload)
+export const fetchAdminTasks = () => http.get('/admin/saas/tasks')
+export const updateAdminTask = (taskCode, payload) => http.put(`/admin/saas/tasks/${taskCode}`, payload)
+export const fetchAdminCampaigns = () => http.get('/admin/saas/campaigns')
+export const createAdminCampaign = (payload) => http.post('/admin/saas/campaigns', payload)
+export const updateAdminCampaign = (id, payload) => http.patch(`/admin/saas/campaigns/${id}`, payload)
+export const deleteAdminCampaign = (id) => http.delete(`/admin/saas/campaigns/${id}`)
+export const fetchAdminOrders = (params) => http.get('/admin/saas/orders', { params })
+export const fetchAdminLedger = (params) => http.get('/admin/saas/ledger', { params })
+export const fetchAdminRedeemCodes = (params) => http.get('/admin/saas/redeem-codes', { params })
+export const generateAdminRedeemCodes = (payload) => http.post('/admin/saas/redeem-codes', payload)
+export const updateBillingConfig = (payload) => http.put('/admin/saas/billing-config', payload)

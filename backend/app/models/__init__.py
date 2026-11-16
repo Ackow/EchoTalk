@@ -18,5 +18,16 @@ from .usage import ApiTokenUsage
 from .review import ReviewItem
 from .listening import ListeningUnit, ListeningProgress, ListeningAttempt, UserXpState
 from .debate import DebateSession, DebateTopic, DebateTurn
+from .saas import (
+    CreditLedger,
+    CreditTaskDef,
+    RedeemCode,
+    SaasBillingConfig,
+    SaasCampaign,
+    SaasPlanConfig,
+    SubscriptionOrder,
+    UserDailyUsage,
+    UserTaskProgress,
+)
 
-__all__ = ['User', 'AuthSession', 'Scene', 'SceneStats', 'SceneUserStat', 'Document', 'Chunk', 'PersonalDocument', 'PersonalChunk', 'ChunkEmbedding', 'PersonalChunkEmbedding', 'AvatarPreference', 'AvatarPreset', 'PracticeSession', 'PracticeTurn', 'ApiTokenUsage', 'ReviewItem', 'ListeningUnit', 'ListeningProgress', 'ListeningAttempt', 'UserXpState', 'DebateTopic', 'DebateSession', 'DebateTurn']
+__all__ = ['User', 'AuthSession', 'Scene', 'SceneStats', 'SceneUserStat', 'Document', 'Chunk', 'PersonalDocument', 'PersonalChunk', 'ChunkEmbedding', 'PersonalChunkEmbedding', 'AvatarPreference', 'AvatarPreset', 'PracticeSession', 'PracticeTurn', 'ApiTokenUsage', 'ReviewItem', 'ListeningUnit', 'ListeningProgress', 'ListeningAttempt', 'UserXpState', 'DebateTopic', 'DebateSession', 'DebateTurn', 'SaasPlanConfig', 'UserDailyUsage', 'CreditLedger', 'CreditTaskDef', 'UserTaskProgress', 'SaasCampaign', 'SubscriptionOrder', 'RedeemCode']

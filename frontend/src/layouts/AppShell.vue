@@ -74,9 +74,22 @@
           <transition name="pop">
             <div v-if="menuOpen" class="account-popover" role="menu">
               <template v-if="session.user">
+                <button class="popover-item pop-sub-single" type="button" role="menuitem" @click="openSubscriptionDialog">
+                  <AppIcon name="credit-card" :size="14" class="pop-icon" />
+                  <span class="pop-entry-label">会员</span>
+                  <span class="pop-sub-badges">
+                    <span class="pop-tier-tag" :class="`tier-${saasState.plan_tier || 'free'}`">
+                      {{ { free: 'FREE', pro: 'PRO', enterprise: 'ENT' }[saasState.plan_tier] || 'FREE' }}
+                    </span>
+                    <span class="pop-points-chip">
+                      <EchoCreditIcon :size="11" />
+                      {{ saasState.loaded ? saasState.credits_balance : (session.user?.credits_balance ?? 100) }}
+                    </span>
+                  </span>
+                </button>
                 <button class="popover-item pop-rank-entry" type="button" role="menuitem" @click="openRankDialog">
                   <AppIcon name="target" :size="14" />
-                  <span class="pop-entry-label">段位与任务</span>
+                  <span class="pop-entry-label">我的段位</span>
                   <span class="pop-entry-xp">{{ totalXp }} XP</span>
                 </button>
                 <button class="popover-item" type="button" role="menuitem" @click="openSettings">
@@ -119,6 +132,7 @@
 
     <SettingsDialog v-if="settingsOpen" @close="settingsOpen = false" />
     <RankDialog v-if="rankOpen" @close="rankOpen = false" />
+    <SubscriptionDialog v-if="subOpen" @close="subOpen = false" />
   </main>
 </template>
 
@@ -126,14 +140,17 @@
 import { onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import AppIcon from '../components/AppIcon.vue'
+import EchoCreditIcon from '../components/EchoCreditIcon.vue'
 import UserAvatar from '../components/UserAvatar.vue'
 import SettingsDialog from '../components/settings/SettingsDialog.vue'
 import RankDialog from '../components/settings/RankDialog.vue'
+import SubscriptionDialog from '../components/settings/SubscriptionDialog.vue'
 import brandImage from '../assets/echotalk-brand.png'
 import { logout } from '../api/auth'
 import { clearSession, session } from '../auth/session'
 import { sidebarHidden } from '../app/prefs'
 import { currentRank, totalXp } from '../app/xp'
+import { refreshSaasState, saasState } from '../api/saas'
 
 // 导航结构对齐设计稿 14.2：三大类 + 模块子项；未接入模块路由到统一的规划中占位页。
 const navGroups = [
@@ -158,6 +175,7 @@ const navGroups = [
     label: '成长',
     items: [
       { name: 'review', title: '复习计划', icon: 'calendar-check' },
+      { name: 'subscription', title: '任务与积分', icon: 'target' },
       { name: 'history', title: '历史记录', icon: 'clock' },
       { name: 'analytics', title: '成长分析', icon: 'chart-line' }
     ]
@@ -171,6 +189,7 @@ const error = ref('') // 退出失败时的错误提示
 const menuOpen = ref(false) // 账户浮层菜单开关
 const settingsOpen = ref(false) // 设置弹窗开关
 const rankOpen = ref(false) // 段位与任务弹窗开关
+const subOpen = ref(false) // 会员与积分弹窗开关
 
 function toggleSidebar() {
   // 显示/隐藏整个侧边栏：偏好由 app/prefs 统一持久化，设置弹窗里改同一份状态。
@@ -185,7 +204,10 @@ function handleShortcut(event) {
     toggleSidebar()
   }
 }
-onMounted(() => window.addEventListener('keydown', handleShortcut))
+onMounted(() => {
+  window.addEventListener('keydown', handleShortcut)
+  if (session.token) refreshSaasState()
+})
 onBeforeUnmount(() => window.removeEventListener('keydown', handleShortcut))
 
 function goLogin() {
@@ -203,6 +225,11 @@ function openSettings() {
 function openRankDialog() {
   menuOpen.value = false
   rankOpen.value = true
+}
+
+function openSubscriptionDialog() {
+  menuOpen.value = false
+  subOpen.value = true
 }
 
 async function handleLogout() {
@@ -266,6 +293,11 @@ async function handleLogout() {
 
 .pop-entry-label {
   white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.pop-icon {
+  flex-shrink: 0;
 }
 
 .pop-entry-xp {
@@ -274,5 +306,54 @@ async function handleLogout() {
   color: var(--muted);
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
+}
+
+.pop-sub-single {
+  gap: 6px;
+}
+
+.pop-sub-badges {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.pop-tier-tag {
+  padding: 1px 6px;
+  border-radius: 6px;
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1.4;
+}
+
+.pop-points-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 1px 6px;
+  border-radius: 6px;
+  font-size: 10.5px;
+  font-weight: 700;
+  line-height: 1.4;
+  background: #fff4e5;
+  color: #b45309;
+  font-variant-numeric: tabular-nums;
+}
+
+.pop-tier-tag.tier-free {
+  background: #eaf7f0;
+  color: #2a8c5f;
+}
+
+.pop-tier-tag.tier-pro {
+  background: #eee9ff;
+  color: #6046b4;
+}
+
+.pop-tier-tag.tier-enterprise {
+  background: #2f2a45;
+  color: #ffd670;
 }
 </style>

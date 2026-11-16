@@ -1,188 +1,330 @@
 <template>
   <div class="home-page">
-    <!-- Hero -->
-    <section class="hero" id="top">
-      <div class="hero-content">
-        <div class="hero-badge">🚀 AI 驱动 · 场景化学习</div>
-        <h1><span class="gradient-text">EchoTalk</span><br />让英语口语脱口而出</h1>
-        <p>AI 真人对练、沉浸式场景模拟、智能语音评测，从面试到点餐，覆盖高频生活场景，让你在家也能开口说地道英语。</p>
-        <div class="hero-actions">
-          <a href="#download" class="btn-primary">⬇ 免费下载</a>
-          <router-link to="/docs" class="btn-secondary">📖 查看文档</router-link>
-        </div>
-        <div class="hero-stats">
-          <div class="hero-stat"><div class="num">3+</div><div class="label">内置场景</div></div>
-          <div class="hero-stat"><div class="num">RAG</div><div class="label">知识库增强</div></div>
-          <div class="hero-stat"><div class="num">TTS</div><div class="label">真人级语音</div></div>
-          <div class="hero-stat"><div class="num">∞</div><div class="label">自由扩展</div></div>
-        </div>
-      </div>
-    </section>
-
-    <!-- Features -->
-    <section class="section" id="features">
-      <div class="section-header">
-        <div class="tag">Features</div>
-        <h2>核心能力</h2>
-        <p>从语音识别到智能对话，全链路 AI 赋能你的口语练习</p>
-      </div>
-      <div class="features-grid">
-        <div class="feature-card" v-for="f in features" :key="f.title">
-          <div class="feature-icon" :class="f.color">{{ f.icon }}</div>
-          <h3>{{ f.title }}</h3>
-          <p>{{ f.desc }}</p>
-        </div>
-      </div>
-    </section>
-
-    <!-- Scenarios -->
-    <section class="section" id="scenarios">
-      <div class="section-header">
-        <div class="tag">Scenarios</div>
-        <h2>丰富场景，覆盖高频生活</h2>
-        <p>从求职面试到日常出行，每个场景都经过精心设计</p>
-      </div>
-      <div class="scenarios-grid">
-        <div class="scenario-card" v-for="s in scenarios" :key="s.title">
-          <div class="emoji">{{ s.icon }}</div>
-          <h3>{{ s.title }}</h3>
-          <p>{{ s.desc }}</p>
-          <span class="tag-badge">{{ s.tag }}</span>
-        </div>
-      </div>
-    </section>
-
-    <!-- Download -->
-    <section class="download-section" id="download">
-      <div class="inner">
-        <h2>下载 EchoTalk</h2>
-        <p>支持 Windows 桌面客户端，安装即用，本地运行安全放心</p>
-        <div class="download-cards">
-          <a class="dl-card" href="https://github.com/Ackow/EchoTalk/releases" target="_blank">
-            <span class="dl-icon">🪟</span>
-            <div class="dl-info"><div class="os">Windows 客户端</div><div class="ver">前往 GitHub Releases 下载</div></div>
-          </a>
-          <router-link class="dl-card" to="/docs#install">
-            <span class="dl-icon">📖</span>
-            <div class="dl-info"><div class="os">安装指南</div><div class="ver">查看详细安装步骤</div></div>
-          </router-link>
-        </div>
-      </div>
-    </section>
-
-    <!-- Docs Preview -->
-    <section class="section" id="docs">
-      <div class="section-header">
-        <div class="tag">Documentation</div>
-        <h2>产品文档</h2>
-        <p>从快速上手到深入开发，全面的文档助你高效使用</p>
-      </div>
-      <div class="docs-grid">
-        <div class="doc-card" v-for="d in docItems" :key="d.title">
-          <div class="doc-icon">{{ d.icon }}</div>
-          <h3>{{ d.title }}</h3>
-          <p>{{ d.desc }}</p>
-          <router-link class="doc-link" :to="d.link">阅读文档 →</router-link>
-        </div>
-      </div>
-    </section>
-
-    <!-- Community -->
-    <section class="section" id="community">
-      <div class="community-banner">
-        <div class="cb-text">
-          <h3>🌍 场景包社区</h3>
-          <p>发现社区贡献的场景包，从旅行对话到行业英语，下载导入即可开始练习。你也可以编写并分享自己的场景包，帮助更多人学好英语。</p>
-          <div class="cb-actions">
-            <router-link to="/community" class="btn-primary">浏览场景包 →</router-link>
-            <router-link to="/docs#scene-dev" class="btn-secondary">发布场景包</router-link>
+    <!-- Hero 首屏：左侧品牌介绍 + 右侧交互式产品预览舱 -->
+    <section class="hero-section">
+      <div class="hero-grid">
+        <div class="hero-copy fade-in-up">
+          <span class="hero-pill">EchoTalk 2.0 · 触感紫白全新工作台</span>
+          <h1>让每一次开口<br /><span class="gradient-text">都有真实 AI 回响</span></h1>
+          <p class="hero-desc">
+            集 <strong>1v1 沉浸式语音对话</strong>、<strong>1vN 多角色群面与辩论</strong>、<strong>四六级听力工作室</strong>、<strong>Hybrid + LightRAG 知识图谱</strong> 与 <strong>SM-2 间隔复习</strong> 于一体。支持按需切换的每日免费额度池，让练习轻松无压力。
+          </p>
+          <div class="hero-actions">
+            <router-link to="/pricing" class="btn-primary">查看订阅方案</router-link>
+            <router-link to="/features" class="btn-secondary">探索核心特性</router-link>
+          </div>
+          <div class="hero-trust">
+            <span>macOS / Windows 桌面端</span>
+            <span class="sep">·</span>
+            <span>SSE 流式低延迟语音</span>
+            <span class="sep">·</span>
+            <span>ISE 逐词发音评测</span>
           </div>
         </div>
-        <div class="cb-visual">📦</div>
+
+        <!-- 右侧带外置切换器的真实界面预览舱 -->
+        <div class="preview-stage fade-in-up delay-1">
+          <div class="preview-switcher">
+            <button
+              v-for="tab in previewTabs"
+              :key="tab.key"
+              type="button"
+              :class="{ active: activePreview === tab.key }"
+              @click="activePreview = tab.key"
+            >
+              {{ tab.label }}
+            </button>
+          </div>
+
+          <div class="mac-window">
+            <div class="mac-body">
+              <div class="preview-pane">
+                <img :src="currentPreview.src" :alt="currentPreview.label" class="real-shot" />
+                <div class="shot-caption">
+                  <span>{{ currentPreview.caption }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 悬浮呼吸动画徽章（置于底部左右外侧，不遮挡切换器与截图文字） -->
+          <div class="badges-row">
+            <div class="float-badge static">
+              <span class="b-dot green"></span>
+              <span>发音准确度 <strong>94 分</strong></span>
+            </div>
+            <div class="float-badge static delay">
+              <EchoCreditIcon :size="15" />
+              <span>任务达成 <strong>+15 积分 · +15 XP</strong></span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 量化能力背书条 -->
+    <section class="metrics-strip">
+      <div class="metric-item">
+        <strong>1v1 + 1vN</strong>
+        <span>单人对话与多角色群面双轨架构</span>
+      </div>
+      <div class="metric-item">
+        <strong>RRF + LightRAG</strong>
+        <span>向量全文混合检索与图谱推理</span>
+      </div>
+      <div class="metric-item">
+        <strong>SSE 分句 TTS</strong>
+        <span>边生成边切句并发合成低延迟音频</span>
+      </div>
+      <div class="metric-item">
+        <strong>SM-2 + ISE</strong>
+        <span>遗忘曲线复习与逐词发音评测</span>
+      </div>
+    </section>
+
+    <!-- Zig-Zag 交替图文介绍 -->
+    <section class="zigzag-section">
+      <div class="zigzag-row">
+        <div class="zigzag-copy">
+          <span class="sec-tag">双轨智能对话</span>
+          <h2>从 1v1 咖啡点单到 1vN 外企三对一终面</h2>
+          <p>
+            内置 <strong>ScenePackage v2</strong> 声明式场景包引擎，实时追踪对话目标达成状态与阶段流转；切换到 <strong>多角色对话（Debate / Panel）</strong>，还可同时面对 2–4 位性格鲜明的 AI 面试官或辩手，体验真实群面压力测试。
+          </p>
+          <router-link to="/features" class="text-link">深入了解对话架构 →</router-link>
+        </div>
+        <div class="zigzag-visual tactile-card">
+          <img src="/images/shots/debate.jpg" alt="EchoTalk 1vN 多角色辩论工作台" class="zigzag-shot" />
+        </div>
+      </div>
+
+      <div class="zigzag-row reverse">
+        <div class="zigzag-copy">
+          <span class="sec-tag green">弹性商业化与任务激励</span>
+          <h2>统一共享免费额度池，学习任务赚取回声积分</h2>
+          <p>
+            告别繁琐的单项次数限制。Free 用户每日享有共享免费额度池，用满 100% 后可自主开关是否消耗 <strong>Echo Credit</strong>；每日签到、听力磨耳朵、SM-2 复习均可同步领取 XP 段位经验与回声积分。
+          </p>
+          <router-link to="/pricing" class="text-link">对比 Free / Pro / Enterprise 方案 →</router-link>
+        </div>
+        <div class="zigzag-visual tactile-card pool-demo">
+          <div class="demo-row">
+            <span>今日共享免费额度池</span>
+            <b>已用 35% · 剩余 65%</b>
+          </div>
+          <div class="demo-bar"><div class="demo-fill"></div></div>
+          <div class="demo-badges">
+            <span class="d-badge green">每日签到 +10 点 · +5 XP</span>
+            <span class="d-badge purple">完成 1 场对话 +15 点 · +15 XP</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 底部引导 -->
+    <section class="bottom-cta">
+      <div class="tactile-card cta-card">
+        <div>
+          <h2>准备好开启高效英语口语训练了吗？</h2>
+          <p>下载 EchoTalk 2.0 桌面客户端，或浏览场景包社区与完整技术文档。</p>
+        </div>
+        <div class="cta-btns">
+          <router-link to="/community" class="btn-secondary">浏览场景社区</router-link>
+          <router-link to="/docs" class="btn-primary">阅读 2.0 文档</router-link>
+        </div>
       </div>
     </section>
   </div>
 </template>
+
 <script setup>
-const features = [
-  { icon: '🗣️', color: 'purple', title: 'AI 真人对练', desc: '基于大语言模型的智能对话系统，支持多轮对话、上下文理解、实时纠错，让你仿佛在和真人对话。' },
-  { icon: '🎭', color: 'blue', title: '沉浸式场景', desc: '面试模拟、商务会议、餐厅点餐……精心设计的场景脚本配合 AI 角色扮演，让练习身临其境。' },
-  { icon: '🎵', color: 'green', title: '语音识别 & 合成', desc: '集成 STT 语音转文字与 TTS 语音合成，支持边听边说，训练你的听力和发音。' },
-  { icon: '📚', color: 'amber', title: 'RAG 知识库', desc: '上传学习资料构建专属知识库，AI 回答基于你的内容生成，精准练习特定领域词汇与表达。' },
-  { icon: '📊', color: 'pink', title: '成长分析', desc: '自动记录每次练习数据，可视化展示流利度、词汇量、语法准确率等维度的成长曲线。' },
-  { icon: '⏪', color: 'cyan', title: '历史回放', desc: '完整保存对话记录与语音，支持随时回放复盘，找到薄弱环节反复练习。' },
+import { computed, ref } from 'vue'
+import EchoCreditIcon from '../components/EchoCreditIcon.vue'
+
+const activePreview = ref('home')
+const previewTabs = [
+  { key: 'home', label: '今日训练', src: '/images/shots/home.jpg', caption: '今日训练工作台 · 限时双倍积分活动横幅 + 精选场景快捷入口' },
+  { key: 'practice', label: '1v1 语音对话', src: '/images/shots/practice.jpg', caption: '1v1 语音对话 · 2D 数字人口型同步 + 目标达成进度条 + 实时语音输入' },
+  { key: 'debate', label: '1vN 多角色', src: '/images/shots/debate.jpg', caption: '1vN 多角色辩论/群面 · 正反方胜率对抗条 + 四维战况雷达 + 轮流席位' },
+  { key: 'scenes', label: '场景探索', src: '/images/shots/scenes.jpg', caption: '场景探索大厅 · 1v1 与多角色场景分类筛选 + ZIP 导入导出' },
 ]
-const scenarios = [
-  { icon: '💼', title: '求职面试', desc: '模拟真实面试流程，AI 扮演面试官提问，训练自我介绍、项目阐述与压力回答。', tag: 'Interview' },
-  { icon: '🏢', title: '商务会议', desc: '模拟工作会议场景，练习发言、讨论、汇报等职场英语表达。', tag: 'Meeting' },
-  { icon: '🍽️', title: '餐厅点餐', desc: '模拟海外餐厅点餐全流程，从入座、看菜单到结账，实用且有趣。', tag: 'Ordering' },
-  { icon: '➕', title: '自定义场景', desc: '通过场景包社区下载或自行创建场景，支持自由扩展练习内容。', tag: 'Community' },
-]
-const docItems = [
-  { icon: '🚀', title: '快速上手', desc: '安装、注册、开始你的第一堂口语课，5 分钟入门。', link: '/docs#quickstart' },
-  { icon: '📖', title: '使用指南', desc: '场景选择、知识库配置、成长分析等核心功能详解。', link: '/docs#guide' },
-  { icon: '🪟', title: '场景开发', desc: '了解场景插件体系，学习如何编写并发布自定义场景包。', link: '/docs#scene-dev' },
-  { icon: '🔧', title: 'API 参考', desc: '后端 REST API 接口文档，方便二次开发与集成。', link: '/docs#api' },
-]
+const currentPreview = computed(() => previewTabs.find((t) => t.key === activePreview.value) || previewTabs[0])
 </script>
+
 <style scoped>
-.hero { position: relative; min-height: 100vh; display: flex; align-items: center; justify-content: center; text-align: center; padding: 120px 24px 80px; }
-.hero::before { content: ''; position: absolute; inset: 0; pointer-events: none; background: radial-gradient(ellipse 70% 50% at 50% 35%, rgba(99,102,241,0.1) 0%, transparent 70%), radial-gradient(ellipse 50% 60% at 75% 80%, rgba(59,130,246,0.06) 0%, transparent 60%); }
-.hero-content { position: relative; max-width: 720px; }
-.hero-badge { display: inline-flex; align-items: center; gap: 8px; padding: 8px 20px; border-radius: 99px; margin-bottom: 28px; background: rgba(99,102,241,0.1); border: 1px solid rgba(99,102,241,0.2); font-size: 0.95rem; font-weight: 600; color: var(--primary); }
-.hero h1 { font-size: clamp(3.2rem, 6vw, 4.8rem); font-weight: 900; line-height: 1.15; margin-bottom: 20px; }
-.hero p { font-size: 1.3rem; color: var(--text-muted); max-width: 600px; margin: 0 auto 36px; line-height: 1.8; }
-.hero-actions { display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; }
-.hero-stats { display: flex; gap: 56px; justify-content: center; margin-top: 56px; padding-top: 36px; border-top: 1px solid var(--border); flex-wrap: wrap; }
-.hero-stat .num { font-size: 2.4rem; font-weight: 800; color: var(--primary); }
-.hero-stat .label { font-size: 0.95rem; color: var(--text-dim); margin-top: 4px; }
-.section { padding: 100px 24px; max-width: 1200px; margin: 0 auto; }
-.section-header { text-align: center; margin-bottom: 60px; }
-.section-header .tag { display: inline-block; padding: 5px 16px; border-radius: 99px; margin-bottom: 16px; background: rgba(99,102,241,0.08); border: 1px solid rgba(99,102,241,0.15); font-size: 0.85rem; font-weight: 700; color: var(--primary); text-transform: uppercase; letter-spacing: 0.1em; }
-.section-header h2 { font-size: clamp(2rem, 4vw, 2.8rem); font-weight: 800; margin-bottom: 14px; }
-.section-header p { font-size: 1.15rem; color: var(--text-muted); max-width: 600px; margin: 0 auto; }
-.features-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 24px; }
-.feature-card { padding: 36px 30px; border-radius: var(--radius); background: var(--bg-card); border: 1px solid var(--border); transition: transform 0.2s, background 0.2s, border-color 0.2s; text-align: center; }
-.feature-card:hover { transform: translateY(-4px); background: var(--bg-card-hover); border-color: rgba(99,102,241,0.15); }
-.feature-icon { width: 56px; height: 56px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 1.7rem; margin: 0 auto 20px; }
-.feature-icon.purple { background: rgba(99,102,241,0.12); }
-.feature-icon.blue   { background: rgba(59,130,246,0.12); }
-.feature-icon.green  { background: rgba(16,185,129,0.12); }
-.feature-icon.amber  { background: rgba(245,158,11,0.12); }
-.feature-icon.pink   { background: rgba(236,72,153,0.12); }
-.feature-icon.cyan   { background: rgba(6,182,212,0.12); }
-.feature-card h3 { font-size: 1.2rem; font-weight: 700; margin-bottom: 10px; }
-.feature-card p { font-size: 1rem; color: var(--text-muted); line-height: 1.7; }
-.scenarios-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 20px; }
-.scenario-card { padding: 32px 28px; border-radius: var(--radius); background: var(--bg-card); border: 1px solid var(--border); transition: transform 0.2s, border-color 0.2s; display: flex; flex-direction: column; text-align: center; align-items: center; }
-.scenario-card:hover { transform: translateY(-3px); border-color: rgba(99,102,241,0.2); }
-.scenario-card .emoji { font-size: 2.6rem; margin-bottom: 18px; }
-.scenario-card h3 { font-size: 1.15rem; font-weight: 700; margin-bottom: 8px; }
-.scenario-card p { font-size: 0.95rem; color: var(--text-muted); line-height: 1.65; flex: 1; }
-.scenario-card .tag-badge { display: inline-block; margin-top: auto; padding: 4px 12px; border-radius: 6px; font-size: 0.8rem; font-weight: 600; background: rgba(99,102,241,0.1); color: var(--primary); }
-.download-section { text-align: center; padding: 100px 24px; background: linear-gradient(180deg, transparent, rgba(99,102,241,0.04) 50%, transparent); }
-.download-section .inner { max-width: 700px; margin: 0 auto; }
-.download-section h2 { font-size: clamp(2.2rem, 4.5vw, 3rem); font-weight: 800; margin-bottom: 16px; }
-.download-section p { font-size: 1.15rem; color: var(--text-muted); margin-bottom: 36px; }
-.download-cards { display: flex; gap: 20px; justify-content: center; flex-wrap: wrap; }
-.dl-card { display: flex; align-items: center; gap: 16px; padding: 24px 32px; border-radius: var(--radius); background: var(--bg-card); border: 1px solid var(--border); cursor: pointer; transition: transform 0.15s, border-color 0.2s; min-width: 240px; }
-.dl-card:hover { transform: translateY(-2px); border-color: var(--primary); background: var(--bg-card-hover); }
-.dl-card .dl-icon { font-size: 2.2rem; }
-.dl-card .dl-info .os { font-weight: 700; font-size: 1.05rem; text-align: left; }
-.dl-card .dl-info .ver { font-size: 0.88rem; color: var(--text-dim); margin-top: 2px; text-align: left; }
-.docs-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; }
-.doc-card { padding: 32px; border-radius: var(--radius); background: var(--bg-card); border: 1px solid var(--border); transition: transform 0.2s, border-color 0.2s; display: flex; flex-direction: column; text-align: center; align-items: center; }
-.doc-card:hover { transform: translateY(-3px); border-color: rgba(99,102,241,0.2); }
-.doc-card .doc-icon { font-size: 2rem; margin-bottom: 18px; }
-.doc-card h3 { font-size: 1.15rem; font-weight: 700; margin-bottom: 10px; }
-.doc-card p { font-size: 0.95rem; color: var(--text-muted); line-height: 1.6; margin-bottom: 16px; flex: 1; }
-.doc-card .doc-link { font-size: 0.95rem; font-weight: 600; color: var(--primary); display: inline-flex; align-items: center; gap: 6px; margin-top: auto; }
-.doc-card .doc-link:hover { text-decoration: underline; }
-.community-banner { border-radius: var(--radius); padding: 64px 52px; background: linear-gradient(135deg, rgba(99,102,241,0.1) 0%, rgba(59,130,246,0.06) 100%); border: 1px solid rgba(99,102,241,0.15); display: flex; align-items: center; gap: 48px; flex-wrap: wrap; }
-.community-banner .cb-text { flex: 1; min-width: 280px; }
-.community-banner h3 { font-size: 1.8rem; font-weight: 800; margin-bottom: 14px; }
-.community-banner p { font-size: 1.05rem; color: var(--text-muted); line-height: 1.7; margin-bottom: 24px; }
-.community-banner .cb-actions { display: flex; gap: 12px; flex-wrap: wrap; }
-.community-banner .cb-visual { flex-shrink: 0; font-size: 5rem; opacity: 0.7; }
-@media (max-width: 768px) { .hero { padding: 100px 16px 60px; } .hero-stats { gap: 28px; } .features-grid, .docs-grid { grid-template-columns: 1fr; } .community-banner { padding: 36px 24px; } }
+.home-page { padding-top: 84px; }
+.hero-section { max-width: 1220px; margin: 20px auto 0; padding: 0 24px; }
+.hero-grid {
+  display: grid;
+  grid-template-columns: 1fr 1.15fr;
+  gap: 36px;
+  align-items: center;
+}
+.hero-pill {
+  display: inline-block;
+  padding: 5px 14px;
+  border-radius: 999px;
+  background: #eee9ff;
+  color: var(--primary-ink);
+  font-size: 12.5px;
+  font-weight: 700;
+  margin-bottom: 16px;
+}
+.hero-copy h1 {
+  font-size: clamp(32px, 4vw, 48px);
+  font-weight: 900;
+  line-height: 1.16;
+  margin-bottom: 16px;
+  letter-spacing: -0.02em;
+}
+.hero-desc { font-size: 15.5px; color: var(--text-soft); margin-bottom: 24px; }
+.hero-actions { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 18px; }
+.hero-trust { font-size: 12.5px; color: var(--text-dim); display: flex; gap: 8px; flex-wrap: wrap; }
+
+.preview-stage { position: relative; display: flex; flex-direction: column; gap: 12px; }
+.preview-switcher {
+  display: inline-flex;
+  align-self: center;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 12px;
+  background: #f1edf9;
+  border: 1px solid #e6dff5;
+}
+.preview-switcher button {
+  border: none;
+  background: transparent;
+  padding: 6px 14px;
+  border-radius: 9px;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.preview-switcher button.active {
+  background: #ffffff;
+  color: var(--primary-ink);
+  box-shadow: 0 2px 6px rgba(96, 70, 180, 0.12);
+}
+.badges-row {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.float-badge.static {
+  position: static;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 13px;
+  border-radius: 12px;
+  background: #ffffff;
+  border: 1.5px solid var(--border);
+  border-bottom: 3px solid var(--border-bottom);
+  font-size: 12px;
+  color: var(--text-soft);
+  animation: floatY 4.2s ease-in-out infinite;
+}
+.float-badge.static.delay { animation-delay: 1.2s; }
+.b-dot { width: 8px; height: 8px; border-radius: 50%; }
+.b-dot.green { background: #2a8c5f; }
+@keyframes floatY {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-4px); }
+}
+
+.mac-window {
+  border: 2px solid #dfd7f3;
+  border-bottom: 6px solid #d0c4ec;
+  border-radius: 18px;
+  background: #ffffff;
+  overflow: hidden;
+  box-shadow: 0 18px 42px rgba(85, 68, 140, 0.1);
+}
+.mac-body { background: #ffffff; }
+.real-shot { width: 100%; height: auto; display: block; }
+.zigzag-shot { width: 100%; border-radius: 12px; display: block; }
+.shot-caption { padding: 9px 14px; font-size: 12px; color: var(--text-muted); background: #faf9fd; border-top: 1px solid #efecf7; text-align: center; }
+
+.sim-panel { padding: 20px; display: flex; flex-direction: column; gap: 16px; }
+.sim-header { display: flex; justify-content: space-between; align-items: center; }
+.sim-tag { background: #eee9ff; color: var(--primary-ink); padding: 3px 10px; border-radius: 999px; font-size: 11.5px; font-weight: 700; }
+.sim-stage { font-size: 12px; color: var(--green); font-weight: 700; }
+.sim-avatars { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.sim-role { border: 1.5px solid #efecf7; border-radius: 12px; padding: 10px; text-align: center; background: #faf9fd; }
+.sim-role.active { border-color: var(--primary); background: #f5f2ff; }
+.role-circle { width: 34px; height: 34px; margin: 0 auto 6px; border-radius: 50%; background: var(--primary); color: #fff; font-size: 11px; font-weight: 800; display: grid; place-items: center; }
+.sim-role strong { display: block; font-size: 12px; color: var(--text); }
+.sim-role small { font-size: 10.5px; color: var(--text-muted); }
+.sim-bubble { background: #f5f3ff; border-radius: 14px; padding: 14px 16px; }
+.sim-bubble p { font-size: 13px; color: var(--text); font-style: italic; margin-bottom: 10px; }
+.wave-bars { display: flex; align-items: center; gap: 4px; height: 20px; }
+.wave-bars span { width: 4px; height: 8px; border-radius: 4px; background: var(--primary); animation: wave 1s ease-in-out infinite; }
+@keyframes wave {
+  0%, 100% { height: 6px; opacity: 0.5; }
+  50% { height: 18px; opacity: 1; }
+}
+
+.sim-home { padding: 18px; text-align: center; }
+.cartoon-shot { max-height: 200px; margin: 0 auto 12px; object-fit: contain; }
+.sim-home-copy h4 { font-size: 15px; margin-bottom: 4px; }
+.sim-home-copy p { font-size: 12.5px; color: var(--text-muted); }
+
+.metrics-strip {
+  max-width: 1220px;
+  margin: 46px auto 0;
+  padding: 0 24px;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+}
+.metric-item {
+  background: #ffffff;
+  border: 1.5px solid var(--border);
+  border-bottom: 4px solid var(--border-bottom);
+  border-radius: 16px;
+  padding: 18px;
+  text-align: center;
+}
+.metric-item strong { display: block; font-size: 18px; color: var(--primary-ink); margin-bottom: 4px; }
+.metric-item span { font-size: 12.5px; color: var(--text-muted); }
+
+.zigzag-section { max-width: 1220px; margin: 56px auto 0; padding: 0 24px; display: flex; flex-direction: column; gap: 48px; }
+.zigzag-row { display: grid; grid-template-columns: 1fr 1fr; gap: 36px; align-items: center; }
+.zigzag-row.reverse .zigzag-copy { order: 2; }
+.sec-tag { display: inline-block; padding: 3px 11px; border-radius: 999px; background: #eee9ff; color: var(--primary-ink); font-size: 12px; font-weight: 700; margin-bottom: 10px; }
+.sec-tag.green { background: var(--green-soft); color: var(--green); }
+.zigzag-copy h2 { font-size: 26px; font-weight: 800; margin-bottom: 12px; line-height: 1.3; }
+.zigzag-copy p { font-size: 14.5px; color: var(--text-soft); margin-bottom: 14px; }
+.text-link { font-size: 14px; font-weight: 700; color: var(--primary-ink); }
+.zigzag-visual { padding: 16px; }
+.cover-collage { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.cover-collage img { width: 100%; height: 125px; object-fit: cover; border-radius: 12px; }
+
+.pool-demo { padding: 26px 24px; display: flex; flex-direction: column; gap: 14px; }
+.demo-row { display: flex; justify-content: space-between; font-size: 14px; }
+.demo-row b { color: var(--primary-ink); }
+.demo-bar { height: 12px; background: #f1edf9; border-radius: 999px; overflow: hidden; }
+.demo-fill { width: 35%; height: 100%; background: linear-gradient(90deg, #8b73dd, #6951b8); border-radius: 999px; }
+.demo-badges { display: flex; gap: 10px; flex-wrap: wrap; }
+.d-badge { padding: 5px 11px; border-radius: 9px; font-size: 12px; font-weight: 700; }
+.d-badge.green { background: var(--green-soft); color: var(--green); }
+.d-badge.purple { background: #eee9ff; color: var(--primary-ink); }
+
+.bottom-cta { max-width: 1220px; margin: 56px auto 48px; padding: 0 24px; }
+.cta-card { padding: 30px 34px; display: flex; justify-content: space-between; align-items: center; gap: 20px; flex-wrap: wrap; background: linear-gradient(135deg, #f5f1ff 0%, #ffffff 70%); }
+.cta-card h2 { font-size: 22px; margin-bottom: 4px; }
+.cta-card p { font-size: 14px; color: var(--text-muted); }
+.cta-btns { display: flex; gap: 12px; }
+
+.fade-in-up { animation: fadeInUp 0.55s ease both; }
+.delay-1 { animation-delay: 0.12s; }
+@keyframes fadeInUp { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: translateY(0); } }
+
+@media (max-width: 960px) {
+  .hero-grid, .metrics-strip, .zigzag-row { grid-template-columns: 1fr; }
+  .zigzag-row.reverse .zigzag-copy { order: 0; }
+}
 </style>

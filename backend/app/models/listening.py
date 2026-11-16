@@ -68,4 +68,6 @@ class UserXpState(Base):
     today_xp = Column(Integer, nullable=False, default=0)
     today_date = Column(String(10), nullable=False, default="")
     streak_days = Column(Integer, nullable=False, default=0)
+    last_checkin_date = Column(String(10), nullable=False, default="")
+    checkin_streak = Column(Integer, nullable=False, default=0)
     updated_at = Column(DateTime, nullable=False, default=utcnow, onupdate=utcnow)

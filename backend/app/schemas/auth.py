@@ -17,6 +17,12 @@ class UserResponse(BaseModel):
     username: str  # 用户名
     avatar_path: str | None = None  # 头像相对路径；为空时前端用用户名首字母兜底
     is_admin: bool = False  # 是否为管理员
+    plan_tier: str = "free"  # 会员等级：free / pro / enterprise
+    plan_expires_at: datetime | None = None  # 会员到期时间
+    credits_balance: int = 100  # 当前回声积分余额
+    auto_use_credits: bool = True  # 免费额度用尽后是否自动消耗积分
+    checkin_streak: int = 0  # 连续签到天数
+    last_checkin_date: str | None = None  # 最近签到日期
     created_at: datetime  # 注册时间（UTC）
 
     model_config = {"from_attributes": True}  # 允许直接从 ORM 对象读取同名字段

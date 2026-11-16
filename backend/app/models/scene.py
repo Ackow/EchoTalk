@@ -23,6 +23,7 @@ class Scene(Base):
     package_json = Column(JSON, nullable=False)  # 完整场景包声明（scene.yaml 解析结果）
     source = Column(String(20), nullable=False, default="custom", index=True)  # 来源：builtin/custom/imported
     status = Column(String(20), nullable=False, default="private")  # 发布状态：private（本地私有）/ published（社区可见）
+    required_tier = Column(String(20), nullable=False, default="free", server_default="free")  # 最低会员等级要求：free/pro/enterprise
     published_at = Column(DateTime)  # 发布时间：NULL 表示未发布
     pkg_version = Column(Integer, nullable=False, default=2)  # 包结构版本：v2
     author_id = Column(Integer, ForeignKey("users.id"))  # 所属用户：builtin 为 NULL

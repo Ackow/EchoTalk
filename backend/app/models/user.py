@@ -15,6 +15,12 @@ class User(Base):
     password_hash = Column(String(256), nullable=False)  # 密码摘要：PBKDF2-SHA256 的 salt$digest，必填
     avatar_path = Column(String(128))  # 头像相对路径：users/{id}/avatar-<随机串>.<ext>，NULL 表示未设置（用首字母兜底）
     is_admin = Column(Integer, nullable=False, default=0, server_default="0")  # 管理员标识：0=普通用户，1=管理员
+    plan_tier = Column(String(20), nullable=False, default="free", server_default="free")  # 会员等级：free/pro/enterprise
+    plan_expires_at = Column(DateTime, nullable=True)  # 会员到期时间（NULL 表示永久或 Free）
+    credits_balance = Column(Integer, nullable=False, default=100, server_default="100")  # 当前可用回声积分余额
+    auto_use_credits = Column(Integer, nullable=False, default=1, server_default="1")  # 免费额度用尽后是否自动消耗积分
+    checkin_streak = Column(Integer, nullable=False, default=0, server_default="0")  # 连续签到天数
+    last_checkin_date = Column(String(10), nullable=True)  # 最近签到日期（YYYY-MM-DD）
     created_at = Column(DateTime, default=utcnow, nullable=False)  # 注册时间：UTC，插入时自动填充
 
 

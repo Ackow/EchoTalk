@@ -41,6 +41,7 @@ _DEBATE_TABLE_COLUMNS: dict[str, dict[str, str]] = {
         "cover_path": "VARCHAR(512) NULL",
         "tools_config": "JSON NULL",
         "status": "VARCHAR(24) NOT NULL DEFAULT 'private'",
+        "required_tier": "VARCHAR(20) NOT NULL DEFAULT 'free'",
         "likes_count": "INT NOT NULL DEFAULT 0",
         "favorites_count": "INT NOT NULL DEFAULT 0",
     },
@@ -77,6 +78,25 @@ def _add_missing_columns(bind: Engine | Connection, table_columns: dict[str, dic
             conn.execute(text(stmt))
 
 
+_XP_STATE_COLUMNS: dict[str, str] = {
+    "last_checkin_date": "VARCHAR(10) NOT NULL DEFAULT ''",
+    "checkin_streak": "INTEGER NOT NULL DEFAULT 0",
+}
+
+_USER_SAAS_COLUMNS: dict[str, str] = {
+    "plan_tier": "VARCHAR(20) NOT NULL DEFAULT 'free'",
+    "plan_expires_at": "DATETIME NULL",
+    "credits_balance": "INTEGER NOT NULL DEFAULT 100",
+    "auto_use_credits": "INTEGER NOT NULL DEFAULT 1",
+    "checkin_streak": "INTEGER NOT NULL DEFAULT 0",
+    "last_checkin_date": "VARCHAR(10) NULL",
+}
+
+_TIER_COLUMN: dict[str, str] = {
+    "required_tier": "VARCHAR(20) NOT NULL DEFAULT 'free'",
+}
+
+
 def ensure_avatar_columns(bind: Engine | Connection) -> None:
     """补齐 avatars 表发布与来源字段。"""
     _add_missing_columns(bind, {"avatars": _AVATAR_COLUMNS})
@@ -103,6 +123,44 @@ def ensure_debate_schema(bind: Engine | Connection) -> None:
         _CHECKED_DEBATE_ENGINES.add(engine)
 
 
+def ensure_saas_schema(bind: Engine | Connection) -> None:
+    """确保 SaaS 订阅、配额、积分账本与任务表已创建并补齐增量列。"""
+    from app.models.saas import (
+        CreditLedger,
+        CreditTaskDef,
+        RedeemCode,
+        SaasBillingConfig,
+        SaasCampaign,
+        SaasPlanConfig,
+        SubscriptionOrder,
+        UserDailyUsage,
+        UserTaskProgress,
+    )
+
+    engine = _resolve_engine(bind)
+    for tbl in (
+        SaasPlanConfig,
+        UserDailyUsage,
+        CreditLedger,
+        CreditTaskDef,
+        UserTaskProgress,
+        SaasCampaign,
+        SaasBillingConfig,
+        SubscriptionOrder,
+        RedeemCode,
+    ):
+        tbl.__table__.create(bind=engine, checkfirst=True)
+    _add_missing_columns(
+        engine,
+        {
+            "users": _USER_SAAS_COLUMNS,
+            "scenes": _TIER_COLUMN,
+            "debate_topics": _TIER_COLUMN,
+            "saas_plan_configs": {"daily_free_credits": "INTEGER NOT NULL DEFAULT 40"},
+        },
+    )
+
+
 def run_startup_migrations(bind: Engine | Connection) -> None:
     """应用启动阶段统一执行的建表与幂等列迁移。"""
     from app.models.avatar import AvatarPreset
@@ -112,5 +170,13 @@ def run_startup_migrations(bind: Engine | Connection) -> None:
     AvatarPreset.__table__.create(bind=engine, checkfirst=True)
     for tbl in (ListeningUnit, ListeningProgress, ListeningAttempt, UserXpState):
         tbl.__table__.create(bind=engine, checkfirst=True)
-    _add_missing_columns(engine, {"practice_turns": _PRACTICE_TURN_COLUMNS, "avatars": _AVATAR_COLUMNS})
+    _add_missing_columns(
+        engine,
+        {
+            "practice_turns": _PRACTICE_TURN_COLUMNS,
+            "avatars": _AVATAR_COLUMNS,
+            "user_xp_states": _XP_STATE_COLUMNS,
+        },
+    )
     ensure_debate_schema(engine)
+    ensure_saas_schema(engine)

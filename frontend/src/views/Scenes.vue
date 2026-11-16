@@ -58,7 +58,7 @@
           <button class="ghost-button" type="button" @click="pickDebateImport">
             <AppIcon name="download" :size="14" />导入多角色包
           </button>
-          <button class="primary-button slim" type="button" @click="router.push({ name: 'debate-create' })">
+          <button class="primary-button slim" type="button" @click="goCreateDebate">
             <AppIcon name="plus" :size="14" />新建多角色场景
           </button>
           <input ref="debateImportInput" type="file" accept=".zip,.json" class="hidden-input" @change="handleDebateImportFile" />
@@ -721,6 +721,7 @@
     @phase="trainingPhase = $event"
     @exit="activeTrainingScene = null; trainingPhase = 'select'"
   />
+  <SubscriptionDialog v-if="subDialogOpen" @close="subDialogOpen = false" @updated="refreshSaasState" />
 </template>
 
 <script setup>
@@ -733,7 +734,9 @@ import AppSelect from '../components/AppSelect.vue'
 import AppTabs from '../components/AppTabs.vue'
 import Practice from './Practice.vue'
 import SceneCover from '../components/scene/SceneCover.vue'
+import SubscriptionDialog from '../components/settings/SubscriptionDialog.vue'
 import { session } from '../auth/session'
+import { refreshSaasState, saasState } from '../api/saas'
 import { usePageLoading } from '../app/loading'
 import {
   coverUrl, deleteScene, duplicateScene, exportScene, favoriteScene, getScene, importScene,
@@ -895,12 +898,30 @@ async function doPublishDebateToggle(topic) {
     notify(err?.message || '操作失败')
   }
 }
+const subDialogOpen = ref(false)
+function guardPlanOrNotify(msg) {
+  notify(msg)
+  subDialogOpen.value = true
+}
+
+function goCreateDebate() {
+  if (!session.token) return notify('创建多角色场景需要先登录，点击左下角账户卡片登录。')
+  if (saasState.loaded && saasState.max_custom_debates >= 0 && saasState.custom_debates_count >= saasState.max_custom_debates) {
+    return guardPlanOrNotify(`当前套餐最多支持 ${saasState.max_custom_debates} 个多角色场景，请升级会员解锁`)
+  }
+  router.push({ name: 'debate-create' })
+}
+
 async function doDuplicateDebate(topic) {
   debateMenuFor.value = null
+  if (saasState.loaded && saasState.max_custom_debates >= 0 && saasState.custom_debates_count >= saasState.max_custom_debates) {
+    return guardPlanOrNotify(`当前套餐最多支持 ${saasState.max_custom_debates} 个多角色场景，请升级会员解锁`)
+  }
   try {
     const { data } = await duplicateDebateTopic(topic.id)
     if (data?.topic) {
       debateTopics.value.unshift(data.topic)
+      refreshSaasState()
       notify(`已复制为「${data.topic.titleZh}」`)
     }
   } catch (err) {
@@ -924,6 +945,9 @@ async function doDeleteDebate(topic) {
 }
 async function doExportDebate(topic) {
   debateMenuFor.value = null
+  if (saasState.loaded && !saasState.allow_zip_export) {
+    return guardPlanOrNotify('打包导出 ZIP 场景包需升级至「Enterprise 企业/机构版」')
+  }
   try {
     await exportDebateTopic(topic.id)
     notify(`已导出「${topic.titleZh}」`)
@@ -934,6 +958,9 @@ async function doExportDebate(topic) {
 const debateImportInput = ref(null)
 function pickDebateImport() {
   if (!session.token) return notify('导入多角色包需要先登录，点击左下角账户卡片登录。')
+  if (saasState.loaded && !saasState.allow_zip_import) {
+    return guardPlanOrNotify('导入外部 ZIP 多角色包需升级至「Pro 专业版」或以上')
+  }
   debateImportInput.value?.click()
 }
 async function handleDebateImportFile(event) {
@@ -1214,6 +1241,9 @@ function startTraining(scene) {
 
 function goCreate() {
   if (!session.token) return notify('创建场景需要先登录，点击左下角账户卡片登录。')
+  if (saasState.loaded && saasState.max_custom_scenes >= 0 && saasState.custom_scenes_count >= saasState.max_custom_scenes) {
+    return guardPlanOrNotify(`当前套餐最多支持 ${saasState.max_custom_scenes} 个 1v1 自定义场景，请升级会员解锁`)
+  }
   router.push({ name: 'scene-create' })
 }
 function goEdit(scene) {
@@ -1224,6 +1254,9 @@ function goEdit(scene) {
 // 导入：无冲突直接成功；冲突时弹窗让用户选覆盖或改名
 function pickImport() {
   if (!session.token) return notify('导入场景需要先登录，导入后归入你的场景。')
+  if (saasState.loaded && !saasState.allow_zip_import) {
+    return guardPlanOrNotify('导入外部 ZIP 场景包需升级至「Pro 专业版」或以上')
+  }
   importInput.value.click()
 }
 const importInput = ref(null)
@@ -1257,6 +1290,9 @@ function resolveImport(resolve) {
 
 async function doExport(scene) {
   menuFor.value = null
+  if (saasState.loaded && !saasState.allow_zip_export) {
+    return guardPlanOrNotify('打包导出 ZIP 场景包需升级至「Enterprise 企业/机构版」')
+  }
   try {
     await exportScene(scene.id)
     notify(`已导出「${scene.name}」`)
@@ -1267,8 +1303,12 @@ async function doExport(scene) {
 
 async function doDuplicate(scene) {
   menuFor.value = null
+  if (saasState.loaded && saasState.max_custom_scenes >= 0 && saasState.custom_scenes_count >= saasState.max_custom_scenes) {
+    return guardPlanOrNotify(`当前套餐最多支持 ${saasState.max_custom_scenes} 个 1v1 自定义场景，请升级会员解锁`)
+  }
   try {
     const { data } = await duplicateScene(scene.id)
+    refreshSaasState()
     notify(`已复制为「${data.name}」，可自由编辑`)
     load()
   } catch (error) {

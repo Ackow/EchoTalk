@@ -36,6 +36,28 @@
         </div>
       </div>
 
+      <!-- 限时运营活动横幅（当后台开启活动时动态展示） -->
+      <section v-if="activeCampaign" class="campaign-strip">
+        <div class="campaign-left">
+          <span class="campaign-badge">限时活动</span>
+          <div class="campaign-copy">
+            <strong>{{ activeCampaign.name }}</strong>
+            <p>{{ activeCampaign.description }}</p>
+          </div>
+        </div>
+        <div class="campaign-right">
+          <span v-if="activeCampaign.bonus_multiplier > 1" class="camp-tag">
+            <EchoCreditIcon :size="14" /> 任务与签到 {{ activeCampaign.bonus_multiplier }}x 积分加成
+          </span>
+          <span v-if="activeCampaign.free_actions_json?.length" class="camp-tag free">
+            指定 AI 能力免额度
+          </span>
+          <router-link class="camp-action-btn" :to="{ name: 'subscription' }">
+            前往任务中心 <AppIcon name="arrow-right" :size="15" />
+          </router-link>
+        </div>
+      </section>
+
       <section class="featured">
         <header class="section-heading"><div><span class="section-icon"><AppIcon name="compass" :size="21" /></span><h2>精选场景</h2><p>选择一个话题，开始你的英语练习。</p></div><router-link :to="{ name: 'scenes' }">查看更多场景 <AppIcon name="arrow-right" :size="16" /></router-link></header>
         <div v-if="loading" class="scene-message" role="status">正在加载场景…</div>
@@ -83,14 +105,17 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
 import AppIcon from '../components/AppIcon.vue'
+import EchoCreditIcon from '../components/EchoCreditIcon.vue'
 import heroImage from '../assets/today-conversation-cartoon.png'
 import { listReviewItems } from '../api/review'
+import { getSaasPlans } from '../api/saas'
 import { coverUrl, listScenes } from '../api/scenes'
 import { usePageLoading } from '../app/loading'
 import { session } from '../auth/session'
 
 const signedIn = computed(() => Boolean(session.token))
 const scenes = ref([])
+const activeCampaign = ref(null)
 const loading = ref(true)
 const loadError = ref(false)
 const failedCovers = ref(new Set())
@@ -99,11 +124,14 @@ const sceneIcon = scene => scene.mode === 'interview' ? 'briefcase' : scene.cate
 const finishLoading = usePageLoading() // 与路由遮罩同一条流程：精选场景到位后才收起
 onMounted(async () => {
   try {
-    const [sceneRes, reviewRes] = await Promise.all([
+    const [sceneRes, reviewRes, saasRes] = await Promise.all([
       listScenes(),
       signedIn.value ? listReviewItems(true).catch(() => null) : Promise.resolve(null),
+      getSaasPlans().catch(() => null),
     ])
     scenes.value = (sceneRes.data?.items || []).slice(0, 4)
+    const camps = saasRes?.data?.active_campaigns || []
+    activeCampaign.value = camps.length ? camps[0] : null
     if (reviewRes?.data) {
       const items = reviewRes.data.items || []
       const now = Date.now()
@@ -156,6 +184,80 @@ onMounted(async () => {
 .plan-btn.primary:hover { background: #7d64d1; transform: translateY(-1px); }
 .plan-btn.ghost { background: #fff; color: #6552aa; border: 1.5px solid #dfd7f3; border-bottom: 3px solid #d2c8ec; }
 .plan-btn.ghost:hover { background: #f4f0ff; }
+.campaign-strip {
+  margin-top: 22px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding: 14px 20px;
+  border-radius: 18px;
+  border: 1.5px solid #e6dcf7;
+  border-bottom: 4px solid #d9cbf2;
+  background: linear-gradient(135deg, #faf7ff 0%, #fffaf2 100%);
+}
+.campaign-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.campaign-badge {
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: #8b73dd;
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 800;
+  flex-shrink: 0;
+}
+.campaign-copy strong {
+  display: block;
+  font-size: 14.5px;
+  color: #35304e;
+}
+.campaign-copy p {
+  margin: 2px 0 0;
+  font-size: 12px;
+  color: #6e6a82;
+}
+.campaign-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.camp-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 10px;
+  border-radius: 10px;
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  color: #b45309;
+  font-size: 12px;
+  font-weight: 700;
+}
+.camp-tag.free {
+  background: #eaf7f0;
+  border-color: #bfe4d0;
+  color: #2a8c5f;
+}
+.camp-action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 7px 14px;
+  border-radius: 10px;
+  background: #8b73dd;
+  border: 1.5px solid #7c64cd;
+  border-bottom: 3px solid #6750b5;
+  color: #ffffff;
+  font-size: 12.5px;
+  font-weight: 700;
+  text-decoration: none;
+}
 a:focus-visible { outline: 3px solid #786bd1; outline-offset: 3px; }
 @media (prefers-reduced-motion: no-preference) {
   .hero-copy { animation: gentle-in .45s cubic-bezier(.22, .8, .32, 1) both; }

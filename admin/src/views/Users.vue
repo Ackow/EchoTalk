@@ -1,7 +1,7 @@
 <script setup>
 import { onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { batchDeleteUsers, createUser, deleteUser, fetchUsers, updateUser } from '../api/admin'
+import { batchDeleteUsers, createUser, deleteUser, fetchUsers, grantUserSaas, updateUser } from '../api/admin'
 import { adminSession } from '../auth/session'
 
 const loading = ref(false)
@@ -32,6 +32,31 @@ const createRules = {
 
 const editVisible = ref(false)
 const editForm = reactive({ id: null, username: '', is_admin: false, password: '' })
+
+const grantVisible = ref(false)
+const grantForm = reactive({ id: null, username: '', plan_tier: 'free', plan_days: 30, credits_delta: 0, remark: '管理员手动调整' })
+
+function openGrant(row) {
+  grantForm.id = row.id
+  grantForm.username = row.username
+  grantForm.plan_tier = row.plan_tier || 'free'
+  grantForm.plan_days = 30
+  grantForm.credits_delta = 0
+  grantForm.remark = '管理员手动调整'
+  grantVisible.value = true
+}
+
+async function submitGrant() {
+  await grantUserSaas(grantForm.id, {
+    plan_tier: grantForm.plan_tier,
+    plan_days: grantForm.plan_days,
+    credits_delta: grantForm.credits_delta,
+    remark: grantForm.remark,
+  })
+  ElMessage.success('会员权益与积分已更新')
+  grantVisible.value = false
+  loadUsers()
+}
 
 function formatTime(val) {
   return val ? new Date(val).toLocaleString('zh-CN', { hour12: false }) : '-'
@@ -180,6 +205,14 @@ onMounted(loadUsers)
           </el-tag>
         </template>
       </el-table-column>
+      <el-table-column label="会员等级" width="110" align="center">
+        <template #default="{ row }">
+          <el-tag :type="row.plan_tier === 'enterprise' ? 'warning' : row.plan_tier === 'pro' ? 'primary' : 'info'" size="small">
+            {{ (row.plan_tier || 'free').toUpperCase() }}
+          </el-tag>
+        </template>
+      </el-table-column>
+      <el-table-column prop="credits_balance" label="回声积分" width="100" align="center" />
       <el-table-column prop="session_count" label="对话会话" width="100" align="center" />
       <el-table-column prop="scene_count" label="自建场景" width="100" align="center" />
       <el-table-column prop="avatar_pref_count" label="数字人配置" width="110" align="center" />
@@ -187,9 +220,10 @@ onMounted(loadUsers)
       <el-table-column label="注册时间" width="180">
         <template #default="{ row }">{{ formatTime(row.created_at) }}</template>
       </el-table-column>
-      <el-table-column label="操作" width="160" fixed="right" align="center">
+      <el-table-column label="操作" width="210" fixed="right" align="center">
         <template #default="{ row }">
           <el-button type="primary" link size="small" @click="openEdit(row)">编辑</el-button>
+          <el-button type="warning" link size="small" @click="openGrant(row)">调账/会员</el-button>
           <el-button
             type="danger"
             link
@@ -252,6 +286,32 @@ onMounted(loadUsers)
       <template #footer>
         <el-button @click="editVisible = false">取消</el-button>
         <el-button type="primary" @click="submitEdit">保存修改</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 会员与积分调账弹窗 -->
+    <el-dialog v-model="grantVisible" :title="`权益与积分调账：${grantForm.username}`" width="440px">
+      <el-form label-width="100px">
+        <el-form-item label="会员等级">
+          <el-select v-model="grantForm.plan_tier" style="width: 100%">
+            <el-option label="Free 免费版" value="free" />
+            <el-option label="Pro 专业版" value="pro" />
+            <el-option label="Enterprise 企业版" value="enterprise" />
+          </el-select>
+        </el-form-item>
+        <el-form-item v-if="grantForm.plan_tier !== 'free'" label="延长天数">
+          <el-input-number v-model="grantForm.plan_days" :min="0" :max="3650" />
+        </el-form-item>
+        <el-form-item label="积分增减">
+          <el-input-number v-model="grantForm.credits_delta" :min="-10000" :max="100000" :step="50" />
+        </el-form-item>
+        <el-form-item label="调账备注">
+          <el-input v-model="grantForm.remark" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="grantVisible = false">取消</el-button>
+        <el-button type="primary" @click="submitGrant">确认下发</el-button>
       </template>
     </el-dialog>
   </div>

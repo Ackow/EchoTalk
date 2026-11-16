@@ -23,6 +23,7 @@ from app.api.endpoints.speech import router as speech_router
 from app.api.endpoints.review import router as review_router
 from app.api.endpoints.listening import router as listening_router
 from app.api.endpoints.debate import router as debate_router
+from app.api.endpoints.saas import router as saas_router
 from app.core.config import CORS_ORIGINS
 from app.core.database import engine, SessionLocal
 from app.core.errors import register_exception_handlers
@@ -37,10 +38,12 @@ async def lifespan(_app: FastAPI):
     from app.api.endpoints.avatars import sync_builtin_avatars
     from app.scenes.registry import sync_seeds
     from app.services.listening_service import sync_builtin_listening
+    from app.services.saas_service import ensure_saas_defaults
 
     try:
         run_startup_migrations(engine)
         with SessionLocal() as db:
+            ensure_saas_defaults(db)
             count = sync_seeds(db)
             avatar_count = sync_builtin_avatars(db)
             listening_count = sync_builtin_listening(db)
@@ -93,6 +96,7 @@ app.include_router(speech_router, prefix="/api")  # 浏览器录音的英文 ASR
 app.include_router(review_router, prefix="/api")  # 复习计划队列与间隔重复
 app.include_router(listening_router, prefix="/api")  # 听力工作室、四六级与 XP 体系
 app.include_router(debate_router, prefix="/api")  # 多角色辩论接口
+app.include_router(saas_router, prefix="/api")  # SaaS 订阅与积分接口
 app.include_router(admin_router, prefix="/api")  # 管理端路由（/api/admin/*）
 
 

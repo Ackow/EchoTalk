@@ -13,7 +13,7 @@ from app.api.deps import get_current_user, get_db, get_optional_user
 from app.core.errors import AppError
 from app.models import User
 from app.schemas.knowledge import PracticeKnowledgeResponse
-from app.services import scene_service
+from app.services import saas_service, scene_service
 
 router = APIRouter(prefix="/scenes", tags=["场景包"])
 
@@ -58,8 +58,10 @@ async def validate_package(request: Request):
 async def generate_scene_draft(
     request: Request,
     user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ):
     """根据一句想法由 AI 生成场景设计草稿参数。"""
+    saas_service.check_and_consume_quota(db, user, "scene_ai_draft")
     body = await read_package_body(request)
     idea = str(body.get("idea") or "").strip()
     difficulty = str(body.get("difficulty") or "normal").strip()
@@ -74,6 +76,7 @@ async def import_scene(
     db: Session = Depends(get_db),
 ):
     """导入 v2 场景包 ZIP；ID 冲突时要求显式选择覆盖或改名（§8.2）。"""
+    saas_service.check_zip_permission(db, user, "import")
     if not (file.filename or "").lower().endswith(".zip"):
         raise AppError("请上传 .zip 场景包文件")
     content = await file.read()
@@ -90,6 +93,9 @@ async def create_from_template(
     db: Session = Depends(get_db),
 ):
     """从内置模板复制创建自定义场景：内置只读的替代路径。"""
+    from app.models import Scene
+    cnt = db.query(Scene).filter(Scene.author_id == user.id, Scene.source != "builtin").count()
+    saas_service.check_creation_limit(db, user, "scene", cnt)
     return scene_service.create_from_template(db, user, payload.get("template_id"), payload.get("new_id"))
 
 
@@ -100,8 +106,13 @@ async def create_scene(
     db: Session = Depends(get_db),
 ):
     """创建自定义场景：body = 完整包字段；保存前全量校验（默认本地私有）。"""
+    from app.models import Scene
+    cnt = db.query(Scene).filter(Scene.author_id == user.id, Scene.source != "builtin").count()
+    saas_service.check_creation_limit(db, user, "scene", cnt)
     data = await read_package_body(request)
-    return scene_service.create_scene(db, user, data)
+    res = scene_service.create_scene(db, user, data)
+    saas_service.record_task_progress(db, user.id, "onboard_scene")
+    return res
 
 
 # ---- 场景详情与生命周期 -----------------------------------------------------
@@ -135,6 +146,9 @@ def duplicate_scene(
     db: Session = Depends(get_db),
 ):
     """复制场景为自定义副本（内置场景同样可复制）。"""
+    from app.models import Scene
+    cnt = db.query(Scene).filter(Scene.author_id == user.id, Scene.source != "builtin").count()
+    saas_service.check_creation_limit(db, user, "scene", cnt)
     return scene_service.duplicate_scene(db, user, scene_id)
 
 
@@ -151,10 +165,11 @@ def delete_scene(
 @router.get("/{scene_id}/export")
 def export_scene(
     scene_id: str,
-    user: User | None = Depends(get_optional_user),
+    user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """导出 v2 ZIP（manifest + scene.yaml + knowledge 源文件）；非作者导出计入下载量。"""
+    saas_service.check_zip_permission(db, user, "export")
     content = scene_service.export_package(db, scene_id, user)
     filename = f"echotalk_scene_{scene_id}.zip"
     return StreamingResponse(

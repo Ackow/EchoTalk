@@ -117,11 +117,31 @@ def get_dashboard(db: Session) -> dict:
             }
         )
 
+    from app.models import DebateSession, DebateTopic, ReviewItem
+    from app.models.saas import CreditLedger, SubscriptionOrder
+
+    debate_topic_total = db.scalar(select(func.count()).select_from(DebateTopic)) or 0
+    debate_session_total = db.scalar(select(func.count()).select_from(DebateSession)) or 0
+    review_total = db.scalar(select(func.count()).select_from(ReviewItem)) or 0
+    pro_users = db.scalar(select(func.count()).select_from(User).where(User.plan_tier == "pro")) or 0
+    ent_users = db.scalar(select(func.count()).select_from(User).where(User.plan_tier == "enterprise")) or 0
+    credits_today_spent = (
+        db.scalar(
+            select(func.coalesce(func.sum(CreditLedger.delta), 0)).where(
+                CreditLedger.delta < 0, CreditLedger.created_at >= today_start
+            )
+        )
+        or 0
+    )
+    orders_total = db.scalar(select(func.count()).select_from(SubscriptionOrder)) or 0
+
     return {
         "users": {
             "total": user_total,
             "admins": admin_total,
             "active_tokens": active_auth_sessions,
+            "pro": pro_users,
+            "enterprise": ent_users,
         },
         "scenes": {
             "total": scene_total,
@@ -135,6 +155,18 @@ def get_dashboard(db: Session) -> dict:
             "finished": session_finished,
             "active": session_total - session_finished,
             "turns": turn_total,
+        },
+        "debates": {
+            "topics": debate_topic_total,
+            "sessions": debate_session_total,
+        },
+        "reviews": {
+            "total": review_total,
+        },
+        "saas": {
+            "paid_users": pro_users + ent_users,
+            "credits_today_spent": abs(int(credits_today_spent)),
+            "orders_total": orders_total,
         },
         "avatars": {
             "preferences_total": avatar_pref_total,
@@ -262,13 +294,58 @@ def get_token_stats(
         .limit(page_size)
     ).all()
 
+    from app.models.saas import CreditLedger, SubscriptionOrder
+    from app.services.saas_service import get_billing_config
+
+    cfg = get_billing_config(db)
+    tpc = int(cfg.tokens_per_credit or 1000)
+    prompt_price = float(cfg.prompt_price_per_million or 2.0)
+    completion_price = float(cfg.completion_price_per_million or 8.0)
+
+    ledger_conds = [CreditLedger.delta < 0, CreditLedger.created_at >= start_day]
+    if user_id is not None:
+        ledger_conds.append(CreditLedger.user_id == user_id)
+    credits_spent_raw = db.scalar(select(func.coalesce(func.sum(CreditLedger.delta), 0)).where(*ledger_conds)) or 0
+    credits_spent = abs(int(credits_spent_raw))
+    actual_tokens = int(summary_row[0])
+    prompt_tok = int(summary_row[1])
+    completion_tok = int(summary_row[2])
+
+    order_conds = [SubscriptionOrder.status == "paid", SubscriptionOrder.created_at >= start_day]
+    if user_id is not None:
+        order_conds.append(SubscriptionOrder.user_id == user_id)
+    revenue_yuan = float(db.scalar(select(func.coalesce(func.sum(SubscriptionOrder.amount_yuan), 0)).where(*order_conds)) or 0)
+    order_count = int(db.scalar(select(func.count()).select_from(SubscriptionOrder).where(*order_conds)) or 0)
+    api_cost_yuan = round((prompt_tok / 1_000_000) * prompt_price + (completion_tok / 1_000_000) * completion_price, 4)
+    gross_profit_yuan = round(revenue_yuan - api_cost_yuan, 2)
+    gross_margin_pct = round((gross_profit_yuan / revenue_yuan) * 100, 1) if revenue_yuan > 0 else 0.0
+
     return {
         "summary": {
-            "total_tokens": int(summary_row[0]),
-            "prompt_tokens": int(summary_row[1]),
-            "completion_tokens": int(summary_row[2]),
+            "total_tokens": actual_tokens,
+            "prompt_tokens": prompt_tok,
+            "completion_tokens": completion_tok,
             "total_calls": int(summary_row[3]),
             "today_tokens": int(today_tokens),
+        },
+        "billing_config": {
+            "tokens_per_credit": tpc,
+            "prompt_price_per_million": prompt_price,
+            "completion_price_per_million": completion_price,
+        },
+        "credit_conversion": {
+            "tokens_per_credit": tpc,
+            "credits_spent": credits_spent,
+            "equivalent_tokens": credits_spent * tpc,
+            "actual_tokens": actual_tokens,
+            "actual_tokens_per_credit": round(actual_tokens / credits_spent) if credits_spent > 0 else 0,
+        },
+        "profit_analysis": {
+            "revenue_yuan": round(revenue_yuan, 2),
+            "order_count": order_count,
+            "api_cost_yuan": round(api_cost_yuan, 2),
+            "gross_profit_yuan": gross_profit_yuan,
+            "gross_margin_pct": gross_margin_pct,
         },
         "trend": list(daily_map.values()),
         "by_category": [

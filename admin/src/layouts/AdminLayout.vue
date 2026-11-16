@@ -10,18 +10,57 @@ const route = useRoute()
 const router = useRouter()
 const collapsed = ref(false)
 
-const menuItems = [
-  { path: '/dashboard', title: '数据概览', icon: 'DataBoard' },
-  { path: '/users', title: '用户管理', icon: 'User' },
-  { path: '/avatars', title: '数字人管理', icon: 'Avatar' },
-  { path: '/scenes', title: '场景管理', icon: 'Collection' },
-  { path: '/listening', title: '听力资源', icon: 'Headset' },
-  { path: '/sessions', title: '对话记录', icon: 'ChatDotRound' },
-  { path: '/tokens', title: 'Token 统计', icon: 'TrendCharts' },
+const menuGroups = [
+  { type: 'item', path: '/dashboard', title: '数据概览', icon: 'DataBoard' },
+  { type: 'item', path: '/users', title: '用户管理', icon: 'User' },
+  {
+    type: 'group',
+    index: 'group-content',
+    title: '内容资源',
+    icon: 'Collection',
+    children: [
+      { path: '/avatars', title: '数字人管理', icon: 'Avatar' },
+      { path: '/scenes', title: '1v1 场景管理', icon: 'Collection' },
+      { path: '/debates', title: '多角色场景', icon: 'ChatLineSquare' },
+      { path: '/listening', title: '听力资源', icon: 'Headset' },
+      { path: '/knowledge', title: '知识库管理', icon: 'Files' },
+    ],
+  },
+  {
+    type: 'group',
+    index: 'group-records',
+    title: '训练与数据',
+    icon: 'ChatDotRound',
+    children: [
+      { path: '/sessions', title: '对话记录', icon: 'ChatDotRound' },
+      { path: '/reviews', title: '复习与听力记录', icon: 'Reading' },
+    ],
+  },
+  {
+    type: 'group',
+    index: 'group-saas',
+    title: '商业化与运营',
+    icon: 'SetUp',
+    children: [
+      { path: '/saas/plans', title: 'SaaS 套餐配额', icon: 'SetUp' },
+      { path: '/saas/tasks', title: '积分任务与活动', icon: 'Trophy' },
+      { path: '/saas/orders', title: '订单与兑换码', icon: 'Ticket' },
+      { path: '/tokens', title: '盈利与 Token 统计', icon: 'TrendCharts' },
+    ],
+  },
 ]
 
+const defaultOpeneds = ['group-content', 'group-records', 'group-saas']
 const activePath = computed(() => route.path)
 const pageTitle = computed(() => route.meta?.title || 'EchoTalk 管理端')
+const activeGroupTitle = computed(() => {
+  for (const entry of menuGroups) {
+    if (entry.type === 'group' && entry.children.some((c) => c.path === route.path)) {
+      return entry.title
+    }
+  }
+  return ''
+})
 
 async function handleLogout() {
   try {
@@ -45,6 +84,7 @@ async function handleLogout() {
       </div>
       <el-menu
         :default-active="activePath"
+        :default-openeds="defaultOpeneds"
         :collapse="collapsed"
         background-color="#0f172a"
         text-color="#cbd5e1"
@@ -52,10 +92,22 @@ async function handleLogout() {
         router
         class="aside-menu"
       >
-        <el-menu-item v-for="item in menuItems" :key="item.path" :index="item.path">
-          <el-icon><component :is="item.icon" /></el-icon>
-          <template #title>{{ item.title }}</template>
-        </el-menu-item>
+        <template v-for="entry in menuGroups" :key="entry.index || entry.path">
+          <el-menu-item v-if="entry.type === 'item'" :index="entry.path">
+            <el-icon><component :is="entry.icon" /></el-icon>
+            <template #title>{{ entry.title }}</template>
+          </el-menu-item>
+          <el-sub-menu v-else :index="entry.index">
+            <template #title>
+              <el-icon><component :is="entry.icon" /></el-icon>
+              <span>{{ entry.title }}</span>
+            </template>
+            <el-menu-item v-for="sub in entry.children" :key="sub.path" :index="sub.path">
+              <el-icon><component :is="sub.icon" /></el-icon>
+              <template #title>{{ sub.title }}</template>
+            </el-menu-item>
+          </el-sub-menu>
+        </template>
       </el-menu>
     </el-aside>
 
@@ -70,6 +122,7 @@ async function handleLogout() {
           </el-button>
           <el-breadcrumb separator="/">
             <el-breadcrumb-item :to="{ path: '/dashboard' }">管理端</el-breadcrumb-item>
+            <el-breadcrumb-item v-if="activeGroupTitle">{{ activeGroupTitle }}</el-breadcrumb-item>
             <el-breadcrumb-item>{{ pageTitle }}</el-breadcrumb-item>
           </el-breadcrumb>
         </div>
@@ -137,6 +190,8 @@ async function handleLogout() {
 .aside-menu {
   border-right: none;
   flex: 1;
+  overflow-y: auto;
+  scrollbar-width: thin;
 }
 
 .aside-menu :deep(.el-menu-item.is-active) {
@@ -146,10 +201,16 @@ async function handleLogout() {
   width: calc(100% - 16px);
 }
 
-.aside-menu :deep(.el-menu-item) {
+.aside-menu :deep(.el-menu-item),
+.aside-menu :deep(.el-sub-menu__title) {
   margin: 4px 8px;
   border-radius: 8px;
-  height: 44px;
+  height: 42px;
+}
+
+.aside-menu :deep(.el-sub-menu .el-menu-item) {
+  height: 38px;
+  font-size: 13px;
 }
 
 .admin-header {

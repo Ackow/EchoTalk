@@ -14,6 +14,7 @@ from app.core.errors import AppError
 from app.schemas.session import CreateSession, SubmitTurn, SubmitTurnStream
 from app.schemas.tts import VoiceOptions
 from app.services import analytics_service
+from app.services import saas_service
 from app.services import session_service
 from app.services import greeting_audio_service
 
@@ -23,6 +24,10 @@ router = APIRouter(prefix="/sessions", tags=["对话练习"])
 @router.post("", status_code=201)
 def create_session(payload: CreateSession, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     """为当前用户创建练习会话，返回开场白和初始任务状态。"""
+    from app.models import Scene
+    scene = db.get(Scene, payload.scene_id)
+    if scene:
+        saas_service.check_tier_permission(db, user, getattr(scene, "required_tier", "free") or "free", scene.name)
     return session_service.create_session(db, user, payload.scene_id)
 
 
@@ -70,7 +75,10 @@ def get_session_report(session_id: str, user: User = Depends(get_current_user), 
 @router.post("/{session_id}/turns")
 def submit_turn(session_id: str, payload: SubmitTurn, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     """提交文字轮次并返回 Agent 回复；重试时复用相同 request_id。"""
-    return session_service.run_turn(db, user.id, session_id, payload.request_id, payload.text)
+    saas_service.check_and_consume_quota(db, user, "practice_turn", ref_id=session_id)
+    res = session_service.run_turn(db, user.id, session_id, payload.request_id, payload.text)
+    saas_service.record_task_progress(db, user.id, "daily_practice_1")
+    return res
 
 
 @router.post("/{session_id}/turns/stream")
@@ -81,6 +89,8 @@ async def submit_turn_stream(
     db: Session = Depends(get_db),
 ):
     """流式提交文字轮次（SSE）：增量返回文本与按句合成的 MP3 音频分段。"""
+    saas_service.check_and_consume_quota(db, user, "practice_turn", ref_id=session_id)
+    saas_service.record_task_progress(db, user.id, "daily_practice_1")
     bind = db.get_bind()
     db.rollback()
     return StreamingResponse(
@@ -102,6 +112,7 @@ async def submit_turn_stream(
 @router.post("/{session_id}/suggest-reply")
 async def suggest_reply(session_id: str, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     """根据当前对话上下文与训练目标，生成 AI 参考回复建议。"""
+    saas_service.check_and_consume_quota(db, user, "practice_coach_hint", ref_id=session_id)
     return await session_service.suggest_reply(db, user.id, session_id)
 
 

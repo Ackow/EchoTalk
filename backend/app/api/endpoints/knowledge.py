@@ -10,8 +10,8 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user, get_db
 from app.core.errors import AppError
-from app.models import User
-from app.services import scene_service
+from app.models import PersonalDocument, User
+from app.services import saas_service, scene_service
 
 router = APIRouter(prefix="/knowledge/personal", tags=["个人资料"])
 
@@ -32,6 +32,9 @@ async def upload_personal_document(
     db: Session = Depends(get_db),
 ):
     """上传个人资料：解析 → 分块 → 入库（同名覆盖即更新）。"""
+    cnt = db.query(PersonalDocument).filter(PersonalDocument.owner_id == user.id).count()
+    saas_service.check_creation_limit(db, user, "knowledge", cnt)
+    saas_service.check_and_consume_quota(db, user, "knowledge_embed")
     document = scene_service.upload_personal(db, user, file.filename, await file.read(), file.content_type)
     return document
 

@@ -73,8 +73,12 @@ export const reindexSceneKnowledge = (id) => http.post(`/scenes/${id}/knowledge/
 // LightRAG 图谱检索：返回实体/关系/分块检索上下文（查询含一次 LLM 关键词抽取，较慢）
 export const lightragSceneSearch = (id, q, mode = 'mix', topK = 6) =>
   http.get(`/scenes/${id}/knowledge/lightrag`, { params: { q, mode, top_k: topK }, timeout: 120000 })
+export const lightragSceneRebuild = (id) =>
+  http.post(`/scenes/${id}/knowledge/lightrag/rebuild`)
 export const lightragPersonalSearch = (q, mode = 'mix', topK = 6) =>
   http.get('/knowledge/personal/lightrag', { params: { q, mode, top_k: topK }, timeout: 120000 })
+export const lightragPersonalRebuild = () =>
+  http.post('/knowledge/personal/lightrag/rebuild')
 
 // ---- 个人工作区资料（阶段二）：owner 隔离，全部要求登录 ----
 export const listPersonalDocuments = () => http.get('/knowledge/personal')

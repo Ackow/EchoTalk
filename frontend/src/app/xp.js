@@ -1,6 +1,6 @@
 // 全局经验值与段位系统（优先同步后端真实用户画像，未登录时使用本地状态兜底）
 import { computed, ref } from 'vue'
-import { getListeningProfile } from '../api/listening'
+import { claimDailyCheckin, getListeningProfile } from '../api/listening'
 import { session } from '../auth/session'
 
 export const RANK_TIERS = [
@@ -20,12 +20,17 @@ export const todayXp = ref(45)
 export const dailyGoalXp = 60
 
 export const dailyQuests = ref([
+  { id: 'q-checkin', title: '每日签到领积分', current: 0, target: 1, xp: 5, type: 'checkin' },
   { id: 'q-listen', title: '完成 1 节听力训练', current: 1, target: 1, xp: 25, route: 'listening' },
   { id: 'q-talk', title: '完成 3 轮语音对话', current: 1, target: 3, xp: 15, route: 'practice' },
   { id: 'q-review', title: '完成今日间隔复习', current: 0, target: 1, xp: 15, route: 'review' }
 ])
 
 export const streakDays = ref(0)
+export const checkedInToday = ref(false)
+export const checkinStreak = ref(0)
+export const nextCheckinXp = ref(5)
+export const checkinRewards = ref([5, 8, 10, 12, 15, 18, 25])
 
 export function applyXpSnapshot(snapshot) {
   if (!snapshot) return
@@ -39,8 +44,33 @@ export function applyXpSnapshot(snapshot) {
   if (typeof snapshot.streakDays === 'number') {
     streakDays.value = snapshot.streakDays
   }
+  if (typeof snapshot.checkedInToday === 'boolean') {
+    checkedInToday.value = snapshot.checkedInToday
+  }
+  if (typeof snapshot.checkinStreak === 'number') {
+    checkinStreak.value = snapshot.checkinStreak
+  }
+  if (typeof snapshot.nextCheckinXp === 'number') {
+    nextCheckinXp.value = snapshot.nextCheckinXp
+  }
+  if (Array.isArray(snapshot.checkinRewards) && snapshot.checkinRewards.length) {
+    checkinRewards.value = snapshot.checkinRewards
+  }
   if (Array.isArray(snapshot.dailyQuests)) {
     dailyQuests.value = snapshot.dailyQuests
+  }
+}
+
+export async function performDailyCheckin() {
+  if (!session.token) {
+    return { requiresLogin: true, gainedXp: 0, alreadyCheckedIn: false }
+  }
+  const { data } = await claimDailyCheckin()
+  applyXpSnapshot(data)
+  return {
+    requiresLogin: false,
+    gainedXp: Number(data?.gainedXp || 0),
+    alreadyCheckedIn: Boolean(data?.alreadyCheckedIn),
   }
 }
 

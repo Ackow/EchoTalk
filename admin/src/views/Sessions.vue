@@ -1,7 +1,49 @@
 <script setup>
 import { onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { batchDeleteSessions, deleteSession, fetchScenes, fetchSessionDetail, fetchSessions, fetchUsers } from '../api/admin'
+import {
+  batchDeleteSessions,
+  deleteAdminDebateSession,
+  deleteSession,
+  fetchAdminDebateSessionDetail,
+  fetchAdminDebateSessions,
+  fetchScenes,
+  fetchSessionDetail,
+  fetchSessions,
+  fetchUsers,
+} from '../api/admin'
+
+const sessionMode = ref('practice')
+const debateLoading = ref(false)
+const debateItems = ref([])
+const debateTotal = ref(0)
+const debatePage = ref(1)
+const debateDrawer = ref(false)
+const debateDetail = ref(null)
+
+async function loadDebateSessions() {
+  debateLoading.value = true
+  try {
+    const { data } = await fetchAdminDebateSessions({ page: debatePage.value, page_size: 20 })
+    debateItems.value = data.items
+    debateTotal.value = data.total
+  } finally {
+    debateLoading.value = false
+  }
+}
+
+async function openDebateDetail(row) {
+  debateDrawer.value = true
+  const { data } = await fetchAdminDebateSessionDetail(row.id)
+  debateDetail.value = data
+}
+
+async function removeDebateSession(row) {
+  await ElMessageBox.confirm(`确认删除多角色会话「${row.topic_title}」？`, '提示', { type: 'warning' })
+  await deleteAdminDebateSession(row.id)
+  ElMessage.success('已删除')
+  loadDebateSessions()
+}
 
 const loading = ref(false)
 const items = ref([])
@@ -101,6 +143,12 @@ onMounted(() => {
 
 <template>
   <div class="page-card">
+    <el-tabs v-model="sessionMode" @tab-change="(m) => m === 'debate' && loadDebateSessions()">
+      <el-tab-pane label="1v1 语音对话记录" name="practice" />
+      <el-tab-pane label="1vN 多角色交锋记录" name="debate" />
+    </el-tabs>
+
+    <template v-if="sessionMode === 'practice'">
     <div class="filter-bar">
       <el-input
         v-model="query.q"
@@ -178,6 +226,58 @@ onMounted(() => {
         @size-change="handleSearch"
       />
     </div>
+    </template>
+
+    <template v-else>
+      <el-table v-loading="debateLoading" :data="debateItems" stripe>
+        <el-table-column prop="username" label="用户" width="120" />
+        <el-table-column prop="topic_title" label="多角色场景" min-width="200" />
+        <el-table-column label="子模式" width="110">
+          <template #default="{ row }">
+            <el-tag :type="row.scene_type === 'panel' ? 'success' : 'primary'" size="small">
+              {{ row.scene_type === 'panel' ? '群面/圆桌' : '辩论' }}
+            </el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column prop="turn_count" label="轮次" width="80" />
+        <el-table-column prop="win_rate" label="认可度/胜率" width="110">
+          <template #default="{ row }">{{ row.win_rate }}%</template>
+        </el-table-column>
+        <el-table-column prop="status" label="状态" width="90" />
+        <el-table-column label="时间" width="180">
+          <template #default="{ row }">{{ formatTime(row.created_at) }}</template>
+        </el-table-column>
+        <el-table-column label="操作" width="130">
+          <template #default="{ row }">
+            <el-button type="primary" link size="small" @click="openDebateDetail(row)">详情</el-button>
+            <el-button type="danger" link size="small" @click="removeDebateSession(row)">删除</el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+      <div class="pagination-wrap">
+        <el-pagination
+          v-model:current-page="debatePage"
+          :page-size="20"
+          :total="debateTotal"
+          layout="total, prev, pager, next"
+          @current-change="loadDebateSessions"
+        />
+      </div>
+    </template>
+
+    <el-drawer v-model="debateDrawer" title="多角色交锋详情" size="560px">
+      <template v-if="debateDetail">
+        <p><b>议题：</b>{{ debateDetail.session.topic_title }}</p>
+        <p><b>用户：</b>{{ debateDetail.session.username }} · <b>状态：</b>{{ debateDetail.session.status }} · <b>认可度/胜率：</b>{{ debateDetail.session.win_rate }}%</p>
+        <el-divider />
+        <div v-for="t in debateDetail.turns" :key="t.id" style="margin-bottom: 12px; padding: 10px; background: #f8fafc; border-radius: 8px">
+          <div style="font-size: 12px; color: #64748b; margin-bottom: 4px">
+            #{{ t.turn_number }} [{{ t.stage_label }}] · <b>{{ t.speaker }}</b> ({{ t.role_title || t.role }})
+          </div>
+          <div style="font-size: 13px; color: #1e293b">{{ t.en_text }}</div>
+        </div>
+      </template>
+    </el-drawer>
 
     <!-- 对话详情抽屉 -->
     <el-drawer v-model="drawerVisible" :title="`对话记录详情（${detail?.username || ''} · ${detail?.scene_name || ''}）`" size="680px">

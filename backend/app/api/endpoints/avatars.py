@@ -149,6 +149,8 @@ def save_preference(
 ):
     """整体覆盖保存当前场景档的偏好（形象 × 音色 × 节奏的任意组合）。"""
     pref = avatar_service.save_preference(db, user, payload)
+    from app.services import saas_service
+    saas_service.record_task_progress(db, user.id, "onboard_avatar")
     return _to_response(pref)
 
 

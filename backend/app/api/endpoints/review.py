@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 from app.api.deps import get_current_user, get_db
 from app.models.user import User
 from app.schemas.review import ReviewItemCreate, ReviewItemUpdate, ReviewSubmitIn
-from app.services import review_service
+from app.services import review_service, saas_service
 
 router = APIRouter(prefix="/review", tags=["review"])
 
@@ -29,6 +29,7 @@ def sync_review(user: User = Depends(get_current_user), db: Session = Depends(ge
 @router.post("")
 def create_review(payload: ReviewItemCreate, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     item = review_service.create_review_item(db, user.id, payload)
+    saas_service.record_task_progress(db, user.id, "daily_review_10")
     return {"item": item}
 
 
@@ -56,4 +57,6 @@ def submit_review(
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    return review_service.submit_review_result(db, user.id, item_id, payload.rating)
+    res = review_service.submit_review_result(db, user.id, item_id, payload.rating)
+    saas_service.record_task_progress(db, user.id, "daily_review_10")
+    return res

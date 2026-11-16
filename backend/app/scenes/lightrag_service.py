@@ -120,12 +120,32 @@ def index_status(kind: str, owner_id: Any) -> dict[str, Any]:
         except OSError:
             ready = False
         return {"status": "ready" if ready else "empty", "done": 0, "total": 0, "failed": 0, "error": None}
+    status = str(stored.get("status") or "empty")
+    error = stored.get("error")
+    if status == "building":
+        key = f"{kind}:{owner_id}"
+        lock = _dir_locks.get(key)
+        is_running = bool(lock and lock.locked())
+        stale = False
+        if not is_running:
+            stale = True
+        else:
+            try:
+                updated = datetime.fromisoformat(str(stored.get("updated_at") or ""))
+                if (datetime.now(timezone.utc) - updated).total_seconds() > 300:
+                    stale = True
+            except Exception:
+                pass
+        if stale:
+            status = "error"
+            error = error or "后台构建已中断或超时，请点击「后台构建」重试"
+            _write_index_status(kind, owner_id, status=status, error=error)
     return {
-        "status": str(stored.get("status") or "empty"),
+        "status": status,
         "done": int(stored.get("done") or 0),
         "total": int(stored.get("total") or 0),
         "failed": int(stored.get("failed") or 0),
-        "error": stored.get("error"),
+        "error": error,
     }
 
 
@@ -215,7 +235,12 @@ async def _upsert(kind: str, owner_id: Any, document_id: int, text: str) -> None
         except Exception:
             pass  # id 不存在时忽略
         try:
+            if hasattr(rag.chunk_entity_relation_graph, "storage_updated"):
+                rag.chunk_entity_relation_graph.storage_updated.value = False
             await rag.ainsert(text, ids=lr_id, file_paths=f"{kind}/{document_id}")
+            if hasattr(rag.chunk_entity_relation_graph, "storage_updated"):
+                rag.chunk_entity_relation_graph.storage_updated.value = False
+            await rag.chunk_entity_relation_graph.index_done_callback()
             _write_index_status(kind, owner_id, status="ready", done=1, total=1)
             logger.info("LightRAG 已索引 %s/%s（%d 字符）", key, lr_id, len(text))
         except Exception as exc:
@@ -261,7 +286,12 @@ async def _rebuild(kind: str, owner_id: Any, docs: list[tuple[int, str]]) -> int
         for doc_id, text in docs:
             lr_id = _lr_doc_id(kind, doc_id)
             try:
-                await rag.ainsert(text, ids=lr_id, file_paths=f"{kind}/{doc_id}")
+                if hasattr(rag.chunk_entity_relation_graph, "storage_updated"):
+                    rag.chunk_entity_relation_graph.storage_updated.value = False
+                await asyncio.wait_for(
+                    rag.ainsert(text, ids=lr_id, file_paths=f"{kind}/{doc_id}"),
+                    timeout=90.0,
+                )
                 done += 1
                 logger.info("LightRAG 已索引 %s/%s（%d 字符）", key, lr_id, len(text))
             except Exception as exc:
@@ -269,10 +299,22 @@ async def _rebuild(kind: str, owner_id: Any, docs: list[tuple[int, str]]) -> int
                 last_error = str(exc)[:200]
                 logger.exception("LightRAG 索引失败 %s/%s：%s", key, lr_id, exc)
             _write_index_status(kind, owner_id, done=done, total=total, failed=failed, error=last_error)
-        # 全部失败 → error；部分失败也置 ready（failed 字段供前端提示）
-        final_status = "error" if failed == total else "ready"
-        _write_index_status(kind, owner_id, status=final_status)
-        logger.info("LightRAG 重建完成：%s（%d/%d 篇成功）", key, done, total)
+        # 强制落盘图谱文件，避免同进程多实例共享 storage_updated 标志导致跳过写盘
+        try:
+            if hasattr(rag.chunk_entity_relation_graph, "storage_updated"):
+                rag.chunk_entity_relation_graph.storage_updated.value = False
+            await rag.chunk_entity_relation_graph.index_done_callback()
+        except Exception as exc:
+            logger.warning("LightRAG 图谱落盘异常 %s：%s", key, exc)
+        graphml = _working_dir(kind, owner_id) / "graph_chunk_entity_relation.graphml"
+        has_graph = graphml.exists() and graphml.stat().st_size > 200
+        if failed == total or not has_graph:
+            final_status = "error"
+            last_error = last_error or "未生成有效实体图谱文件，请点击「后台构建」重试"
+        else:
+            final_status = "ready"
+        _write_index_status(kind, owner_id, status=final_status, error=last_error)
+        logger.info("LightRAG 重建完成：%s（%d/%d 篇成功，has_graph=%s）", key, done, total, has_graph)
         return done
 
 
@@ -294,6 +336,11 @@ def schedule_rebuild(kind: str, owner_id: Any, docs: list[tuple[int, str]]) -> N
     """全量重建（不阻塞调用方）。docs 为 [(document_id, 源文本)]。"""
     if not available():
         return
+    key = f"{kind}:{owner_id}"
+    lock = _dir_locks.get(key)
+    if lock and lock.locked():
+        return  # 已在构建中，避免重复提交并发重建
+    _write_index_status(kind, owner_id, status="building", done=0, total=len(docs), failed=0, error=None)
     _submit(_rebuild(kind, owner_id, list(docs)))
 
 

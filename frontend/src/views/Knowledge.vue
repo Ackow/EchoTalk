@@ -230,7 +230,19 @@
           <div class="side-card">
             <div class="side-head">
               <h4>实体关系</h4>
-              <span class="side-tag">{{ graphBadge }}</span>
+              <div style="display: flex; align-items: center; gap: 6px">
+                <button
+                  v-if="displayDocs.length && graphData?.index?.status !== 'building'"
+                  class="rebuild-btn"
+                  type="button"
+                  :disabled="rebuildingGraph"
+                  title="在后台执行 LightRAG 实体图谱抽取"
+                  @click="triggerLightragRebuild"
+                >
+                  {{ rebuildingGraph ? '提交中...' : '后台构建' }}
+                </button>
+                <span class="side-tag">{{ graphBadge }}</span>
+              </div>
             </div>
             <div v-if="graphLoading" class="graph-note">图谱生成中…</div>
             <!-- 索引状态提示：后台构建对用户可见，完成后自动切换为 LightRAG 图谱 -->
@@ -409,10 +421,11 @@ import AppIcon from '../components/AppIcon.vue'
 import AppSelect from '../components/AppSelect.vue'
 import AppTabs from '../components/AppTabs.vue'
 import { session } from '../auth/session'
+import { saasState } from '../api/saas'
 import { usePageLoading } from '../app/loading'
 import {
   deleteKnowledge, deletePersonalDocument, getDocumentSource, getPersonalSource,
-  getSectionOverview, lightragPersonalSearch, lightragSceneSearch, listDocumentChunks,
+  getSectionOverview, lightragPersonalRebuild, lightragPersonalSearch, lightragSceneRebuild, lightragSceneSearch, listDocumentChunks,
   listKnowledgeDocuments, listPersonalChunks,
   listPersonalDocuments, listScenes, personalGraph, reindexSceneKnowledge, sceneGraph,
   searchPersonalKnowledge, searchSceneKnowledge, updateDocumentSource, updatePersonalSource,
@@ -452,6 +465,7 @@ let milkdownEditor = null // milkdown 编辑器实例（无需响应式）
 let editorHost = null // 编辑器挂载 DOM（函数 ref 赋值）
 const graphData = ref(null) // 实体关系图谱（阶段三）
 const graphLoading = ref(false)
+const rebuildingGraph = ref(false)
 const searchQuery = ref('') // 检索输入（回车触发）
 const searching = ref(false) // 检索请求进行中
 const searchEngine = ref('hybrid') // 检索引擎：hybrid（关键词+向量 RRF）/ lightrag（图谱上下文）
@@ -596,6 +610,40 @@ watch(graphData, (val) => {
   }
 })
 
+async function triggerLightragRebuild(silent = false) {
+  if (rebuildingGraph.value) return
+  if (scope.value === 'scene' && !activeSceneId.value) return
+  rebuildingGraph.value = true
+  try {
+    if (scope.value === 'personal') {
+      await lightragPersonalRebuild()
+    } else {
+      await lightragSceneRebuild(activeSceneId.value)
+    }
+    notify('已提交 LightRAG 后台图谱构建，完成后将自动切换')
+    await loadGraph()
+  } catch (err) {
+    if (!silent) {
+      notify(err?.response?.data?.error?.message || err?.response?.data?.detail || 'LightRAG 未开启或未配置抽取模型')
+    }
+  } finally {
+    rebuildingGraph.value = false
+  }
+}
+
+watch(searchEngine, (engine) => {
+  const status = graphData.value?.index?.status
+  if (
+    engine === 'lightrag' &&
+    displayDocs.value.length > 0 &&
+    graphData.value?.engine !== 'lightrag' &&
+    status !== 'building' &&
+    status !== 'ready'
+  ) {
+    triggerLightragRebuild(false)
+  }
+})
+
 /* ---- 统一视图（场景 / 个人共用一套列表与弹窗） ---- */
 
 const displayDocs = computed(() => (scope.value === 'personal' ? personalDocs.value : docs.value))
@@ -631,6 +679,9 @@ const docEditable = (doc) => ['md', 'txt'].includes(docType(doc.filename))
 
 function pickFile() {
   if (!session.token) return notify('上传资料需要先登录，点击左下角账户卡片登录。')
+  if (scope.value === 'personal' && saasState.loaded && saasState.max_knowledge_docs >= 0 && personalDocs.value.length >= saasState.max_knowledge_docs) {
+    return notify(`当前套餐最多支持 ${saasState.max_knowledge_docs} 份私有知识库文档，请升级 Pro 会员解锁`)
+  }
   if (scope.value === 'scene' && !activeSceneId.value) return notify('请先选择要管理资料的场景。')
   fileInput.value?.click()
 }
@@ -1297,6 +1348,18 @@ onBeforeUnmount(() => {
 .kw-side { flex: 0 0 420px; display: flex; flex-direction: column; gap: 12px; }
 .side-card { border: 1px solid var(--line); border-radius: 12px; background: var(--surface); padding: 14px 16px; }
 .side-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+.rebuild-btn {
+  border: 1px solid #d9cff2;
+  background: #f5f2ff;
+  color: #6046b4;
+  border-radius: 7px;
+  padding: 2px 8px;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.rebuild-btn:hover:not(:disabled) { background: #eae3ff; }
+.rebuild-btn:disabled { opacity: 0.6; cursor: default; }
 .side-head h4 { margin: 0; font-size: 13.5px; color: var(--ink); }
 .side-tag { font-size: 11px; color: var(--brand); background: var(--brand-soft); border-radius: 99px; padding: 2px 9px; font-weight: 600; white-space: nowrap; }
 .side-desc { color: var(--muted); font-size: 12px; line-height: 1.65; margin: 8px 0 0; }

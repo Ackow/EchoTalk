@@ -7,6 +7,7 @@ import json
 from pathlib import Path
 import uuid
 
+from datetime import datetime, timedelta
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
@@ -267,6 +268,49 @@ def _award_xp(db: Session, user_id: int, amount: int) -> UserXpState:
     return state
 
 
+CHECKIN_REWARDS = (5, 8, 10, 12, 15, 18, 25)
+
+
+def _checkin_reward_for_day(streak_day: int) -> int:
+    idx = (max(1, streak_day) - 1) % len(CHECKIN_REWARDS)
+    return CHECKIN_REWARDS[idx]
+
+
+def _apply_auto_checkin(state: UserXpState) -> tuple[bool, int]:
+    """若今日尚未签到，则自动完成每日签到并发放阶梯积分。"""
+    today = _today_str()
+    if (state.last_checkin_date or "") == today:
+        return False, 0
+    yesterday = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
+    if state.last_checkin_date == yesterday:
+        state.checkin_streak = (state.checkin_streak or 0) + 1
+    else:
+        state.checkin_streak = 1
+    gained_xp = _checkin_reward_for_day(state.checkin_streak)
+    if gained_xp > 0:
+        if state.today_xp == 0:
+            state.streak_days += 1
+        state.total_xp += gained_xp
+        state.today_xp += gained_xp
+    state.last_checkin_date = today
+    return True, gained_xp
+
+
+def daily_checkin(db: Session, user_id: int) -> dict:
+    """每日签到领积分（仿 B 站连续签到 7 天循环阶梯奖励，同日重复签到幂等返回）。"""
+    UserXpState.__table__.create(bind=db.get_bind(), checkfirst=True)
+    state = _get_or_create_xp(db, user_id)
+    just_checked_in, gained_xp = _apply_auto_checkin(state)
+    if just_checked_in:
+        db.commit()
+    profile = get_xp_profile(db, user_id)
+    return {
+        **profile,
+        "alreadyCheckedIn": not just_checked_in,
+        "gainedXp": gained_xp,
+    }
+
+
 def award_xp(db: Session, user_id: int, amount: int) -> UserXpState | None:
     """供语音对话、复习计划等模块统一发放经验值（不单独提交事务，由调用方统一 commit）。"""
     if amount <= 0:
@@ -482,8 +526,9 @@ def add_listening_review(
 
 
 def get_xp_profile(db: Session, user_id: int) -> dict:
-    """查询用户真实经验值与基于今日数据库记录计算的每日任务进度。"""
+    """查询用户真实经验值与基于今日数据库记录计算的每日任务进度（登录/访问时自动完成每日签到）。"""
     state = _get_or_create_xp(db, user_id)
+    just_checked_in, gained_checkin_xp = _apply_auto_checkin(state)
     db.commit()
 
     today_start = utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
@@ -505,12 +550,32 @@ def get_xp_profile(db: Session, user_id: int) -> dict:
         )
     ) or 0
 
+    checked_in_today = (state.last_checkin_date or "") == _today_str()
+    checkin_streak = state.checkin_streak or 0
+    today_checkin_xp = _checkin_reward_for_day(checkin_streak or 1)
+    next_checkin_xp = _checkin_reward_for_day(checkin_streak if checked_in_today else checkin_streak + 1)
+
     return {
         "totalXp": state.total_xp,
         "todayXp": state.today_xp,
         "dailyGoalXp": DAILY_GOAL_XP,
         "streakDays": state.streak_days,
+        "checkedInToday": checked_in_today,
+        "justCheckedIn": just_checked_in,
+        "gainedCheckinXp": gained_checkin_xp,
+        "todayCheckinXp": today_checkin_xp,
+        "checkinStreak": checkin_streak,
+        "nextCheckinXp": next_checkin_xp,
+        "checkinRewards": list(CHECKIN_REWARDS),
         "dailyQuests": [
+            {
+                "id": "q-checkin",
+                "title": "每日登录自动签到",
+                "current": 1 if checked_in_today else 0,
+                "target": 1,
+                "xp": today_checkin_xp,
+                "type": "checkin",
+            },
             {"id": "q-listen", "title": "完成 3 道听力微练习", "current": min(3, listen_count), "target": 3, "xp": 25, "route": "listening"},
             {"id": "q-talk", "title": "完成 3 轮语音对话", "current": min(3, talk_count), "target": 3, "xp": 15, "route": "practice"},
             {"id": "q-review", "title": "完成 1 条间隔复习", "current": min(1, review_count), "target": 1, "xp": 15, "route": "review"},

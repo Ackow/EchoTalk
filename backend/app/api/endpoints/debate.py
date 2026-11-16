@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from app.api.deps import get_current_user, get_db, get_optional_user
 from app.core.errors import AppError
 from app.models import User
-from app.services import debate_service
+from app.services import debate_service, saas_service
 
 router = APIRouter(prefix="/debate", tags=["多角色对话"])
 
@@ -94,6 +94,9 @@ def create_debate_topic(
     db: Session = Depends(get_db),
 ):
     """创建自定义辩论话题。"""
+    from app.models import DebateTopic
+    cnt = db.query(DebateTopic).filter(DebateTopic.owner_id == user.id, DebateTopic.is_builtin == False).count()
+    saas_service.check_creation_limit(db, user, "debate", cnt)
     return {"topic": debate_service.create_debate_topic(db, user, payload.model_dump())}
 
 
@@ -198,6 +201,7 @@ async def import_debate_topic(
     db: Session = Depends(get_db),
 ):
     """导入 .zip 或 .json 辩论包为个人辩题。"""
+    saas_service.check_zip_permission(db, user, "import")
     raw = await file.read()
     return {"topic": debate_service.import_debate_topic_package(db, user, raw, file.filename or "")}
 
@@ -205,9 +209,11 @@ async def import_debate_topic(
 @router.get("/topics/{topic_id}/export")
 def export_debate_topic(
     topic_id: str,
+    user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """导出辩题为 .zip 辩论包。"""
+    saas_service.check_zip_permission(db, user, "export")
     zip_bytes = debate_service.export_debate_topic_zip(db, topic_id)
     return Response(
         content=zip_bytes,
@@ -223,6 +229,9 @@ def duplicate_debate_topic(
     db: Session = Depends(get_db),
 ):
     """复制辩题为我的私有辩题。"""
+    from app.models import DebateTopic
+    cnt = db.query(DebateTopic).filter(DebateTopic.owner_id == user.id, DebateTopic.is_builtin == False).count()
+    saas_service.check_creation_limit(db, user, "debate", cnt)
     return {"topic": debate_service.duplicate_debate_topic(db, user, topic_id)}
 
 
@@ -233,6 +242,10 @@ def create_debate_session(
     db: Session = Depends(get_db),
 ):
     """创建一场多角色辩论并返回主持人开场。"""
+    from app.models import DebateTopic
+    topic = db.get(DebateTopic, payload.topic_id)
+    if topic:
+        saas_service.check_tier_permission(db, user, getattr(topic, "required_tier", "free") or "free", topic.title_zh)
     return debate_service.create_debate_session(
         db,
         user,
@@ -270,7 +283,8 @@ async def submit_debate_turn(
     db: Session = Depends(get_db),
 ):
     """提交我方辩词，生成 AI 对手反驳、评委点评并沉淀复习表达。"""
-    return await debate_service.submit_debate_turn(
+    saas_service.check_and_consume_quota(db, user, "debate_turn", ref_id=session_id)
+    res = await debate_service.submit_debate_turn(
         db,
         user,
         session_id=session_id,
@@ -278,6 +292,8 @@ async def submit_debate_turn(
         is_voice=payload.is_voice,
         duration=payload.duration,
     )
+    saas_service.record_task_progress(db, user.id, "daily_debate_1")
+    return res
 
 
 @router.post("/sessions/{session_id}/suggest-reply")
@@ -297,4 +313,6 @@ def finish_debate_session(
     db: Session = Depends(get_db),
 ):
     """结束辩论并生成最终裁决报告、发放 XP。"""
-    return debate_service.finish_debate_session(db, user, session_id=session_id)
+    res = debate_service.finish_debate_session(db, user, session_id=session_id)
+    saas_service.record_task_progress(db, user.id, "daily_debate_1")
+    return res

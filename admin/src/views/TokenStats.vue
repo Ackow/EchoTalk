@@ -1,10 +1,32 @@
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue'
-import { fetchTokenStats, fetchUsers } from '../api/admin'
+import { ElMessage } from 'element-plus'
+import { fetchTokenStats, fetchUsers, updateBillingConfig } from '../api/admin'
 
 const loading = ref(false)
 const data = ref(null)
 const userOptions = ref([])
+const cfgVisible = ref(false)
+const cfgForm = reactive({
+  tokens_per_credit: 1000,
+  prompt_price_per_million: 2.0,
+  completion_price_per_million: 8.0,
+})
+
+function openCfgDialog() {
+  const bc = data.value?.billing_config || {}
+  cfgForm.tokens_per_credit = bc.tokens_per_credit || 1000
+  cfgForm.prompt_price_per_million = bc.prompt_price_per_million ?? 2.0
+  cfgForm.completion_price_per_million = bc.completion_price_per_million ?? 8.0
+  cfgVisible.value = true
+}
+
+async function saveCfg() {
+  await updateBillingConfig({ ...cfgForm })
+  ElMessage.success('换算比例与 API 单价已更新')
+  cfgVisible.value = false
+  loadData()
+}
 
 const query = reactive({
   days: 7,
@@ -99,6 +121,88 @@ onMounted(() => {
         <el-button type="primary" icon="Search" @click="handleSearch">查询</el-button>
       </div>
     </div>
+
+    <!-- Credit 与 Token 换算损益看板 & 盈利核算板块 -->
+    <el-card shadow="never" style="margin-bottom: 16px">
+      <template #header>
+        <div style="display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap">
+          <strong>SaaS 盈利核算与算力换算（Credit ↔ Token）</strong>
+          <div style="display: flex; align-items: center; gap: 8px">
+            <el-tag type="info" size="small">
+              1 积分 = {{ fmtNum(data?.billing_config?.tokens_per_credit || 1000) }} Tokens · 输入 ¥{{ data?.billing_config?.prompt_price_per_million ?? 2 }}/M · 输出 ¥{{ data?.billing_config?.completion_price_per_million ?? 8 }}/M
+            </el-tag>
+            <el-button type="primary" size="small" plain @click="openCfgDialog">修改换算与 API 单价</el-button>
+          </div>
+        </div>
+      </template>
+
+      <el-row :gutter="16" style="margin-bottom: 14px">
+        <el-col :xs="12" :sm="6">
+          <div class="kpi-label">周期订阅与充值收入</div>
+          <div class="kpi-value" style="font-size: 22px; color: #16a34a">¥{{ Number(data?.profit_analysis?.revenue_yuan || 0).toFixed(2) }}</div>
+          <div class="kpi-sub">成交订单 {{ data?.profit_analysis?.order_count || 0 }} 笔</div>
+        </el-col>
+        <el-col :xs="12" :sm="6">
+          <div class="kpi-label">底层 API 算力成本</div>
+          <div class="kpi-value" style="font-size: 22px; color: #dc2626">¥{{ Number(data?.profit_analysis?.api_cost_yuan || 0).toFixed(2) }}</div>
+          <div class="kpi-sub">按当前输入/输出单价实时核算</div>
+        </el-col>
+        <el-col :xs="12" :sm="6">
+          <div class="kpi-label">周期净毛利</div>
+          <div class="kpi-value" style="font-size: 22px" :style="{ color: (data?.profit_analysis?.gross_profit_yuan || 0) >= 0 ? '#16a34a' : '#dc2626' }">
+            ¥{{ Number(data?.profit_analysis?.gross_profit_yuan || 0).toFixed(2) }}
+          </div>
+          <div class="kpi-sub">收入减去 API 采购成本</div>
+        </el-col>
+        <el-col :xs="12" :sm="6">
+          <div class="kpi-label">综合毛利率</div>
+          <div class="kpi-value" style="font-size: 22px; color: #6366f1">{{ data?.profit_analysis?.gross_margin_pct ?? 0 }}%</div>
+          <div class="kpi-sub">商业化健康度参考</div>
+        </el-col>
+      </el-row>
+
+      <el-divider style="margin: 12px 0" />
+
+      <el-row :gutter="16">
+        <el-col :xs="12" :sm="6">
+          <div class="kpi-label">周期消耗回声积分</div>
+          <div class="kpi-value" style="font-size: 20px; color: #d97706">{{ fmtNum(data?.credit_conversion?.credits_spent) }} 点</div>
+        </el-col>
+        <el-col :xs="12" :sm="6">
+          <div class="kpi-label">积分对应理论 Token 额度</div>
+          <div class="kpi-value" style="font-size: 20px">{{ fmtNum(data?.credit_conversion?.equivalent_tokens) }}</div>
+        </el-col>
+        <el-col :xs="12" :sm="6">
+          <div class="kpi-label">周期真实消耗 Token</div>
+          <div class="kpi-value" style="font-size: 20px; color: #2563eb">{{ fmtNum(data?.credit_conversion?.actual_tokens) }}</div>
+        </el-col>
+        <el-col :xs="12" :sm="6">
+          <div class="kpi-label">实测单积分消耗均值</div>
+          <div class="kpi-value" style="font-size: 20px">
+            {{ fmtNum(data?.credit_conversion?.actual_tokens_per_credit) }}
+            <span style="font-size: 12px; color: #64748b">Tokens/点</span>
+          </div>
+        </el-col>
+      </el-row>
+    </el-card>
+
+    <el-dialog v-model="cfgVisible" title="配置积分换算与 API 采购单价" width="440px">
+      <el-form label-width="150px">
+        <el-form-item label="1 积分对应 Tokens">
+          <el-input-number v-model="cfgForm.tokens_per_credit" :min="100" :step="100" />
+        </el-form-item>
+        <el-form-item label="输入单价 (¥/1M)">
+          <el-input-number v-model="cfgForm.prompt_price_per_million" :min="0" :step="0.5" :precision="2" />
+        </el-form-item>
+        <el-form-item label="输出单价 (¥/1M)">
+          <el-input-number v-model="cfgForm.completion_price_per_million" :min="0" :step="0.5" :precision="2" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="cfgVisible = false">取消</el-button>
+        <el-button type="primary" @click="saveCfg">保存并重新核算</el-button>
+      </template>
+    </el-dialog>
 
     <!-- 汇总 KPI -->
     <el-row :gutter="16">

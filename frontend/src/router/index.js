@@ -35,7 +35,8 @@ const router = createRouter({
         { path: 'avatar', name: 'avatar', component: () => import('../views/AvatarSettings.vue'), meta: { title: '数字人角色', loadText: '正在加载角色设置' } }, // 游客可浏览试玩，保存偏好需登录（页面内限制）
         { path: 'review', name: 'review', component: () => import('../views/Review.vue'), meta: { title: '复习计划', loadText: '正在准备复习计划' } },
         { path: 'history', name: 'history', component: () => import('../views/History.vue'), meta: { title: '历史记录', loadText: '正在加载历史记录' } },
-        { path: 'analytics', name: 'analytics', component: () => import('../views/Analytics.vue'), meta: { title: '成长分析', loadText: '正在加载成长分析' } }
+        { path: 'analytics', name: 'analytics', component: () => import('../views/Analytics.vue'), meta: { title: '成长分析', loadText: '正在加载成长分析' } },
+        { path: 'subscription', name: 'subscription', component: () => import('../views/Subscription.vue'), meta: { title: '任务与积分', loadText: '正在加载任务与积分中心' } }
       ]
     }
   ]

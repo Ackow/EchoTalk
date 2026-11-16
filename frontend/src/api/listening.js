@@ -6,6 +6,7 @@ export const submitListeningAttempt = (payload) => http.post('/listening/attempt
 export const completeListeningUnit = (unitId) => http.post(`/listening/units/${unitId}/complete`)
 export const addListeningReview = (payload) => http.post('/listening/review-add', payload)
 export const getListeningProfile = () => http.get('/listening/profile')
+export const claimDailyCheckin = () => http.post('/listening/checkin')
 
 export function getListeningAudioUrl(text, rate = 1.0, style = 'emma') {
   const params = new URLSearchParams({

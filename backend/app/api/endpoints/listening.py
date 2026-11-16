@@ -10,11 +10,13 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import get_admin_user, get_current_user, get_db, get_optional_user
 from app.models.user import User
+from app.services import saas_service
 from app.services.listening_service import (
     add_listening_review,
     admin_delete_unit,
     admin_list_units,
     complete_unit,
+    daily_checkin,
     get_xp_profile,
     import_unit,
     list_units_with_stats,
@@ -77,7 +79,7 @@ def create_listening_attempt(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> dict:
-    return record_attempt(
+    res = record_attempt(
         db,
         current_user.id,
         unit_id=payload.unitId,
@@ -90,6 +92,8 @@ def create_listening_attempt(
         step_index=payload.stepIndex,
         total_steps=payload.totalSteps,
     )
+    saas_service.record_task_progress(db, current_user.id, "daily_listening_1")
+    return res
 
 
 @router.post("/listening/units/{unit_id}/complete")
@@ -98,7 +102,9 @@ def finish_listening_unit(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> dict:
-    return complete_unit(db, current_user.id, unit_id)
+    res = complete_unit(db, current_user.id, unit_id)
+    saas_service.record_task_progress(db, current_user.id, "daily_listening_1")
+    return res
 
 
 @router.post("/listening/review-add")
@@ -125,6 +131,14 @@ def get_listening_profile(
     current_user: User = Depends(get_current_user),
 ) -> dict:
     return get_xp_profile(db, current_user.id)
+
+
+@router.post("/listening/checkin")
+def post_daily_checkin(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    return daily_checkin(db, current_user.id)
 
 
 def _split_tts_chunks(text: str, limit: int = TEXT_MAX) -> list[str]:

@@ -1,35 +1,38 @@
-/* ===== EchoTalk Docs - Global Styles ===== */
+/* ===== EchoTalk 2.0 产品官网 - 触感紫白全局样式 ===== */
 *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 
 :root {
-  --bg: #080c14;
-  --bg-card: rgba(255,255,255,0.03);
-  --bg-card-hover: rgba(255,255,255,0.06);
-  --border: rgba(255,255,255,0.06);
-  --text: #e2e8f0;
-  --text-muted: rgba(148,163,184,0.7);
-  --text-dim: rgba(100,116,139,0.6);
-  --primary: #6366f1;
-  --primary-glow: rgba(99,102,241,0.25);
-  --blue: #3b82f6;
-  --green: #10b981;
-  --amber: #f59e0b;
-  --pink: #ec4899;
-  --cyan: #06b6d4;
-  --radius: 14px;
-  --font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  --bg-code: rgba(15,23,42,0.8);
-  --bg-code-border: rgba(99,102,241,0.15);
+  --bg: #fbfaff;
+  --surface: #ffffff;
+  --surface-soft: #f5f2ff;
+  --border: #ebe7f5;
+  --border-bottom: #dfd7f3;
+  --text: #29283e;
+  --text-soft: #5a5572;
+  --text-muted: #76718c;
+  --text-dim: #8b86a0;
+  --primary: #8b73dd;
+  --primary-deep: #6951b8;
+  --primary-ink: #6046b4;
+  --primary-glow: rgba(139, 115, 221, 0.22);
+  --green: #2a8c5f;
+  --green-soft: #eaf7f0;
+  --amber: #b45309;
+  --amber-soft: #fffbeb;
+  --radius: 18px;
+  --font: 'Inter', -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Segoe UI', sans-serif;
+  --bg-code: #f5f3ff;
+  --bg-code-border: #e3dcf2;
 }
 
 html { scroll-behavior: smooth; }
 
 body {
   font-family: var(--font);
-  font-size: 1.05rem;
+  font-size: 16px;
   background: var(--bg);
   color: var(--text);
-  line-height: 1.6;
+  line-height: 1.65;
   overflow-x: hidden;
   -webkit-font-smoothing: antialiased;
 }
@@ -37,50 +40,75 @@ body {
 a { color: inherit; text-decoration: none; }
 img { max-width: 100%; display: block; }
 
-/* Scrollbar */
 ::-webkit-scrollbar { width: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: rgba(99,102,241,0.2); border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: rgba(99,102,241,0.35); }
+::-webkit-scrollbar-thumb { background: rgba(139, 115, 221, 0.24); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(139, 115, 221, 0.42); }
 
-/* Router transitions */
-.page-fade-enter-active { transition: opacity 0.3s ease, transform 0.3s ease; }
-.page-fade-leave-active { transition: opacity 0.2s ease; }
-.page-fade-enter-from { opacity: 0; transform: translateY(12px); }
+.page-fade-enter-active { transition: opacity 0.28s ease, transform 0.28s ease; }
+.page-fade-leave-active { transition: opacity 0.18s ease; }
+.page-fade-enter-from { opacity: 0; transform: translateY(10px); }
 .page-fade-leave-to { opacity: 0; }
 
-/* Utility */
 .gradient-text {
-  background: linear-gradient(135deg, var(--primary), var(--blue));
+  background: linear-gradient(135deg, #8b73dd, #6046b4);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
 }
 
+.tactile-card {
+  background: var(--surface);
+  border: 1.5px solid var(--border);
+  border-bottom: 4px solid var(--border-bottom);
+  border-radius: var(--radius);
+}
+
 .btn-primary {
-  display: inline-flex; align-items: center; gap: 8px;
-  padding: 16px 36px; border-radius: 12px;
-  font-size: 1.1rem; font-weight: 700;
-  background: linear-gradient(135deg, var(--primary), var(--blue));
-  color: #fff; border: none; cursor: pointer;
-  transition: transform 0.15s, box-shadow 0.25s;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 13px 28px;
+  border-radius: 13px;
+  font-size: 15px;
+  font-weight: 700;
+  background: var(--primary);
+  color: #ffffff;
+  border: 1.5px solid #8067d1;
+  border-bottom: 4px solid var(--primary-deep);
+  cursor: pointer;
+  transition: transform 0.15s, background 0.15s;
   font-family: var(--font);
 }
 .btn-primary:hover {
+  background: #7e65d2;
   transform: translateY(-2px);
-  box-shadow: 0 8px 32px var(--primary-glow);
+}
+.btn-primary:active {
+  transform: translateY(1px);
+  border-bottom-width: 2px;
 }
 
 .btn-secondary {
-  display: inline-flex; align-items: center; gap: 8px;
-  padding: 16px 36px; border-radius: 12px;
-  font-size: 1.1rem; font-weight: 600;
-  background: var(--bg-card); border: 1px solid var(--border);
-  color: var(--text); cursor: pointer;
-  transition: background 0.2s, border-color 0.2s;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 13px 28px;
+  border-radius: 13px;
+  font-size: 15px;
+  font-weight: 600;
+  background: var(--surface);
+  border: 1.5px solid var(--border);
+  border-bottom: 4px solid var(--border-bottom);
+  color: var(--text-soft);
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, transform 0.15s;
   font-family: var(--font);
 }
 .btn-secondary:hover {
-  background: var(--bg-card-hover);
-  border-color: rgba(255,255,255,0.12);
+  background: var(--surface-soft);
+  border-color: #d6ccf0;
+  transform: translateY(-2px);
 }

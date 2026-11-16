@@ -36,6 +36,7 @@ class DebateTopic(Base):
     cover_path = Column(String(512), nullable=True)
     tools_config = Column(JSON, nullable=False, default=list)
     status = Column(String(24), nullable=False, default="private")  # private | published
+    required_tier = Column(String(20), nullable=False, default="free", server_default="free")  # free | pro | enterprise
     likes_count = Column(Integer, nullable=False, default=0)
     favorites_count = Column(Integer, nullable=False, default=0)
     is_builtin = Column(Boolean, nullable=False, default=False)
