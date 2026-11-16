@@ -181,7 +181,8 @@ EchoTalk/
 │       └── views/                  # 今日训练、语音对话、听力工作室、多角色辩论、知识工作区、场景/辩论编辑器、复习、历史、成长分析
 ├── admin/                          # 独立运营管理后台 (Vue 3 + Element Plus, 默认端口 5174)
 │   └── src/views/                  # 数据看板、用户管理、场景管理、数字人管理、会话记录、听力资源、Token 统计
-└── docs/                           # 技术架构文档与场景包社区站点
+├── website/                        # 产品官网与场景包社区站点 (Vue 3 + Vite, 默认端口 5200)
+└── docs/                           # 技术架构与产品开发文档
     ├── conversation-framework.md   # LangGraph 对话 Agent 框架说明
     └── speech-input.md             # 浏览器录音、ASR 转写与 TTS 缓存机制说明
 ```
@@ -314,7 +315,7 @@ uv run --locked python -m unittest discover -s tests -p 'test_*.py' -v
 
 * [对话 Agent 框架与状态边界说明](docs/conversation-framework.md)
 * [SaaS 会员体系、共享额度池与管理端开发文档](docs/会员体系与管理端开发文档.md)
-* [产品官网与文档站 (`docs/`) 开发文档](docs/产品官网开发文档.md)
+* [产品官网与文档站 (`website/`) 开发文档](docs/产品官网开发文档.md)
 * [录音采集、腾讯云 Flash ASR 与问候语 TTS 缓存架构](docs/speech-input.md)
 * [Ubuntu 云服务器生产部署与运维手册](backend/deploy/README.md)
 
