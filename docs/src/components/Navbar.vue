@@ -6,7 +6,7 @@
       <span class="brand-ver">2.0</span>
     </router-link>
     <div class="nav-links">
-      <router-link to="/">产品介绍</router-link>
+      <router-link to="/">首页</router-link>
       <router-link to="/features">核心特性</router-link>
       <router-link to="/pricing">订阅方案</router-link>
       <router-link to="/community">场景社区</router-link>
