@@ -18,9 +18,8 @@ Type=simple
 User=root
 Group=root
 WorkingDirectory=/opt/echotalk/backend
-# 监听 0.0.0.0:8000，外部可直接访问（测试期方便；正式部署建议改回 127.0.0.1 并走 Nginx/HTTPS，
-# 同时 .env 里 ECHOTALK_API_HOST 也要同步改为 127.0.0.1）
-ExecStart=/opt/echotalk/backend/.venv/bin/python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 2
+# 监听地址、端口与 worker 数统一从 backend/.env 读取（ECHOTALK_API_HOST / ECHOTALK_API_PORT / ECHOTALK_WORKERS）
+ExecStart=/bin/bash /opt/echotalk/backend/deploy/start-backend.sh
 Restart=always
 RestartSec=3
 Environment=PYTHONUNBUFFERED=1

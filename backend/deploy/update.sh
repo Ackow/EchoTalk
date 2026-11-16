@@ -6,17 +6,36 @@ set -euo pipefail
 
 APP_DIR="/opt/echotalk"
 BACKEND_DIR="$APP_DIR/backend"
+ENV_FILE="$BACKEND_DIR/.env"
 SERVICE="echotalk-backend"
 BACKUP_DIR="/opt/echotalk/backups"
 STAMP="$(date +%Y%m%d-%H%M%S)"
-DB_USER="echotalk_app"
-DB_NAME="echotalk"
+
+get_env() {
+  local key="$1"
+  local fallback="$2"
+  if [ -f "$ENV_FILE" ]; then
+    local val
+    val="$(grep -E "^${key}=" "$ENV_FILE" | tail -n 1 | cut -d= -f2- | tr -d '\r' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
+    if [ -n "$val" ]; then
+      echo "$val"
+      return
+    fi
+  fi
+  echo "$fallback"
+}
+
+DB_HOST="$(get_env ECHOTALK_DB_HOST 127.0.0.1)"
+DB_PORT="$(get_env ECHOTALK_DB_PORT 3306)"
+DB_USER="$(get_env ECHOTALK_DB_USER echotalk_app)"
+DB_NAME="$(get_env ECHOTALK_DB_NAME echotalk)"
+API_PORT="$(get_env ECHOTALK_API_PORT 8000)"
 
 echo "==> [1/6] 更新前备份（数据库 + storage 文件）"
 mkdir -p "$BACKUP_DIR"
-# 数据库备份（读取 .env 中的密码，避免明文出现在命令行）
-DB_PASSWORD="$(grep -E '^ECHOTALK_DB_PASSWORD=' "$BACKEND_DIR/.env" | cut -d= -f2-)"
-mysqldump -u "$DB_USER" -p"$DB_PASSWORD" --single-transaction "$DB_NAME" \
+# 数据库备份（读取 .env 中的连接信息，避免明文出现在命令行）
+DB_PASSWORD="$(get_env ECHOTALK_DB_PASSWORD '')"
+mysqldump -h "$DB_HOST" -P "$DB_PORT" -u "$DB_USER" -p"$DB_PASSWORD" --single-transaction "$DB_NAME" \
   | gzip > "$BACKUP_DIR/db-$STAMP.sql.gz"
 # 文件存储备份（场景封面/知识资料等落盘文件）
 if [ -d "$BACKEND_DIR/storage" ]; then
@@ -40,11 +59,11 @@ uv run python init_db.py
 echo "==> [5/6] 重启服务"
 sudo systemctl restart "$SERVICE"
 
-echo "==> [6/6] 健康检查"
+echo "==> [6/6] 健康检查 (127.0.0.1:${API_PORT})"
 sleep 2
 for i in 1 2 3 4 5; do
-  if curl -fs http://127.0.0.1:8000/api/ready > /dev/null; then
-    echo "✅ 更新完成，服务就绪：$(curl -fs http://127.0.0.1:8000/api/health)"
+  if curl -fs "http://127.0.0.1:${API_PORT}/api/ready" > /dev/null; then
+    echo "✅ 更新完成，服务就绪：$(curl -fs "http://127.0.0.1:${API_PORT}/api/health")"
     if systemctl is-active --quiet cloudflared 2>/dev/null; then
       echo "✅ Cloudflare Tunnel (cloudflared) 运行中"
     fi

@@ -58,6 +58,14 @@ echo "==> [3/3] 启动并验证 cloudflared 服务"
 systemctl enable --now cloudflared
 systemctl --no-pager --full status cloudflared | head -n 15
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ENV_FILE="$SCRIPT_DIR/../.env"
+API_PORT="8000"
+if [ -f "$ENV_FILE" ]; then
+  _p="$(grep -E '^ECHOTALK_API_PORT=' "$ENV_FILE" | tail -n 1 | cut -d= -f2- | tr -d '\r' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
+  [ -n "$_p" ] && API_PORT="$_p"
+fi
+
 echo ""
 echo "✅ Cloudflare Tunnel 已运行！请在 Cloudflare Tunnel 控制台确认 Public Hostname 指向："
-echo "   http://127.0.0.1:8000"
+echo "   http://127.0.0.1:${API_PORT}"
