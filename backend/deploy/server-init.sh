@@ -59,16 +59,25 @@ else
   uv run python init_db.py
 fi
 
+if [ -n "${CF_TUNNEL_TOKEN:-}" ]; then
+  echo ""
+  echo "==> [可选] 检测到 CF_TUNNEL_TOKEN，正在配置 Cloudflare Tunnel..."
+  sudo -E bash "$BACKEND_DIR/deploy/setup-tunnel.sh" "$CF_TUNNEL_TOKEN"
+fi
+
 cat <<'NEXT'
 
 ============================================================
 初始化完成。后续步骤：
 
   1. 若 .env 刚生成：编辑数据库密码和 CORS 后重新运行本脚本
-  2. 安装 systemd 常驻服务（见 deploy/README.md 第 5 步）：
+  2. 安装后端 systemd 常驻服务：
        sudo cp deploy/echotalk-backend.service /etc/systemd/system/
        sudo systemctl daemon-reload && sudo systemctl enable --now echotalk-backend
-  3. 安装 Nginx + HTTPS（见 deploy/README.md 第 6 步）
+  3. 对外提供 HTTPS（二选一）：
+       - 免备案方案（推荐）：配置 Cloudflare Tunnel 暴露 https://api.your-domain.com -> 127.0.0.1:8000
+           CF_TUNNEL_TOKEN="你的Token" sudo -E bash /opt/echotalk/backend/deploy/setup-tunnel.sh
+       - 已备案方案：安装 Nginx + Certbot（见 deploy/README.md）
   4. 以后每次更新代码，只需在服务器上执行：
        bash /opt/echotalk/backend/deploy/update.sh
 ============================================================

@@ -45,6 +45,9 @@ sleep 2
 for i in 1 2 3 4 5; do
   if curl -fs http://127.0.0.1:8000/api/ready > /dev/null; then
     echo "✅ 更新完成，服务就绪：$(curl -fs http://127.0.0.1:8000/api/health)"
+    if systemctl is-active --quiet cloudflared 2>/dev/null; then
+      echo "✅ Cloudflare Tunnel (cloudflared) 运行中"
+    fi
     exit 0
   fi
   echo "    等待服务就绪... ($i/5)"
