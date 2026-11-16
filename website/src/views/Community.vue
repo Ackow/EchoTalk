@@ -24,6 +24,12 @@
 
     <section class="pack-section">
       <div v-if="loading" class="empty-hint">正在从后端加载场景包列表...</div>
+      <div v-else-if="loadError" class="empty-hint">
+        无法连接到后端场景服务，请检查服务状态或 <code>VITE_API_BASE_URL</code> 配置
+        <div style="margin-top: 12px">
+          <button type="button" class="dl-btn" @click="loadFromBackend">重新加载</button>
+        </div>
+      </div>
       <div v-else-if="filteredPacks.length === 0" class="empty-hint">没有找到匹配的场景包，试试更换筛选条件</div>
       <div v-else class="pack-grid">
         <div
@@ -120,15 +126,7 @@
 
         <div class="detail-actions">
           <router-link to="/pricing" class="btn-secondary sm">查看订阅权益</router-link>
-          <a
-            v-if="detailPack.downloadUrl"
-            :href="detailPack.downloadUrl"
-            class="btn-primary sm"
-            download
-          >
-            下载场景包 ZIP
-          </a>
-          <button v-else type="button" class="btn-primary sm" @click="detailPack = null">在客户端内一键开练</button>
+          <button type="button" class="btn-primary sm" @click="detailPack = null">在客户端内一键开练</button>
         </div>
       </div>
     </div>
@@ -137,10 +135,12 @@
 
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue'
+import { apiUrl } from '../config.js'
 
 const searchQuery = ref('')
 const activeFilter = ref('all')
 const loading = ref(true)
+const loadError = ref(false)
 const packs = ref([])
 const failedCovers = reactive(new Set())
 const detailPack = ref(null)
@@ -189,12 +189,17 @@ const filteredPacks = computed(() => {
 })
 
 async function loadFromBackend() {
+  loading.value = true
+  loadError.value = false
   const list = []
   try {
     const [scenesRes, debatesRes] = await Promise.all([
-      fetch('/api/scenes').then((r) => (r.ok ? r.json() : null)),
-      fetch('/api/debate/topics').then((r) => (r.ok ? r.json() : null)),
+      fetch(apiUrl('/api/scenes')).then((r) => (r.ok ? r.json() : null)),
+      fetch(apiUrl('/api/debate/topics')).then((r) => (r.ok ? r.json() : null)),
     ])
+    if (!scenesRes && !debatesRes) {
+      loadError.value = true
+    }
 
     if (scenesRes?.items?.length) {
       for (const s of scenesRes.items) {
@@ -213,7 +218,7 @@ async function loadFromBackend() {
           modeTone: s.mode === 'interview' ? 'mint' : 'purple',
           tier: tier === 'ENTERPRISE' ? 'ENT' : tier,
           tierClass: `tier-${(s.required_tier || 'free').toLowerCase()}`,
-          cover: s.cover_path ? `/api/scenes/${s.id}/cover` : (s.source === 'builtin' ? `/images/covers/${s.id}.png` : ''),
+          cover: s.cover_path ? apiUrl(`/api/scenes/${s.id}/cover`) : (s.source === 'builtin' ? `/images/covers/${s.id}.png` : ''),
           tags: [CAT_MAP[s.category] || '场景', `${s.knowledge_count || 0} 份资料`],
           raw: s,
         })
@@ -237,42 +242,16 @@ async function loadFromBackend() {
           modeTone: 'amber',
           tier: tier === 'ENTERPRISE' ? 'ENT' : tier,
           tierClass: `tier-${(d.required_tier || 'free').toLowerCase()}`,
-          cover: d.coverUrl || `/api/debate/topics/${d.id}/cover`,
+          cover: apiUrl(d.coverUrl || `/api/debate/topics/${d.id}/cover`),
           tags: [d.sceneType === 'panel' ? '群面委员会' : '辩论对抗', `${(d.rolesConfig || []).length || 3} 位角色`],
           raw: d,
         })
       }
     }
   } catch {
-    // 后端未启动时走静态兜底
+    loadError.value = true
   }
 
-  if (list.length === 0) {
-    try {
-      const staticList = await fetch('/packages.json').then((r) => (r.ok ? r.json() : []))
-      for (const item of staticList) {
-        list.push({
-          id: item.id,
-          kind: '1v1',
-          title: item.title,
-          author: item.author || 'EchoTalk 官方',
-          desc: item.desc || '标准 ScenePackage v2 场景包。',
-          category: (item.tags && item.tags[0]) || 'daily',
-          categoryLabel: CAT_MAP[(item.tags && item.tags[0])] || '场景对话',
-          difficultyLabel: '标准',
-          modeLabel: '1v1 场景包',
-          modeTone: 'purple',
-          tier: 'FREE',
-          tierClass: 'tier-free',
-          cover: '',
-          tags: item.tags || ['场景包'],
-          downloadUrl: item.downloadUrl,
-        })
-      }
-    } catch {
-      // ignore
-    }
-  }
   packs.value = list
   loading.value = false
 }
@@ -283,7 +262,7 @@ async function openDetail(pack) {
   if (pack.kind === '1v1' && pack.raw) {
     detailLoading.value = true
     try {
-      const res = await fetch(`/api/scenes/${pack.id}`)
+      const res = await fetch(apiUrl(`/api/scenes/${pack.id}`))
       if (res.ok) {
         const data = await res.json()
         const pkg = data.package || {}

@@ -5,8 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "generate": "node scripts/generate-manifest.cjs",
-    "build": "npm run generate && vite build",
+    "build": "vite build",
     "preview": "vite preview"
   },
   "dependencies": {
