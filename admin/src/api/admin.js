@@ -17,6 +17,9 @@ export const createUser = (payload) => http.post('/admin/users', payload)
 export const updateUser = (userId, payload) => http.patch(`/admin/users/${userId}`, payload)
 export const deleteUser = (userId) => http.delete(`/admin/users/${userId}`)
 export const batchDeleteUsers = (ids) => http.post('/admin/users/batch-delete', { ids })
+export const fetchRegistrationSetting = () => http.get('/admin/settings/registration')
+export const updateRegistrationSetting = (restricted) =>
+  http.put('/admin/settings/registration', { registration_restricted: Boolean(restricted) })
 
 // 数字人管理
 export const fetchAvatarCatalog = () => http.get('/admin/avatars/catalog')

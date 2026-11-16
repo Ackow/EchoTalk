@@ -147,32 +147,38 @@
       </section>
     </div>
 
-    <!-- 模拟收银台确认层 -->
+    <!-- 兑换码激活确认层（已关闭直接模拟订阅） -->
     <div v-if="checkoutTarget" class="sub-scrim nested" @click.self="checkoutTarget = null">
       <div class="checkout-modal">
         <div class="modal-head">
-          <h3>模拟收银台（演示环境）</h3>
+          <h3>使用兑换码激活</h3>
           <button class="dialog-close static" type="button" @click="checkoutTarget = null">
             <AppIcon name="x" :size="15" />
           </button>
         </div>
         <p class="checkout-desc">
-          当前环境免真实支付接入，点击下方按钮将模拟支付成功并立即下发对应会员方案或回声积分。
+          当前已关闭直接模拟订阅与购买，请输入管理员发放的兑换码激活「{{ checkoutTitle }}」或领取对应回声积分。
         </p>
         <div class="checkout-summary">
           <div>
-            <span>商品名称</span>
+            <span>目标方案 / 礼包</span>
             <strong>{{ checkoutTitle }}</strong>
           </div>
           <div>
-            <span>应付金额</span>
-            <strong class="price-highlight">¥{{ checkoutPrice }}</strong>
+            <span>兑换码</span>
+            <input
+              v-model.trim="modalRedeemCode"
+              type="text"
+              class="modal-redeem-input"
+              placeholder="输入兑换码（如 ECHO-XXXX）"
+              @keyup.enter="confirmRedeemFromModal"
+            />
           </div>
         </div>
         <div class="checkout-actions">
           <button class="btn-secondary" type="button" @click="checkoutTarget = null">取消</button>
-          <button class="btn-primary" type="button" :disabled="paying" @click="confirmMockCheckout">
-            {{ paying ? '处理中...' : '确认模拟支付' }}
+          <button class="btn-primary" type="button" :disabled="!modalRedeemCode || paying" @click="confirmRedeemFromModal">
+            {{ paying ? '兑换中...' : '立即兑换激活' }}
           </button>
         </div>
       </div>
@@ -185,7 +191,7 @@ import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import AppIcon from '../AppIcon.vue'
 import EchoCreditIcon from '../EchoCreditIcon.vue'
-import { getSaasPlans, mockCheckout, redeemSaasCode, refreshSaasState, saasState } from '../../api/saas'
+import { getSaasPlans, redeemSaasCode, refreshSaasState, saasState } from '../../api/saas'
 import { session } from '../../auth/session'
 
 const emit = defineEmits(['close', 'updated'])
@@ -198,6 +204,7 @@ const redeemInput = ref('')
 const redeeming = ref(false)
 const paying = ref(false)
 const checkoutTarget = ref(null)
+const modalRedeemCode = ref('')
 const bannerMsg = ref('')
 const bannerErr = ref(false)
 
@@ -270,31 +277,22 @@ function openCheckout(type, item) {
     router.push({ name: 'login' })
     return
   }
+  modalRedeemCode.value = ''
   checkoutTarget.value = { type, item }
 }
 
-async function confirmMockCheckout() {
-  if (!checkoutTarget.value) return
+async function confirmRedeemFromModal() {
+  if (!modalRedeemCode.value) return
   paying.value = true
   try {
-    const payload =
-      checkoutTarget.value.type === 'plan_upgrade'
-        ? {
-            order_type: 'plan_upgrade',
-            target_tier: checkoutTarget.value.item.tier,
-            billing_cycle: billingCycle.value,
-          }
-        : {
-            order_type: 'credit_pack',
-            credit_pack_code: checkoutTarget.value.item.code,
-          }
-    const { data } = await mockCheckout(payload)
+    const { data } = await redeemSaasCode(modalRedeemCode.value)
+    modalRedeemCode.value = ''
     checkoutTarget.value = null
     await refreshSaasState()
     emit('updated')
-    showTip(`模拟支付成功（订单 ${data.order_no}），已到账 ${data.credits_granted} 点`)
+    showTip(data?.message || '兑换成功，已更新会员或积分')
   } catch (e) {
-    showTip(e?.response?.data?.error?.message || '支付失败', true)
+    showTip(e?.response?.data?.error?.message || e?.response?.data?.detail || '兑换码无效或已核销', true)
   } finally {
     paying.value = false
   }
@@ -704,5 +702,19 @@ onMounted(loadData)
   display: flex;
   justify-content: flex-end;
   gap: 10px;
+}
+.modal-redeem-input {
+  width: 220px;
+  height: 34px;
+  padding: 0 10px;
+  border: 1.5px solid #e2dcf2;
+  border-radius: 9px;
+  background: #fff;
+  color: #2d294b;
+  font-size: 13px;
+  outline: none;
+}
+.modal-redeem-input:focus {
+  border-color: #8b73dd;
 }
 </style>

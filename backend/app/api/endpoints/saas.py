@@ -3,6 +3,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user, get_db
+from app.core.errors import AppError
 from app.models import User
 from app.schemas.saas import MockCheckoutRequest, RedeemCodeRequest, SaasSettingsUpdate
 from app.services import saas_service
@@ -89,14 +90,11 @@ def mock_checkout(
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """模拟收银台支付成功（免真实支付网关），升级套餐或购买积分加油包。"""
-    return saas_service.mock_checkout(
-        db,
-        user,
-        order_type=payload.order_type,
-        target_tier=payload.target_tier,
-        billing_cycle=payload.billing_cycle,
-        credit_pack_code=payload.credit_pack_code,
+    """已关闭直接模拟订阅，统一改用兑换码激活会员或积分。"""
+    raise AppError(
+        "当前已关闭直接模拟订阅与购买，请使用兑换码激活会员或领取积分",
+        code="MOCK_CHECKOUT_DISABLED",
+        status_code=403,
     )
 
 

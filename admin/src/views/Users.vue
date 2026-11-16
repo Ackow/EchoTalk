@@ -1,7 +1,7 @@
 <script setup>
 import { onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { batchDeleteUsers, createUser, deleteUser, fetchUsers, grantUserSaas, updateUser } from '../api/admin'
+import { batchDeleteUsers, createUser, deleteUser, fetchRegistrationSetting, fetchUsers, grantUserSaas, updateRegistrationSetting, updateUser } from '../api/admin'
 import { adminSession } from '../auth/session'
 
 const loading = ref(false)
@@ -148,7 +148,40 @@ async function handleBatchDelete() {
   loadUsers()
 }
 
-onMounted(loadUsers)
+const registrationRestricted = ref(false)
+const savingRegSetting = ref(false)
+
+async function loadRegistrationSetting() {
+  try {
+    const { data } = await fetchRegistrationSetting()
+    registrationRestricted.value = Boolean(data?.registration_restricted)
+  } catch {
+    // 忽略加载失败，保持默认
+  }
+}
+
+async function handleToggleRegistration(val) {
+  savingRegSetting.value = true
+  try {
+    const { data } = await updateRegistrationSetting(val)
+    registrationRestricted.value = Boolean(data?.registration_restricted)
+    ElMessage.success(
+      registrationRestricted.value
+        ? '已开启限制注册：仅管理端可新增用户'
+        : '已关闭限制注册：允许用户自主注册'
+    )
+  } catch (err) {
+    registrationRestricted.value = !val
+    ElMessage.error(err?.response?.data?.detail || '更新注册限制开关失败')
+  } finally {
+    savingRegSetting.value = false
+  }
+}
+
+onMounted(() => {
+  loadUsers()
+  loadRegistrationSetting()
+})
 </script>
 
 <template>
@@ -176,7 +209,20 @@ onMounted(loadUsers)
       >
         批量删除 ({{ selectedRows.length }})
       </el-button>
-      <el-button type="success" icon="Plus" style="margin-left: auto" @click="openCreate">新建用户</el-button>
+      <div style="margin-left: auto; display: flex; align-items: center; gap: 14px">
+        <div style="display: flex; align-items: center; gap: 8px; padding: 4px 10px; border-radius: 8px; background: #f8fafc; border: 1px solid #e2e8f0">
+          <span style="font-size: 13px; color: #475569">限制自主注册</span>
+          <el-switch
+            v-model="registrationRestricted"
+            :loading="savingRegSetting"
+            inline-prompt
+            active-text="内测"
+            inactive-text="开放"
+            @change="handleToggleRegistration"
+          />
+        </div>
+        <el-button type="success" icon="Plus" @click="openCreate">新建用户</el-button>
+      </div>
     </div>
 
     <el-table

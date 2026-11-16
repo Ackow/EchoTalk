@@ -2,6 +2,11 @@
 // 令牌由 http.js 拦截器自动附加，调用方无需手动传入。
 import { baseUrl, http } from './http'
 
+// 查询登录页公开配置（是否限制自主注册）
+export function getAuthConfig() {
+  return http.get('/auth/config')
+}
+
 // 注册新账户，返回 { access_token, user }
 export function register(credentials) {
   return http.post('/auth/register', credentials)

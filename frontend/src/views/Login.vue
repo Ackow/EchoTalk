@@ -44,9 +44,10 @@
             <AppIcon name="arrow-right" :size="17" />
           </button>
         </form>
-        <p class="mode-prompt">{{ registering ? '已经有账户？' : '第一次使用 EchoTalk？' }}
+        <p v-if="!registrationRestricted" class="mode-prompt">{{ registering ? '已经有账户？' : '第一次使用 EchoTalk？' }}
           <button class="mode-button" type="button" @click="toggleMode">{{ registering ? '返回登录' : '创建账户' }}</button>
         </p>
+        <p v-else class="mode-prompt">当前为小范围测试阶段，暂未开放自主注册，请联系管理员开通账号。</p>
       </div>
       <footer class="auth-legal">EchoTalk 2.0 · 账户登录</footer>
     </section>
@@ -59,7 +60,7 @@ import { useRoute, useRouter } from 'vue-router'
 import AppIcon from '../components/AppIcon.vue'
 import brandImage from '../assets/echotalk-brand.png'
 import welcomeArt from '../assets/today-conversation-cartoon.png'
-import { login, register } from '../api/auth'
+import { getAuthConfig, login, register } from '../api/auth'
 import { saveSession, session } from '../auth/session'
 
 const router = useRouter()
@@ -68,6 +69,7 @@ const username = ref('')
 const password = ref('')
 const confirmation = ref('')
 const registering = ref(false)
+const registrationRestricted = ref(false)
 const busy = ref(false)
 const error = ref('')
 
@@ -75,10 +77,18 @@ function handleEscKey(event) {
   // 桌面端惯例：Esc 取消登录流程返回工作区，已输入内容保留。
   if (event.key === 'Escape') router.push({ name: 'workspace' })
 }
-onMounted(() => window.addEventListener('keydown', handleEscKey))
+onMounted(async () => {
+  window.addEventListener('keydown', handleEscKey)
+  try {
+    const { data } = await getAuthConfig()
+    registrationRestricted.value = Boolean(data?.registration_restricted)
+    if (registrationRestricted.value) registering.value = false
+  } catch { /* 忽略配置拉取失败 */ }
+})
 onBeforeUnmount(() => window.removeEventListener('keydown', handleEscKey))
 
 function toggleMode() {
+  if (registrationRestricted.value) return
   // 注册与登录使用同一表单，切换时清除上次操作的提示信息。
   registering.value = !registering.value
   error.value = ''

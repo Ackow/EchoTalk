@@ -72,6 +72,38 @@ def create_user(
     return admin_service.create_user(db, payload.username, payload.password, payload.is_admin)
 
 
+@router.get("/settings/registration")
+def get_registration_setting(
+    _: User = Depends(get_admin_user),
+    db: Session = Depends(get_db),
+):
+    from app.models.user import SystemConfig
+
+    SystemConfig.__table__.create(bind=db.get_bind(), checkfirst=True)
+    row = db.get(SystemConfig, "registration_restricted")
+    return {"registration_restricted": bool(row and row.value == "true")}
+
+
+@router.put("/settings/registration")
+def update_registration_setting(
+    payload: dict,
+    _: User = Depends(get_admin_user),
+    db: Session = Depends(get_db),
+):
+    from app.models.user import SystemConfig
+
+    SystemConfig.__table__.create(bind=db.get_bind(), checkfirst=True)
+    restricted = bool(payload.get("registration_restricted"))
+    row = db.get(SystemConfig, "registration_restricted")
+    if row is None:
+        row = SystemConfig(key="registration_restricted", value="true" if restricted else "false")
+        db.add(row)
+    else:
+        row.value = "true" if restricted else "false"
+    db.commit()
+    return {"registration_restricted": restricted}
+
+
 @router.patch("/users/{user_id}")
 def update_user(
     user_id: int,

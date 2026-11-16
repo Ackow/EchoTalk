@@ -37,3 +37,13 @@ class AuthSession(Base):
     created_at = Column(DateTime, default=utcnow, nullable=False)  # 签发时间：UTC，插入时自动填充
 
 
+class SystemConfig(Base):
+    """全局系统开关配置表（键值对）。"""
+
+    __tablename__ = "system_configs"
+
+    key = Column(String(64), primary_key=True)
+    value = Column(String(255), nullable=False, default="")
+    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow, nullable=False)
+
+

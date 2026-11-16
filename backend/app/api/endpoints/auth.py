@@ -16,9 +16,25 @@ from app.services import auth_service
 router = APIRouter(prefix="/auth", tags=["账户"])  # 本模块所有接口挂在 /api/auth 下
 
 
+def _is_registration_restricted(db: Session) -> bool:
+    from app.models.user import SystemConfig
+
+    SystemConfig.__table__.create(bind=db.get_bind(), checkfirst=True)
+    row = db.get(SystemConfig, "registration_restricted")
+    return bool(row and row.value == "true")
+
+
+@router.get("/config")
+def auth_config(db: Session = Depends(get_db)):
+    """公开登录页配置（如是否限制自主注册）。"""
+    return {"registration_restricted": _is_registration_restricted(db)}
+
+
 @router.post("/register", response_model=AuthResponse, status_code=status.HTTP_201_CREATED)
 def register(payload: Credentials, db: Session = Depends(get_db)):
     """注册成功后立即签发本设备会话。"""
+    if _is_registration_restricted(db):
+        raise AppError("当前为内测阶段，暂未开放自主注册，请联系管理员开通账号", code="REGISTRATION_DISABLED", status_code=403)
     user, token = auth_service.register(db, payload.username, payload.password)
     return AuthResponse(access_token=token, user=user)
 

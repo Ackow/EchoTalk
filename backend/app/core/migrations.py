@@ -165,9 +165,11 @@ def run_startup_migrations(bind: Engine | Connection) -> None:
     """应用启动阶段统一执行的建表与幂等列迁移。"""
     from app.models.avatar import AvatarPreset
     from app.models.listening import ListeningAttempt, ListeningProgress, ListeningUnit, UserXpState
+    from app.models.user import SystemConfig
 
     engine = _resolve_engine(bind)
     AvatarPreset.__table__.create(bind=engine, checkfirst=True)
+    SystemConfig.__table__.create(bind=engine, checkfirst=True)
     for tbl in (ListeningUnit, ListeningProgress, ListeningAttempt, UserXpState):
         tbl.__table__.create(bind=engine, checkfirst=True)
     _add_missing_columns(
