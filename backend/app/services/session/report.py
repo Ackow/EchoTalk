@@ -92,7 +92,69 @@ def get_session_report(db: Session, user_id: int, session_id: str) -> dict:
 
     grammar_score = round((natural_count + len(corrections) * 0.55) / len(grammar_items) * 100) if grammar_items else (85 if turns else 0)
 
-    if pronunciation_dims and pronunciation_dims["total_score"] is not None:
+    # 结合场景包 evaluation.dimensions 计算场景专项维度得分与加权总分
+    eval_cfg = snapshot.get("evaluation") or {}
+    eval_dims_cfg = eval_cfg.get("dimensions") or []
+    eval_notes = (eval_cfg.get("notes") or "").strip()
+    scenario_state = state.get("scenario_state") or {}
+    scenario_dimensions: list[dict] = []
+    for dim in eval_dims_cfg:
+        if not isinstance(dim, dict):
+            continue
+        dim_id = str(dim.get("id") or "").strip()
+        if not dim_id:
+            continue
+        label = str(dim.get("label") or dim_id)
+        weight = float(dim.get("weight") or 0)
+        source = str(dim.get("source") or "llm")
+        hints = [str(h).strip().lower() for h in (dim.get("hints") or []) if str(h).strip()]
+
+        if source == "state" or dim_id in ("task_completion", "goal_completion"):
+            dim_score = task_score
+        elif hints:
+            hint_hits = sum(
+                1 for t in turns if any(h in (t.input_text or "").lower() for h in hints)
+            )
+            hint_rate = min(100, round((hint_hits / max(1, len(turns))) * 100 + 25)) if turns else 0
+            if dim_id == "politeness" and scenario_state.get("polite_request"):
+                hint_rate = max(hint_rate, 85)
+            dim_score = round(hint_rate * 0.6 + grammar_score * 0.4) if turns else 0
+        elif dim_id in ("accuracy", "grammar", "language_accuracy"):
+            if pronunciation_dims and pronunciation_dims.get("accuracy_score") is not None:
+                dim_score = round(grammar_score * 0.65 + float(pronunciation_dims["accuracy_score"]) * 0.35)
+            else:
+                dim_score = grammar_score
+        elif dim_id in ("fluency", "pronunciation", "delivery"):
+            if pronunciation_dims and pronunciation_dims.get("fluency_score") is not None:
+                dim_score = round(float(pronunciation_dims["fluency_score"]))
+            else:
+                dim_score = grammar_score
+        else:
+            dim_score = round(grammar_score * 0.7 + task_score * 0.3) if turns else 0
+
+        scenario_dimensions.append({
+            "id": dim_id,
+            "label": label,
+            "weight": weight,
+            "score": dim_score,
+            "source": source,
+        })
+
+    total_dim_weight = sum(d["weight"] for d in scenario_dimensions)
+    scenario_score = (
+        round(sum(d["score"] * d["weight"] for d in scenario_dimensions) / total_dim_weight)
+        if scenario_dimensions and total_dim_weight > 0 and turns
+        else None
+    )
+
+    if scenario_score is not None:
+        if pronunciation_dims and pronunciation_dims["total_score"] is not None:
+            overall_score = round(pronunciation_dims["total_score"] * 0.4 + scenario_score * 0.6)
+        elif turns:
+            overall_score = min(90, round(scenario_score * 0.85))
+        else:
+            overall_score = 0
+    elif pronunciation_dims and pronunciation_dims["total_score"] is not None:
         overall_score = round(
             pronunciation_dims["total_score"] * 0.5
             + grammar_score * 0.3
@@ -145,4 +207,13 @@ def get_session_report(db: Session, user_id: int, session_id: str) -> dict:
         "strong_words": strong_words,
         "corrections": corrections,
         "tips": tips,
+        "evaluation": (
+            {
+                "dimensions": scenario_dimensions,
+                "scenario_score": scenario_score,
+                "notes": eval_notes,
+            }
+            if (scenario_dimensions or eval_notes)
+            else None
+        ),
     }

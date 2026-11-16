@@ -91,7 +91,13 @@
     </section>
 
     <!-- 多邻国风格紧凑多列关卡网格（一行 3–4 张） -->
-    <div class="units-duo-grid">
+    <div v-if="loading && !units.length" class="hub-state-card">正在加载听力训练单元…</div>
+    <div v-else-if="error && !units.length" class="hub-state-card is-error">
+      <span>{{ error }}</span>
+      <button type="button" class="duo-btn primary" @click="$emit('retry')">重试</button>
+    </div>
+    <div v-else-if="!filteredUnits.length" class="hub-state-card">当前筛选条件下暂无听力单元</div>
+    <div v-else class="units-duo-grid">
       <article
         v-for="unit in filteredUnits"
         :key="unit.id"
@@ -164,6 +170,8 @@ import AppTabs from '../AppTabs.vue'
 
 const props = defineProps({
   units: { type: Array, default: () => [] },
+  loading: { type: Boolean, default: false },
+  error: { type: String, default: '' },
   stats: {
     type: Object,
     default: () => ({ independentRate: null, assistedRate: null, weakTags: [] })
@@ -181,7 +189,8 @@ defineEmits([
   'update:cetLevel',
   'update:cetMode',
   'update:selectedCetYear',
-  'start-unit'
+  'start-unit',
+  'retry'
 ])
 
 const channels = [
@@ -518,6 +527,9 @@ const filteredUnits = computed(() => {
   font-size: 12.5px;
   color: #706d85;
 }
+
+.hub-state-card { display: flex; align-items: center; justify-content: center; gap: 12px; padding: 36px 20px; border: 2px dashed #e2dbf2; border-radius: 18px; background: #fff; color: #756e8f; font-size: 13.5px; }
+.hub-state-card.is-error { border-color: #f3c8c8; color: #b43c3c; background: #fff9f9; }
 
 .units-duo-grid {
   display: grid;

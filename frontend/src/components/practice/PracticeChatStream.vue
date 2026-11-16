@@ -32,6 +32,17 @@
           @toggle-original="emit('toggle-original', msg.key, $event)"
         >
           <template #after-bubble>
+            <div v-if="msg.guardrailTips?.length" class="guardrail-tips">
+              <div
+                v-for="(tip, ti) in msg.guardrailTips"
+                :key="`${msg.key}-tip-${ti}`"
+                class="guardrail-tip-pill"
+                :class="`is-${tip.kind || 'keyword_tip'}`"
+              >
+                <AppIcon :name="tip.kind === 'min_words' ? 'info' : 'sparkles'" :size="12" />
+                <span>{{ tip.message }}</span>
+              </div>
+            </div>
             <div v-if="msg.pronunciationScore || msg.grammarCorrection" class="user-feedback-wrap">
               <button
                 type="button"
@@ -267,6 +278,10 @@ defineExpose({ scrollToBottom, chatBody })
 .thinking-dots { display: flex; gap: 4px; padding: 12px; border-radius: 10px; background: var(--bg, #f4f2fa); }
 .thinking-dots i { width: 4px; height: 4px; border-radius: 50%; background: var(--brand, #8b73dd); }
 .user-feedback-wrap { margin-top: 6px; display: flex; flex-direction: column; align-items: flex-end; }
+.guardrail-tips { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; margin-top: 4px; max-width: min(100%, 440px); }
+.guardrail-tip-pill { display: inline-flex; align-items: flex-start; gap: 6px; padding: 6px 10px; border-radius: 10px; font-size: 12px; line-height: 1.45; color: #5b4598; background: #f4f0ff; border: 1px solid #e3d9ff; text-align: left; }
+.guardrail-tip-pill.is-min_words { color: #8c5a12; background: #fff8eb; border-color: #f3dfb8; }
+.guardrail-tip-pill :deep(svg) { flex-shrink: 0; margin-top: 2px; }
 .fb-collapse-pill {
   display: inline-flex; align-items: center; gap: 5px;
   padding: 4px 10px; border-radius: 999px; cursor: pointer;

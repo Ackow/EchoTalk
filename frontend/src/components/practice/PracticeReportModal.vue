@@ -265,6 +265,22 @@ onBeforeUnmount(disposeCharts)
           </div>
         </section>
 
+        <section v-if="report.evaluation?.dimensions?.length" class="report-section">
+          <div class="report-section-head">
+            <h4>场景专项维度</h4>
+            <span v-if="report.evaluation.scenario_score != null">综合 {{ report.evaluation.scenario_score }} 分</span>
+          </div>
+          <div class="report-dims">
+            <div v-for="dim in report.evaluation.dimensions" :key="dim.id" class="dim-item">
+              <div class="dim-top">
+                <span>{{ dim.label }} <small v-if="dim.weight">({{ Math.round(dim.weight * 100) }}%)</small></span>
+                <b :class="scoreTier(dim.score)">{{ dim.score }}</b>
+              </div>
+              <div class="dim-bar"><i :class="scoreTier(dim.score)" :style="{ width: `${Math.min(100, Math.max(0, dim.score))}%` }" /></div>
+            </div>
+          </div>
+        </section>
+
         <section v-if="report.weak_words?.length || report.strong_words?.length" class="report-section">
           <h4>逐词发音诊断</h4>
           <div v-if="report.weak_words?.length" class="report-word-group">

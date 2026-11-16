@@ -1027,6 +1027,11 @@ async function sendTurn(voiceMeta = null) {
       includeAudio: autoPlayReplies.value,
       audioToken,
       signal: controller.signal,
+      onGuardrail(data) {
+        if (generation !== sessionGeneration) return
+        userMsg.guardrailTips = Array.isArray(data?.tips) ? data.tips : []
+        scrollToBottom()
+      },
       onCorrection(data) {
         if (generation !== sessionGeneration) return
         userMsg.grammarCorrection = data

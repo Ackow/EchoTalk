@@ -54,7 +54,7 @@ export async function submitTurnStream(
   id,
   requestId,
   text,
-  { voiceStyle, includeAudio = true, audioToken, onDelta, onDone, onCorrection, onPronunciation, onAudio, onAudioError, onAudioEnd, signal } = {}
+  { voiceStyle, includeAudio = true, audioToken, onDelta, onDone, onGuardrail, onCorrection, onPronunciation, onAudio, onAudioError, onAudioEnd, signal } = {}
 ) {
   const headers = { 'Content-Type': 'application/json' }
   if (session.token) headers.Authorization = `Bearer ${session.token}`
@@ -107,6 +107,7 @@ export async function submitTurnStream(
     }
     if (eventName === 'delta') onDelta?.(parsed.text || '')
     else if (eventName === 'done') onDone?.(parsed)
+    else if (eventName === 'guardrail') onGuardrail?.(parsed)
     else if (eventName === 'correction') onCorrection?.(parsed)
     else if (eventName === 'pronunciation') onPronunciation?.(parsed)
     else if (eventName === 'audio') onAudio?.(parsed)

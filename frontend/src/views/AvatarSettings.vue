@@ -570,6 +570,42 @@ const states = [
 
       <aside class="settings studio-settings">
         <section class="settings-card">
+          <div class="card-heading">
+            <h2>我的自建角色</h2>
+            <span class="card-no">{{ customAvatars.length }}</span>
+          </div>
+          <div v-if="customAvatars.length" class="custom-list">
+            <div
+              v-for="item in customAvatars"
+              :key="item.id"
+              class="custom-item"
+              :class="{ active: editingCustomId === item.id }"
+              role="button"
+              tabindex="0"
+              @click="editCustomAvatar(item)"
+              @keydown.enter.prevent="editCustomAvatar(item)"
+            >
+              <CharacterPortrait
+                character-id="leo_2d"
+                :appearance="item.appearance"
+                :size="40"
+              />
+              <div class="character-meta">
+                <b>{{ item.display_name || item.id }}</b>
+                <span>{{ item.description || (item.is_public ? '已公开到角色市场' : '私有自建角色') }}</span>
+              </div>
+              <button
+                type="button"
+                class="del-btn"
+                :aria-label="`删除角色 ${item.display_name || item.id}`"
+                @click.stop="removeCustomAvatar(item)"
+              >删除</button>
+            </div>
+          </div>
+          <p v-else class="helper empty-note">还没有自建角色，在下方捏脸保存后就会出现在这里。</p>
+        </section>
+
+        <section class="settings-card">
           <div class="card-heading"><h2>角色信息与外观</h2><span class="card-no">01</span></div>
           <div class="studio-fields">
             <label class="field-item">

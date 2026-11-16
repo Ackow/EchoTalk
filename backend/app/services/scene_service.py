@@ -226,6 +226,12 @@ def create_from_template(db: Session, user: User, template_id: str, new_id: str 
         raise SceneIdConflictError(final_id, "custom")
     new_row = Scene(id=final_id, source="custom", author_id=user.id, created_at=utcnow())
     registry.apply_package(new_row, package, data)
+    source_cover = registry.builtin_cover_file(row.id)
+    if source_cover is not None and source_cover.exists():
+        target_dir = knowledge_svc.STORAGE_ROOT / "scenes" / final_id
+        target_dir.mkdir(parents=True, exist_ok=True)
+        target_dir.joinpath(f"cover{source_cover.suffix}").write_bytes(source_cover.read_bytes())
+        new_row.cover_path = f"scenes/{final_id}/cover{source_cover.suffix}"
     db.add(new_row)
     registry.invalidate_cache()
     db.commit()
@@ -257,6 +263,21 @@ def list_templates(db: Session) -> list[dict[str, Any]]:
     return [registry.summary(row) for row in rows]
 
 
+def _sync_package_knowledge_files(db: Session, row: Scene) -> None:
+    """将 Document 表中的文件列表同步回 package_json.knowledge.files，保证摘要 knowledge_count 准确。"""
+    docs = knowledge_svc.list_documents(db, row.id)
+    data = copy.deepcopy(row.package_json or {})
+    knowledge_cfg = dict(data.get("knowledge") or {})
+    knowledge_cfg["files"] = [
+        {"path": doc.filename, "visibility": doc.visibility or "user"}
+        for doc in docs
+    ]
+    data["knowledge"] = knowledge_cfg
+    row.package_json = data
+    registry.invalidate_cache(row.id)
+    db.commit()
+
+
 def upload_knowledge(
     db: Session,
     user: User,
@@ -266,12 +287,14 @@ def upload_knowledge(
     content_type: str | None,
     visibility: str,
 ) -> Document:
-    """上传资料：校验可写性后解析分块入库。"""
+    """上传资料：校验可写性后解析分块入库，并同步 package_json.knowledge.files。"""
     row = load_scene(db, scene_id)
     ensure_writable(row, user)
-    return knowledge_svc.add_document(
+    document = knowledge_svc.add_document(
         db, row, filename or "untitled.txt", content, content_type, visibility,
     )
+    _sync_package_knowledge_files(db, row)
+    return document
 
 
 def set_cover(db: Session, user: User, scene_id: str, filename: str | None, content: bytes) -> str:
@@ -565,10 +588,12 @@ def delete_personal(db: Session, user: User, document_id: int) -> dict[str, Any]
 
 
 def delete_knowledge(db: Session, user: User, scene_id: str, document_id: int) -> Document:
-    """删除单个资料（源文件 + 记录）。"""
+    """删除单个资料（源文件 + 记录），并同步 package_json.knowledge.files。"""
     row = load_scene(db, scene_id)
     ensure_writable(row, user)
-    return knowledge_svc.delete_document(db, scene_id, document_id)
+    document = knowledge_svc.delete_document(db, scene_id, document_id)
+    _sync_package_knowledge_files(db, row)
+    return document
 
 
 # ---- 发布与社区互动 ----------------------------------------------------------

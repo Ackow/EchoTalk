@@ -19,7 +19,7 @@
       </div>
     </div>
 
-    <p v-if="!signedIn" class="login-hint"><AppIcon name="info" :size="14" />开始练习前，请先<router-link :to="{ name: 'login' }">登录</router-link>，保存你的对话进度。</p>
+    <p v-if="!signedIn" class="login-hint"><AppIcon name="info" :size="14" />开始练习前，请先<router-link :to="{ name: 'login', query: { redirect: $route.fullPath } }">登录</router-link>，保存你的对话进度。</p>
     <p v-if="error" class="page-error" role="alert"><AppIcon name="alert" :size="14" />{{ error }}</p>
 
     <div v-if="!loadingScenes" class="scene-grid">

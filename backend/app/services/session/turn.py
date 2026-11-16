@@ -36,6 +36,40 @@ def _auto_detect_turn_signals(text: str, scenario_state: dict) -> None:
             scenario_state["polite_request"] = True
 
 
+def _evaluate_guardrails(package, text: str) -> list[dict]:
+    """检测场景 guardrails（keyword_tips 关键词教学提示与 min_words 词数提醒）。"""
+    guardrails = getattr(package, "guardrails", None)
+    if guardrails is None:
+        return []
+    tips: list[dict] = []
+    cleaned = (text or "").strip()
+    lowered = cleaned.lower()
+
+    for item in getattr(guardrails, "keyword_tips", None) or []:
+        match_kw = (getattr(item, "match", "") or "").strip()
+        tip_text = (getattr(item, "tip", "") or "").strip()
+        if match_kw and tip_text and match_kw.lower() in lowered:
+            tips.append({
+                "kind": "keyword_tip",
+                "match": match_kw,
+                "message": tip_text,
+            })
+
+    min_words = getattr(guardrails, "min_words", None)
+    if min_words:
+        words = re.findall(r"[A-Za-z0-9']+", cleaned)
+        if len(words) < min_words:
+            tips.append({
+                "kind": "min_words",
+                "min_words": min_words,
+                "actual_words": len(words),
+                "message": f"本次表达仅 {len(words)} 个词，建议尽量用 {min_words} 个词以上的完整句表达，以获得更准确的口语反馈。",
+            })
+
+    limit = max(1, int(getattr(guardrails, "max_warnings_per_turn", 1) or 1))
+    return tips[:limit]
+
+
 def run_turn(db: Session, user_id: int, session_id: str, request_id: str, text: str, *, model=None, search=None) -> dict:
     """运行一个文字轮次，并以版本比较原子提交状态、回复和工具轨迹。
 
@@ -84,11 +118,14 @@ def run_turn(db: Session, user_id: int, session_id: str, request_id: str, text: 
         saved_state["stage"] = package.stages[-1].id
         saved_state["stage_turns"] = 0
     turn_id = str(uuid4())
+    guardrail_tips = _evaluate_guardrails(package, text)
     response = {
         "session_id": session_id, "turn_id": turn_id, "request_id": request_id,
         "number": result["turn_count"], "input_text": text, "text": result["final_text"],
         "state": saved_state, "version": version + 1,
     }
+    if guardrail_tips:
+        response["guardrail_tips"] = guardrail_tips
     changed = db.execute(update(PracticeSession).where(
         PracticeSession.id == session_id, PracticeSession.user_id == user_id, PracticeSession.version == version,
     ).values(state_json=saved_state, version=version + 1))
@@ -259,6 +296,8 @@ async def stream_turn(
             if existing.input_text != text:
                 raise AppError("同一 request_id 不能用于不同输入", code="TURN_ID_CONFLICT", status_code=409)
             cached_resp = existing.response_json
+            if cached_resp.get("guardrail_tips"):
+                yield _sse("guardrail", {"tips": cached_resp["guardrail_tips"]})
             yield _sse("delta", {"text": cached_resp["text"]})
             yield _sse("done", cached_resp)
             if existing.grammar_correction:
@@ -298,6 +337,10 @@ async def stream_turn(
     state["turn_count"] += 1
     state["stage_turns"] += 1
     state.update(advance(package, state, before))
+
+    guardrail_tips = _evaluate_guardrails(package, text)
+    if guardrail_tips:
+        yield _sse("guardrail", {"tips": guardrail_tips})
 
     def search(query, top_k):
         from app.scenes.retrieval import search_scene
@@ -339,6 +382,8 @@ async def stream_turn(
                 "state": saved_state,
                 "version": version + 1,
             }
+            if guardrail_tips:
+                response["guardrail_tips"] = guardrail_tips
             with Session(bind=bind) as write_db:
                 changed = write_db.execute(
                     update(PracticeSession)

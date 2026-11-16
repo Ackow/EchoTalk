@@ -46,6 +46,16 @@ def export_zip(db: Session, row: Scene) -> bytes:
             files.append(arcname)
             checksums[arcname] = knowledge_svc.file_checksum(content)
 
+        cover_path = knowledge_svc.cover_file(row.cover_path) if row.cover_path else None
+        if (cover_path is None or not cover_path.exists()) and row.source == "builtin":
+            cover_path = registry.builtin_cover_file(row.id)
+        if cover_path is not None and cover_path.exists():
+            cover_arcname = f"cover{cover_path.suffix.lower()}"
+            cover_bytes = cover_path.read_bytes()
+            zf.writestr(cover_arcname, cover_bytes)
+            files.append(cover_arcname)
+            checksums[cover_arcname] = knowledge_svc.file_checksum(cover_bytes)
+
         manifest = {
             "format": MANIFEST_FORMAT,
             "version": MANIFEST_VERSION,
@@ -139,6 +149,18 @@ def _version_tuple(version: str) -> tuple[int, ...]:
     return tuple(parts)
 
 
+def _extract_cover_from_zip(content: bytes) -> tuple[str, bytes] | None:
+    """从 v2 ZIP 根目录提取 cover.{png,jpg,jpeg,webp}（若存在）。"""
+    with zipfile.ZipFile(io.BytesIO(content)) as zf:
+        for name in zf.namelist():
+            if "/" in name:
+                continue
+            lower = name.lower()
+            if lower in ("cover.png", "cover.jpg", "cover.jpeg", "cover.webp"):
+                return name, zf.read(name)
+    return None
+
+
 def import_package(
     db: Session,
     content: bytes,
@@ -191,6 +213,7 @@ def import_package(
         registry.apply_package(row, package, data)
         row.source = "imported"
         row.author_id = author_id
+        row.cover_path = None
     else:
         row = Scene(
             id=scene_id,
@@ -200,6 +223,10 @@ def import_package(
         )
         registry.apply_package(row, package, data)
         db.add(row)
+    cover_info = _extract_cover_from_zip(content)
+    if cover_info is not None:
+        cover_filename, cover_bytes = cover_info
+        row.cover_path = knowledge_svc.save_cover(scene_id, cover_filename, cover_bytes)
     db.flush()
 
     # 资料入库：按包内声明决定文件级可见性（缺省 user）

@@ -19,6 +19,20 @@
           <router-link class="quick-card green" :to="{ name: 'avatar' }">
             <span class="quick-icon mint" aria-hidden="true"><svg class="feature-icon" viewBox="0 0 64 64" fill="none"><path d="M15 49c1-9 7-14 17-14s16 5 17 14v3H15v-3Z" fill="#a7dfc5" stroke="#55466e" stroke-width="2.6" stroke-linejoin="round"/><circle cx="32" cy="26" r="13" fill="#fff3db" stroke="#55466e" stroke-width="2.6"/><path d="M19 24v-3a13 13 0 0 1 26 0v3" stroke="#55466e" stroke-width="3" stroke-linecap="round"/><rect x="15.5" y="23" width="6" height="11" rx="3" fill="#b19aea" stroke="#55466e" stroke-width="2.3"/><rect x="42.5" y="23" width="6" height="11" rx="3" fill="#b19aea" stroke="#55466e" stroke-width="2.3"/><path d="M27 26h.1m9.8 0h.1" stroke="#55466e" stroke-width="3" stroke-linecap="round"/><path d="M28.5 31.5c2 1.8 5 1.8 7 0" stroke="#b87672" stroke-width="2" stroke-linecap="round"/></svg></span><span class="quick-copy"><b>设置交流伙伴</b><small>选择喜欢的形象、声音与语速</small></span><span class="quick-arrow"><AppIcon name="arrow-right" :size="18" /></span>
           </router-link>
+          <div class="quick-mini-row">
+            <router-link class="quick-mini-card" :to="{ name: 'listening' }">
+              <span class="mini-ic purple"><AppIcon name="headphones" :size="16" /></span>
+              <b>听力工作室</b>
+            </router-link>
+            <router-link class="quick-mini-card" :to="{ name: 'debate' }">
+              <span class="mini-ic amber"><AppIcon name="users" :size="16" /></span>
+              <b>多角色对话</b>
+            </router-link>
+            <router-link class="quick-mini-card" :to="{ name: 'review' }">
+              <span class="mini-ic mint"><AppIcon name="calendar-check" :size="16" /></span>
+              <b>复习计划</b>
+            </router-link>
+          </div>
         </div>
       </div>
 
@@ -38,26 +52,68 @@
         </div>
       </section>
 
-      <section class="plan-banner"><span class="plan-icon"><AppIcon name="calendar-check" :size="25" /></span><div><div class="plan-title"><h2>个性化训练计划</h2><span>正在准备中</span></div><p>未来将根据你的目标提供练习建议，敬请期待。</p></div></section>
+      <section class="plan-banner">
+        <span class="plan-icon"><AppIcon name="calendar-check" :size="25" /></span>
+        <div class="plan-body">
+          <div class="plan-title">
+            <h2>今日训练与复习概览</h2>
+            <span v-if="!signedIn">游客预览</span>
+            <span v-else-if="reviewOverview.dueCount > 0">待复习 {{ reviewOverview.dueCount }} 项</span>
+            <span v-else>今日已清空</span>
+          </div>
+          <p v-if="!signedIn">登录后可自动聚合你的待复习表达、发音低分词与成长画像，按遗忘曲线规划每日巩固。</p>
+          <p v-else-if="reviewOverview.dueCount > 0">
+            你有 <strong>{{ reviewOverview.dueCount }}</strong> 张到期复习卡（累计坚持 {{ reviewOverview.streakDays }} 天），趁热巩固可有效提升表达留存率。
+          </p>
+          <p v-else>
+            当前暂无到期复习卡，已连续坚持 {{ reviewOverview.streakDays }} 天！可以前往学习画像查看多维成长轨迹，或开启一轮新场景训练。
+          </p>
+        </div>
+        <div class="plan-actions">
+          <router-link class="plan-btn primary" :to="{ name: 'review' }">
+            {{ reviewOverview.dueCount > 0 ? '开始复习' : '复习计划' }}
+          </router-link>
+          <router-link class="plan-btn ghost" :to="{ name: 'analytics' }">学习画像</router-link>
+        </div>
+      </section>
     </div>
   </section>
 </template>
 
 <script setup>
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import AppIcon from '../components/AppIcon.vue'
 import heroImage from '../assets/today-conversation-cartoon.png'
+import { listReviewItems } from '../api/review'
 import { coverUrl, listScenes } from '../api/scenes'
 import { usePageLoading } from '../app/loading'
+import { session } from '../auth/session'
 
+const signedIn = computed(() => Boolean(session.token))
 const scenes = ref([])
 const loading = ref(true)
 const loadError = ref(false)
 const failedCovers = ref(new Set())
+const reviewOverview = ref({ dueCount: 0, streakDays: 0 })
 const sceneIcon = scene => scene.mode === 'interview' ? 'briefcase' : scene.category === 'business' ? 'messages' : scene.id.includes('airport') ? 'compass' : 'messages'
 const finishLoading = usePageLoading() // 与路由遮罩同一条流程：精选场景到位后才收起
 onMounted(async () => {
-  try { const { data } = await listScenes(); scenes.value = (data?.items || []).slice(0, 4) }
+  try {
+    const [sceneRes, reviewRes] = await Promise.all([
+      listScenes(),
+      signedIn.value ? listReviewItems(true).catch(() => null) : Promise.resolve(null),
+    ])
+    scenes.value = (sceneRes.data?.items || []).slice(0, 4)
+    if (reviewRes?.data) {
+      const items = reviewRes.data.items || []
+      const now = Date.now()
+      const dueCount = items.filter((it) => it.status !== 'mastered' && new Date(it.due_at).getTime() <= now).length
+      reviewOverview.value = {
+        dueCount,
+        streakDays: reviewRes.data.stats?.streak_days || 0,
+      }
+    }
+  }
   catch { loadError.value = true }
   finally { loading.value = false; finishLoading() }
 })
@@ -78,7 +134,12 @@ onMounted(async () => {
 .primary-button:hover { background: #7d64d1; transform: translateY(-2px); }.primary-button:hover .btn-arrow { transform: translateX(3px); }.primary-button:active { transform: translateY(2px); border-bottom-width: 3px; margin-top: 23px; }
 .hero-illustration { position: absolute; bottom: -4px; right: -2px; width: 51%; height: 96%; object-fit: contain; object-position: right bottom; pointer-events: none; }
 .hero-doodle { position: absolute; z-index: 1; color: #e7ad57; pointer-events: none; }.doodle-one { top: 25px; right: 35%; font-size: 22px; }.doodle-two { right: 4%; top: 28px; font-size: 17px; color: #a899e5; }
-.quick-links { display: grid; gap: 16px; }.quick-card { display: flex; align-items: center; gap: 16px; min-width: 0; padding: 20px; border: 2px solid #e4def5; border-bottom: 5px solid #ddd5f2; border-radius: 22px; background: #f8f5ff; color: inherit; text-decoration: none; transition: transform .16s, border-color .16s; }.quick-card.green { background: #eff9f2; border-color: #daeddf; border-bottom-color: #cce6d3; }.quick-card:hover { transform: translateY(-2px); border-color: #bcb1ee; }.quick-card:active,.scene-card:active { transform: translateY(1px); }
+.quick-links { display: grid; gap: 12px; }
+.quick-mini-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.quick-mini-card { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; padding: 11px 8px; border: 2px solid #e6e0f5; border-bottom: 4px solid #dbd3f0; border-radius: 16px; background: #fff; color: #2d294b; text-decoration: none; font-size: 12px; font-weight: 700; transition: transform .15s, border-color .15s; }
+.quick-mini-card:hover { transform: translateY(-2px); border-color: #bcb1ee; }
+.mini-ic { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 10px; }
+.mini-ic.amber { background: #fff3da; color: #c7831b; }.quick-card { display: flex; align-items: center; gap: 16px; min-width: 0; padding: 20px; border: 2px solid #e4def5; border-bottom: 5px solid #ddd5f2; border-radius: 22px; background: #f8f5ff; color: inherit; text-decoration: none; transition: transform .16s, border-color .16s; }.quick-card.green { background: #eff9f2; border-color: #daeddf; border-bottom-color: #cce6d3; }.quick-card:hover { transform: translateY(-2px); border-color: #bcb1ee; }.quick-card:active,.scene-card:active { transform: translateY(1px); }
 .quick-icon { display: grid; place-items: center; flex: 0 0 64px; width: 64px; height: 64px; border-radius: 22px; }.feature-icon { width: 50px; height: 50px; transition: transform .2s ease; }.quick-card:hover .feature-icon { transform: rotate(-6deg) scale(1.05); }.purple { background: #e8e2fc; color: #826bdc; }.mint { background: #def3e6; color: #35a876; }.quick-copy { flex: 1; min-width: 0; }.quick-copy b,.quick-copy small { display: block; }.quick-copy b { font-size: 17px; font-weight: 750; }.quick-copy small { margin-top: 7px; color: #7f7c90; font-size: 12.5px; line-height: 1.6; }.quick-arrow,.scene-arrow { display: grid; place-items: center; flex: 0 0 34px; width: 34px; height: 34px; border: 1.5px solid #dfd9f0; border-bottom: 3px solid #d4c9ed; border-radius: 12px; background: white; color: #806bd4; transition: transform .16s cubic-bezier(.22, .8, .32, 1), background .15s, border-color .15s; }
 .quick-card:hover .quick-arrow,.scene-card:hover .scene-arrow { transform: translateX(3px); background: #f3efff; border-color: #c8bbf0; }
 .featured { margin-top: 32px; }.section-heading,.section-heading > div { display: flex; align-items: center; gap: 12px; }.section-heading { justify-content: space-between; margin-bottom: 17px; }.section-icon { color: #8065d9; }.section-heading h2 { margin: 0; font-size: 19px; font-weight: 800; white-space: nowrap; }.section-heading p { margin: 0; color: #858195; font-size: 12.5px; }.section-heading > a { display: flex; align-items: center; gap: 6px; color: #795fd0; font-size: 12.5px; font-weight: 700; text-decoration: none; white-space: nowrap; }
@@ -86,7 +147,15 @@ onMounted(async () => {
 .scene-art { position: relative; display: grid; place-items: center; height: 96px; overflow: hidden; background: #e6efff; color: #7799d6; }.scene-art img { width: 100%; height: 100%; object-fit: cover; transition: transform .28s cubic-bezier(.22, .8, .32, 1); }.scene-card:hover .scene-art img { transform: scale(1.04); }.scene-art > svg { z-index: 1; transition: transform .22s cubic-bezier(.22, .8, .32, 1); }.scene-card:hover .scene-art > svg { transform: scale(1.08) rotate(-3deg); }.tone-1 { background: #f9ede2; color: #c79264; }.tone-2 { background: #e8f4e9; color: #6ba27b; }.tone-3 { background: #ece9fa; color: #9180c9; }.scene-art-circle { position: absolute; width: 115px; height: 115px; border-radius: 50%; background: #ffffff80; transition: transform .25s ease; }.scene-card:hover .scene-art-circle { transform: scale(1.06); }.scene-art-dot { position: absolute; width: 30px; height: 30px; right: 14%; top: 12px; border-radius: 50%; background: #ffffff80; transition: transform .25s ease; }.scene-card:hover .scene-art-dot { transform: translate(-4px, 3px); }
 .scene-body { display: flex; justify-content: space-between; align-items: center; gap: 8px; min-height: 111px; padding: 12px 14px; }.scene-body > div { min-width: 0; }.scene-tag { display: inline-block; margin-bottom: 6px; color: #8b7bc5; font-size: 10px; font-weight: 700; }.scene-body h3 { margin: 0; font-size: 13px; line-height: 1.4; font-weight: 750; }.scene-body p { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; margin: 5px 0 0; color: #898596; font-size: 11px; line-height: 1.5; }
 .scene-message { padding: 26px; border: 1px solid #e9e7f1; border-radius: 16px; background: #fff; color: #858195; font-size: 13px; }
-.plan-banner { display: flex; align-items: center; gap: 18px; margin-top: 30px; padding: 20px 24px; border: 1px solid #e7e3f4; border-radius: 18px; background: #f8f7ff; }.plan-icon { display: grid; place-items: center; flex: 0 0 56px; width: 56px; height: 56px; border-radius: 18px; background: #ede9fc; color: #8a73de; }.plan-title { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }.plan-title h2 { margin: 0; font-size: 16px; font-weight: 800; }.plan-title span { padding: 4px 9px; border-radius: 12px; background: #e8e2fc; color: #745dca; font-size: 11px; font-weight: 700; }.plan-banner p { margin: 6px 0 0; color: #858195; font-size: 12.5px; line-height: 1.6; }
+.plan-banner { display: flex; align-items: center; gap: 18px; margin-top: 30px; padding: 20px 24px; border: 1.5px solid #e7e3f4; border-bottom: 4px solid #ddd6f0; border-radius: 20px; background: #f8f7ff; }
+.plan-body { flex: 1; min-width: 0; }
+.plan-icon { display: grid; place-items: center; flex: 0 0 56px; width: 56px; height: 56px; border-radius: 18px; background: #ede9fc; color: #8a73de; }.plan-title { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }.plan-title h2 { margin: 0; font-size: 16px; font-weight: 800; }.plan-title span { padding: 4px 9px; border-radius: 12px; background: #e8e2fc; color: #745dca; font-size: 11px; font-weight: 700; }.plan-banner p { margin: 6px 0 0; color: #6e6a82; font-size: 12.5px; line-height: 1.6; }
+.plan-actions { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+.plan-btn { display: inline-flex; align-items: center; justify-content: center; height: 36px; padding: 0 14px; border-radius: 12px; font-size: 12.5px; font-weight: 700; text-decoration: none; transition: transform .15s, background .15s; }
+.plan-btn.primary { background: #8b73dd; color: #fff; border: 1.5px solid #7c64cd; border-bottom: 3px solid #6750b5; }
+.plan-btn.primary:hover { background: #7d64d1; transform: translateY(-1px); }
+.plan-btn.ghost { background: #fff; color: #6552aa; border: 1.5px solid #dfd7f3; border-bottom: 3px solid #d2c8ec; }
+.plan-btn.ghost:hover { background: #f4f0ff; }
 a:focus-visible { outline: 3px solid #786bd1; outline-offset: 3px; }
 @media (prefers-reduced-motion: no-preference) {
   .hero-copy { animation: gentle-in .45s cubic-bezier(.22, .8, .32, 1) both; }

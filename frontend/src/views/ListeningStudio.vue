@@ -7,10 +7,13 @@
       v-model:cet-mode="cetMode"
       v-model:selected-cet-year="selectedCetYear"
       :units="units"
+      :loading="loadingUnits"
+      :error="loadError"
       :stats="stats"
       :today-xp="todayXp"
       :daily-goal-xp="dailyGoalXp"
       @start-unit="startUnit"
+      @retry="loadListeningData"
     />
 
     <ListeningRunner
@@ -29,10 +32,12 @@ import { useRoute } from 'vue-router'
 import ListeningHub from '../components/listening/ListeningHub.vue'
 import ListeningRunner from '../components/listening/ListeningRunner.vue'
 import { getListeningUnits } from '../api/listening'
+import { usePageLoading } from '../app/loading'
 import { dailyGoalXp, syncGlobalXpProfile, todayXp } from '../app/xp'
 import { session } from '../auth/session'
 
 const route = useRoute()
+const finishLoading = usePageLoading()
 
 const stats = ref({
   independentRate: null,
@@ -41,6 +46,7 @@ const stats = ref({
 })
 const units = ref([])
 const loadingUnits = ref(false)
+const loadError = ref('')
 const selectedChannel = ref(route.query.channel === 'cet' ? 'cet' : 'all')
 const cetLevel = ref('cet4')
 const cetMode = ref('practice') // practice | mock
@@ -58,12 +64,25 @@ watch(
   }
 )
 
+function selectUnitFromRoute() {
+  const unitId = String(route.query.unit || '').trim()
+  if (!unitId || !units.value.length) return
+  const matched = units.value.find((u) => u.id === unitId)
+  if (matched) activeUnit.value = matched
+}
+
+watch(
+  () => route.query.unit,
+  () => selectUnitFromRoute()
+)
+
 const isMockRestricted = computed(
   () => activeUnit.value?.channel === 'cet' && cetMode.value === 'mock'
 )
 
 async function loadListeningData() {
   loadingUnits.value = true
+  loadError.value = ''
   try {
     const { data } = await getListeningUnits()
     if (Array.isArray(data?.units)) units.value = data.units
@@ -74,10 +93,12 @@ async function loadListeningData() {
         weakTags: Array.isArray(data.stats.weakTags) ? data.stats.weakTags : []
       }
     }
-  } catch {
-    // 保持空态，避免伪造假数据
+    selectUnitFromRoute()
+  } catch (err) {
+    loadError.value = err?.message || '听力单元加载失败，请检查网络后重试'
   } finally {
     loadingUnits.value = false
+    finishLoading()
   }
 }
 

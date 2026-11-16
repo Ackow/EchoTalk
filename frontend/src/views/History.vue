@@ -6,7 +6,7 @@
       <span class="guest-icon"><AppIcon name="clock" :size="24" /></span>
       <h2>登录后查看练习历史</h2>
       <p>历史记录按账号保存。登录后可回看每一次场景对话，并接着上次的进度继续练习。</p>
-      <router-link class="primary-button slim" :to="{ name: 'login' }"><AppIcon name="user" :size="15" />去登录</router-link>
+      <router-link class="primary-button slim" :to="{ name: 'login', query: { redirect: $route.fullPath } }"><AppIcon name="user" :size="15" />去登录</router-link>
     </div>
 
     <template v-else>
@@ -152,6 +152,8 @@ import AppSelect from '../components/AppSelect.vue'
 import AppTabs from '../components/AppTabs.vue'
 import PracticeReportModal from '../components/practice/PracticeReportModal.vue'
 import { getSessionReport, listSessions } from '../api/sessions'
+import { listDebateTopics } from '../api/debate'
+import { getListeningUnits } from '../api/listening'
 import { listScenes } from '../api/scenes'
 import { session } from '../auth/session'
 import { usePageLoading } from '../app/loading'
@@ -178,7 +180,26 @@ const page = ref(1)
 const statusFilter = ref('')
 const modeFilter = ref('all')
 const sceneFilter = ref('')
-const sceneOptions = ref([{ value: '', label: '全部场景' }])
+const practiceSceneOptions = ref([])
+const listeningSceneOptions = ref([])
+const debateSceneOptions = ref([])
+const sceneOptions = computed(() => {
+  if (modeFilter.value === 'listening') {
+    return [{ value: '', label: '全部听力单元' }, ...listeningSceneOptions.value]
+  }
+  if (modeFilter.value === 'debate') {
+    return [{ value: '', label: '全部多角色场景' }, ...debateSceneOptions.value]
+  }
+  if (modeFilter.value === 'conversation') {
+    return [{ value: '', label: '全部语音场景' }, ...practiceSceneOptions.value]
+  }
+  return [
+    { value: '', label: '全部场景' },
+    ...practiceSceneOptions.value,
+    ...debateSceneOptions.value,
+    ...listeningSceneOptions.value,
+  ]
+})
 const stats = ref({ sessions: 0, turns: 0, finished: 0 })
 const loading = ref(false)
 const error = ref('')
@@ -283,13 +304,29 @@ async function load() {
   }
 }
 
-// 场景下拉：用场景列表填充，便于按场景回看
+// 场景下拉：按当前模块（语音对话 / 听力 / 多角色）动态联动可选场景列表
 async function loadScenes() {
-  try {
-    const { data } = await listScenes()
-    sceneOptions.value = [{ value: '', label: '全部场景' }, ...(data?.items || []).map((scene) => ({ value: scene.id, label: scene.name }))]
-  } catch { /* 场景列表失败不影响历史记录本身 */ }
+  const [scenesRes, debateRes, listeningRes] = await Promise.all([
+    listScenes().catch(() => null),
+    listDebateTopics().catch(() => null),
+    getListeningUnits().catch(() => null),
+  ])
+  if (scenesRes?.data?.items) {
+    practiceSceneOptions.value = scenesRes.data.items.map((scene) => ({ value: scene.id, label: scene.name }))
+  }
+  if (debateRes?.data?.items) {
+    debateSceneOptions.value = debateRes.data.items.map((t) => ({ value: t.id, label: t.titleZh || t.title_zh || t.id }))
+  }
+  if (listeningRes?.data?.units) {
+    listeningSceneOptions.value = listeningRes.data.units.map((u) => ({ value: u.id, label: u.title }))
+  }
 }
+
+watch(modeFilter, () => {
+  if (sceneFilter.value && !sceneOptions.value.some((o) => o.value === sceneFilter.value)) {
+    sceneFilter.value = ''
+  }
+})
 
 // 筛选变化回到第一页；分页变化只重新取数
 watch([statusFilter, modeFilter, sceneFilter], () => { page.value = 1; load() })

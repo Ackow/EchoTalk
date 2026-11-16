@@ -6,7 +6,7 @@
       <span class="guest-icon"><AppIcon name="calendar-check" :size="24" /></span>
       <h2>登录后开启专属复习计划</h2>
       <p>系统会自动从你的历史对话记录中提取语法纠错、发音低分词与重点表达，并按遗忘曲线安排每日复习。</p>
-      <router-link class="primary-button slim" :to="{ name: 'login' }"><AppIcon name="user" :size="15" />去登录</router-link>
+      <router-link class="primary-button slim" :to="{ name: 'login', query: { redirect: $route.fullPath } }"><AppIcon name="user" :size="15" />去登录</router-link>
     </div>
 
     <template v-else>
@@ -51,6 +51,9 @@
               <AppIcon name="x" :size="12" />
             </button>
           </label>
+          <button class="ghost-button slim add-card-btn" type="button" @click="openCreateModal">
+            <AppIcon name="plus" :size="14" />手动添加
+          </button>
         </div>
       </div>
 
@@ -133,7 +136,7 @@
               >
                 <AppIcon :name="item.status === 'mastered' ? 'rotate' : 'check'" :size="13" />
               </button>
-              <button class="action-btn danger" type="button" title="删除" @click="removeItem(item)">
+              <button class="action-btn danger" type="button" title="删除" @click="deleteTarget = item">
                 <AppIcon name="trash" :size="13" />
               </button>
             </div>
@@ -263,6 +266,66 @@
     <transition name="toast">
       <div v-if="toast" class="toast" role="status">{{ toast }}</div>
     </transition>
+
+    <!-- 手动添加复习卡弹窗 -->
+    <transition name="modal-fade">
+      <div v-if="createModalOpen" class="flashcard-backdrop" @click.self="createModalOpen = false">
+        <div class="editor-modal" role="dialog" aria-modal="true" aria-label="手动添加复习卡">
+          <div class="fc-top">
+            <span class="fc-progress">新建复习卡</span>
+            <button class="fc-close" type="button" aria-label="关闭" @click="createModalOpen = false">
+              <AppIcon name="x" :size="16" />
+            </button>
+          </div>
+          <form class="editor-form" @submit.prevent="submitCreate">
+            <label class="editor-field">
+              <span>类型</span>
+              <select v-model="createForm.kind">
+                <option value="expression">表达与生词</option>
+                <option value="grammar">语法改进</option>
+                <option value="pronunciation">发音纠偏</option>
+                <option value="listening">听力错题</option>
+                <option value="debate">多角色表达</option>
+              </select>
+            </label>
+            <label class="editor-field">
+              <span>提示 / 问题（正面）</span>
+              <input v-model="createForm.prompt" type="text" required maxlength="200" placeholder="例如：如何礼貌地请服务员推荐饮品？" />
+            </label>
+            <label class="editor-field">
+              <span>地道表达 / 答案（背面）</span>
+              <input v-model="createForm.answer" type="text" required maxlength="240" placeholder="例如：Could you recommend something light?" />
+            </label>
+            <label class="editor-field">
+              <span>补充笔记（可选）</span>
+              <textarea v-model="createForm.note" rows="2" maxlength="300" placeholder="语法点、连读或使用场景说明" />
+            </label>
+            <div class="editor-actions">
+              <button class="ghost-button slim" type="button" @click="createModalOpen = false">取消</button>
+              <button class="primary-button slim" type="submit" :disabled="creating">
+                {{ creating ? '保存中...' : '添加到复习计划' }}
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </transition>
+
+    <!-- 删除确认弹窗 -->
+    <transition name="modal-fade">
+      <div v-if="deleteTarget" class="flashcard-backdrop" @click.self="deleteTarget = null">
+        <div class="editor-modal confirm-modal" role="dialog" aria-modal="true" aria-label="确认删除复习卡">
+          <h3>确认删除这张复习卡？</h3>
+          <p class="confirm-desc">删除后将从复习队列中永久移除「{{ deleteTarget.prompt }}」。</p>
+          <div class="editor-actions">
+            <button class="ghost-button slim" type="button" @click="deleteTarget = null">取消</button>
+            <button class="danger-button slim" type="button" :disabled="deleting" @click="confirmDelete">
+              {{ deleting ? '删除中...' : '确认删除' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </transition>
   </section>
 </template>
 
@@ -273,9 +336,11 @@ import AppIcon from '../components/AppIcon.vue'
 import AppSelect from '../components/AppSelect.vue'
 import AppTabs from '../components/AppTabs.vue'
 import { session } from '../auth/session'
+import { usePageLoading } from '../app/loading'
 import { syncGlobalXpProfile } from '../app/xp'
 import { synthesizeSpeech } from '../api/avatar'
 import {
+  createReviewItem,
   deleteReviewItem,
   listReviewItems,
   submitReviewResult,
@@ -284,6 +349,7 @@ import {
 
 const router = useRouter()
 const signedIn = computed(() => Boolean(session.token))
+const finishLoading = usePageLoading()
 
 const KIND_META = {
   expression: '表达与生词',
@@ -375,7 +441,10 @@ const emptyCopy = computed(() => {
 })
 
 async function load() {
-  if (!signedIn.value) return
+  if (!signedIn.value) {
+    finishLoading()
+    return
+  }
   loading.value = true
   error.value = ''
   try {
@@ -386,6 +455,7 @@ async function load() {
     error.value = err?.response?.data?.detail || '请检查网络或重新登录后重试。'
   } finally {
     loading.value = false
+    finishLoading()
   }
 }
 
@@ -553,13 +623,53 @@ async function toggleMastered(item) {
   }
 }
 
-async function removeItem(item) {
+const deleteTarget = ref(null)
+const deleting = ref(false)
+const createModalOpen = ref(false)
+const creating = ref(false)
+const createForm = ref({ kind: 'expression', prompt: '', answer: '', note: '' })
+
+function openCreateModal() {
+  createForm.value = { kind: 'expression', prompt: '', answer: '', note: '' }
+  createModalOpen.value = true
+}
+
+async function submitCreate() {
+  const prompt = createForm.value.prompt.trim()
+  const answer = createForm.value.answer.trim()
+  if (!prompt || !answer || creating.value) return
+  creating.value = true
+  try {
+    const { data } = await createReviewItem({
+      kind: createForm.value.kind,
+      prompt,
+      answer,
+      note: createForm.value.note.trim() || undefined,
+    })
+    if (data?.id) items.value.unshift(data)
+    else await load()
+    createModalOpen.value = false
+    notify('已添加到复习计划')
+  } catch (err) {
+    notify(err?.response?.data?.detail || '添加失败，请稍后重试')
+  } finally {
+    creating.value = false
+  }
+}
+
+async function confirmDelete() {
+  const item = deleteTarget.value
+  if (!item || deleting.value) return
+  deleting.value = true
   try {
     await deleteReviewItem(item.id)
     items.value = items.value.filter((it) => it.id !== item.id)
+    deleteTarget.value = null
     notify('已删除该复习项')
   } catch (err) {
     notify(err?.response?.data?.detail || '删除失败')
+  } finally {
+    deleting.value = false
   }
 }
 
@@ -620,10 +730,28 @@ onBeforeUnmount(() => {
 .search-box input::placeholder { color: var(--faint); }
 .search-box input::-webkit-search-cancel-button { -webkit-appearance: none; appearance: none; display: none; }
 .search-clear { display: grid; place-items: center; width: 18px; height: 18px; border: 0; border-radius: 50%; background: #eef0f5; color: var(--muted); }
-.ghost-button { display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 14px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--ink-soft); font-size: 13.5px; transition: border-color .15s, color .15s, background .15s; }
-.ghost-button:hover:not(:disabled) { border-color: #d5d7e6; color: var(--ink); background: #fafafd; }
+.ghost-button {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  height: 36px; padding: 0 14px;
+  border: 1.5px solid #e1daf3; border-bottom: 3px solid #d4cbe9; border-radius: 12px;
+  background: #fff; color: #5b527c; font-size: 13px; font-weight: 700; cursor: pointer;
+  transition: border-color .15s, color .15s, background .15s, transform .12s;
+}
+.ghost-button.slim { height: 34px; padding: 0 13px; font-size: 12.5px; }
+.ghost-button:hover:not(:disabled) { border-color: #c5b8eb; color: #43376c; background: #f8f5ff; }
+.ghost-button:active:not(:disabled) { transform: translateY(1px); border-bottom-width: 2px; }
 .ghost-button:disabled { opacity: .55; cursor: not-allowed; }
-.primary-button.slim { display: inline-flex; align-items: center; gap: 6px; width: auto; height: 36px; margin-top: 0; padding: 0 16px; justify-content: center; text-decoration: none; }
+.primary-button.slim {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  width: auto; height: 36px; margin-top: 0; padding: 0 16px;
+  border: 1.5px solid #7d64d1; border-bottom: 3.5px solid #654eb6; border-radius: 12px;
+  background: #8b73dd; color: #fff; font-size: 13px; font-weight: 750;
+  text-decoration: none; cursor: pointer;
+  transition: background .15s, transform .12s;
+}
+.primary-button.slim:hover:not(:disabled) { background: #7d64d1; }
+.primary-button.slim:active:not(:disabled) { transform: translateY(1px); border-bottom-width: 2px; }
+.primary-button.slim:disabled { opacity: .55; cursor: not-allowed; }
 
 /* 队列列表 */
 .review-list { display: flex; flex: 1 0 auto; flex-direction: column; gap: 11px; }
@@ -659,11 +787,18 @@ onBeforeUnmount(() => {
 .mastery-dots i { display: block; height: 5px; border-radius: 999px; background: #ece9f6; }
 .mastery-dots i.on { background: #7f65d4; }
 .card-actions { display: flex; align-items: center; gap: 6px; }
-.action-btn { display: inline-flex; align-items: center; justify-content: center; gap: 4px; height: 30px; min-width: 30px; padding: 0 8px; border: 1px solid var(--line); border-radius: 8px; background: #fff; color: var(--ink-soft); font-size: 12px; font-weight: 500; transition: border-color .15s, color .15s, background .15s; }
-.action-btn:hover { border-color: #cfc8ea; color: var(--ink); background: #faf9fe; }
-.action-btn.primary { border-color: #d8cff4; background: #f4f0ff; color: #694fc1; font-weight: 600; }
+.action-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 4px;
+  height: 32px; min-width: 32px; padding: 0 10px;
+  border: 1.5px solid #e1daf3; border-bottom: 3px solid #d4cbe9; border-radius: 10px;
+  background: #fff; color: #5b527c; font-size: 12px; font-weight: 600; cursor: pointer;
+  transition: border-color .15s, color .15s, background .15s, transform .12s;
+}
+.action-btn:hover { border-color: #c5b8eb; color: #43376c; background: #f8f5ff; }
+.action-btn:active { transform: translateY(1px); border-bottom-width: 2px; }
+.action-btn.primary { border-color: #d6cbf2; border-bottom-color: #c2b2ea; background: #f4f0ff; color: #694fc1; font-weight: 700; }
 .action-btn.primary:hover { background: #ebe4ff; }
-.action-btn.danger:hover { border-color: #f3c6c6; background: #fbf1f2; color: var(--danger); }
+.action-btn.danger:hover { border-color: #f3c6c6; border-bottom-color: #e5a8a8; background: #fbf1f2; color: var(--danger); }
 
 /* 骨架屏 */
 .review-card.skeleton { min-height: 92px; }
@@ -693,6 +828,18 @@ onBeforeUnmount(() => {
 /* 弹窗 */
 .modal-backdrop { position: fixed; inset: 0; z-index: 40; display: grid; place-items: center; background: var(--scrim-bg, rgba(34, 37, 59, .28)); -webkit-backdrop-filter: var(--scrim-blur, blur(2px)); backdrop-filter: var(--scrim-blur, blur(2px)); }
 .flashcard-modal, .editor-modal { width: min(560px, calc(100vw - 40px)); padding: 22px 24px; border-radius: 18px; background: #fff; box-shadow: 0 24px 64px rgba(34, 37, 59, .22); }
+.editor-form { display: grid; gap: 12px; margin-top: 12px; }
+.editor-field { display: grid; gap: 5px; }
+.editor-field span { font-size: 12px; font-weight: 700; color: #5b5478; }
+.editor-field input, .editor-field select, .editor-field textarea { padding: 8px 11px; border: 1.5px solid #e2dcf2; border-radius: 10px; background: #faf9ff; color: #2d294b; font-size: 13px; outline: none; font-family: inherit; }
+.editor-field input:focus, .editor-field select:focus, .editor-field textarea:focus { border-color: #8b73dd; background: #fff; }
+.editor-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 8px; }
+.confirm-modal h3 { margin: 0 0 8px; font-size: 16px; color: #29283e; }
+.confirm-desc { margin: 0 0 14px; font-size: 13px; color: #6e6a82; line-height: 1.6; }
+.danger-button { display: inline-flex; align-items: center; justify-content: center; height: 36px; padding: 0 14px; border-radius: 12px; border: 1.5px solid #dc2626; border-bottom: 3px solid #b91c1c; background: #ef4444; color: #fff; font-size: 13px; font-weight: 700; cursor: pointer; transition: background .15s, transform .12s; }
+.danger-button.slim { height: 34px; padding: 0 13px; font-size: 12.5px; }
+.danger-button:hover:not(:disabled) { background: #dc2626; }
+.danger-button:active:not(:disabled) { transform: translateY(1px); border-bottom-width: 2px; }
 .fc-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
 .fc-progress-copy { display: flex; align-items: baseline; gap: 10px; }
 .fc-progress-copy b { font-size: 16px; }

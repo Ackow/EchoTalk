@@ -4,6 +4,7 @@ import json
 import re
 import uuid
 import zipfile
+from datetime import timedelta
 from pathlib import Path
 from typing import Any
 
@@ -1048,6 +1049,24 @@ def _role_label(role: str, user_side: str, scene_type: str = "debate", role_titl
     return role_title or ("反方" if user_side == "pro" else "正方")
 
 
+def _turn_role_rank(role: str | None) -> int:
+    if role == "user":
+        return 0
+    if role == "judge":
+        return 2
+    return 1
+
+
+def _load_ordered_turns(db: Session, session_id: str) -> list[DebateTurn]:
+    """按时间戳与同轮次角色顺序（用户 -> 对手/评审 -> 评委）确定性加载会话消息。"""
+    rows = db.scalars(
+        select(DebateTurn)
+        .where(DebateTurn.session_id == session_id)
+        .order_by(DebateTurn.created_at.asc(), DebateTurn.turn_number.asc())
+    ).all()
+    return sorted(rows, key=lambda t: (t.created_at, t.turn_number or 0, _turn_role_rank(t.role)))
+
+
 def serialize_turn(turn: DebateTurn, user_side: str, scene_type: str = "debate") -> dict:
     role_title = getattr(turn, "role_title", "") or ""
     avatar_id = getattr(turn, "avatar_id", "") or ""
@@ -1207,11 +1226,7 @@ def get_debate_session(db: Session, user_id: int, session_id: str) -> dict:
     if not session:
         raise AppError("未找到该多角色对话会话", code="DEBATE_NOT_FOUND", status_code=404)
 
-    turns = db.scalars(
-        select(DebateTurn)
-        .where(DebateTurn.session_id == session.id)
-        .order_by(DebateTurn.created_at.asc())
-    ).all()
+    turns = _load_ordered_turns(db, session.id)
 
     topic_row = db.scalar(select(DebateTopic).where(DebateTopic.id == session.topic_id))
     topic_data = serialize_topic(topic_row) if topic_row else _TOPIC_MAP.get(session.topic_id)
@@ -1505,11 +1520,7 @@ async def submit_debate_turn(
     if session.status == "finished":
         raise AppError("该场对话已结束并归档", code="DEBATE_ALREADY_FINISHED", status_code=400)
 
-    history_turns = db.scalars(
-        select(DebateTurn)
-        .where(DebateTurn.session_id == session.id)
-        .order_by(DebateTurn.created_at.asc())
-    ).all()
+    history_turns = _load_ordered_turns(db, session.id)
 
     topic_row = db.scalar(select(DebateTopic).where(DebateTopic.id == session.topic_id))
     scene_type = (getattr(topic_row, "scene_type", None) if topic_row else None) or getattr(session, "scene_type", "debate") or "debate"
@@ -1519,11 +1530,13 @@ async def submit_debate_turn(
     max_turns = _resolve_duration_turns(topic_row.duration if topic_row else None)
 
     current_stage = min(len(stages) - 1, max(0, session.stage_index))
+    user_turns_done = sum(1 for t in history_turns if t.role == "user") + 1
     user_role_label = (getattr(topic_row, "user_role_label", None) if topic_row else None) or ("候选人 / 主讲人" if scene_type == "panel" else "辩手")
+    turn_base_ts = utcnow()
     user_turn = DebateTurn(
         id=str(uuid.uuid4()),
         session_id=session.id,
-        turn_number=session.turn_count,
+        turn_number=user_turns_done,
         stage_label=stages[current_stage]["label"],
         role="user",
         speaker="我",
@@ -1534,10 +1547,10 @@ async def submit_debate_turn(
         duration=duration,
         en_text=clean_text,
         zh_text="",
+        created_at=turn_base_ts,
     )
     db.add(user_turn)
 
-    user_turns_done = sum(1 for t in history_turns if t.role == "user") + 1
     progress = min(1.0, user_turns_done / max(1, max_turns))
     next_stage = min(len(stages) - 1, int(progress * (len(stages) - 1) + 0.0001))
 
@@ -1624,6 +1637,7 @@ async def submit_debate_turn(
         is_voice=False,
         en_text=str(ai_data.get("opponent_en") or "").strip(),
         zh_text=str(ai_data.get("opponent_zh") or "").strip(),
+        created_at=turn_base_ts + timedelta(milliseconds=1),
     )
     db.add(opp_turn)
     new_turns.append(opp_turn)
@@ -1643,6 +1657,7 @@ async def submit_debate_turn(
             is_voice=False,
             en_text=judge_en,
             zh_text=str(ai_data.get("judge_zh") or "").strip(),
+            created_at=turn_base_ts + timedelta(milliseconds=2),
         )
         db.add(judge_turn)
         new_turns.append(judge_turn)
@@ -1779,11 +1794,7 @@ async def suggest_debate_reply(db: Session, user: User, session_id: str) -> dict
 
     scene_type = (getattr(topic_row, "scene_type", None) if topic_row else None) or getattr(session, "scene_type", "debate") or "debate"
     stages = resolve_topic_stages(topic_row) if topic_row else resolve_topic_stages({"sceneType": scene_type})
-    turns = db.scalars(
-        select(DebateTurn)
-        .where(DebateTurn.session_id == session.id)
-        .order_by(DebateTurn.created_at.asc())
-    ).all()
+    turns = _load_ordered_turns(db, session.id)
     stage = stages[min(len(stages) - 1, max(0, session.stage_index))]["label"]
     last_speaker = next((t.speaker for t in reversed(turns) if t.role != "user"), "the panel" if scene_type == "panel" else "the opponent")
     recent_lines = "\n".join(f"- {t.speaker} ({getattr(t, 'role_title', None) or t.role}): {t.en_text}" for t in turns[-5:])

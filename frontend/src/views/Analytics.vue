@@ -5,7 +5,7 @@
       <span class="guest-icon"><AppIcon name="chart-line" :size="24" /></span>
       <h2>登录后查看成长分析</h2>
       <p>成长分析按账号聚合你的每一次语音评测、表达纠错与场景任务数据，帮助你看见长期进步。</p>
-      <router-link class="primary-button slim" :to="{ name: 'login' }"><AppIcon name="user" :size="15" />去登录</router-link>
+      <router-link class="primary-button slim" :to="{ name: 'login', query: { redirect: $route.fullPath } }"><AppIcon name="user" :size="15" />去登录</router-link>
     </div>
 
     <template v-else>

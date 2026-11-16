@@ -14,7 +14,7 @@
         </div>
       </div>
 
-      <div v-if="topicsLoading" class="hub-state-banner">正在加载多角色场景库...</div>
+      <div v-if="topicsLoading && initialTopicsLoaded" class="hub-state-banner">正在加载多角色场景库...</div>
       <div v-else-if="topicsError" class="hub-state-banner error">{{ topicsError }}</div>
 
       <div class="topics-grid">
@@ -74,7 +74,7 @@
           </div>
         </article>
 
-        <div v-if="!topicsLoading && !topicsError && !filteredTopics.length" class="debate-empty-card">
+        <div v-if="initialTopicsLoaded && !topicsLoading && !topicsError && !filteredTopics.length" class="debate-empty-card">
           <div class="debate-empty-icon"><AppIcon name="compass" :size="20" /></div>
           <h3>{{ selectedCategory !== 'all' ? '该分类下暂无多角色场景' : '训练台暂无多角色场景' }}</h3>
           <p>
@@ -361,6 +361,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import AppIcon from '../components/AppIcon.vue'
 import AppTabs from '../components/AppTabs.vue'
+import CharacterPortrait from '../components/avatar/CharacterPortrait.vue'
 import MultiRoleArena from '../components/debate/MultiRoleArena.vue'
 import MultiRoleReportModal from '../components/debate/MultiRoleReportModal.vue'
 import MultiRoleSetupModal from '../components/debate/MultiRoleSetupModal.vue'
@@ -392,6 +393,7 @@ const finishLoading = usePageLoading()
 
 const topics = ref([])
 const topicsLoading = ref(false)
+const initialTopicsLoaded = ref(false)
 const topicsError = ref('')
 const setupError = ref('')
 const avatarOptions = ref([...FALLBACK_AVATARS])
@@ -688,6 +690,8 @@ function toggleMsgText(id) {
   expandedMsgIds.value = next
 }
 
+const messages = ref([])
+
 const {
   playingMsgId,
   loadingMsgId,
@@ -700,8 +704,6 @@ const {
   toggleMsgAudio,
   disposeTtsCache,
 } = useMultiRoleSession({ inArena, feedRef, messages, findRoleIdForMessage, speakingRole })
-
-const messages = ref([])
 
 async function toggleDebateTips() {
   if (debateSuggestions.value.length) {
@@ -996,6 +998,7 @@ onMounted(async () => {
       topicsError.value = err?.message || '多角色场景加载失败，请刷新或登录后重试'
     } finally {
       topicsLoading.value = false
+      initialTopicsLoaded.value = true
     }
 
     const resumeId = String(route.query?.session || '').trim()
