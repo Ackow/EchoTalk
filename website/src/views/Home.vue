@@ -10,7 +10,12 @@
             集 <strong>1v1 沉浸式语音对话</strong>、<strong>1vN 多角色群面与辩论</strong>、<strong>四六级听力工作室</strong>、<strong>Hybrid + LightRAG 知识图谱</strong> 与 <strong>SM-2 间隔复习</strong> 于一体。支持按需切换的每日免费额度池，让练习轻松无压力。
           </p>
           <div class="hero-actions">
-            <router-link to="/pricing" class="btn-primary">查看订阅方案</router-link>
+            <button type="button" class="btn-primary" @click="handleDownload">
+              {{ downloadBtnText }}
+            </button>
+            <button type="button" class="btn-secondary" @click="handleOpenApp">
+              打开本机 APP
+            </button>
             <router-link to="/features" class="btn-secondary">探索核心特性</router-link>
           </div>
           <div class="hero-trust">
@@ -134,12 +139,40 @@
         </div>
       </div>
     </section>
+    <DownloadModal v-model:notice="dlNotice" :open="dlOpen" @close="dlOpen = false" />
   </div>
 </template>
 
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
+import DownloadModal from '../components/DownloadModal.vue'
 import EchoCreditIcon from '../components/EchoCreditIcon.vue'
+import { detectClientTarget, openLocalApp, triggerAutoDownload } from '../utils/clientDownload.js'
+
+const dlOpen = ref(false)
+const dlNotice = ref('')
+const downloadBtnText = ref('下载桌面客户端')
+
+async function handleDownload() {
+  const { target } = await triggerAutoDownload()
+  if (target.key === 'other') {
+    dlOpen.value = true
+  }
+}
+
+function handleOpenApp() {
+  openLocalApp(() => {
+    dlNotice.value = '未检测到本机已安装的 EchoTalk 客户端，请先下载安装。'
+    dlOpen.value = true
+  })
+}
+
+onMounted(async () => {
+  const target = await detectClientTarget()
+  if (target.key !== 'other') {
+    downloadBtnText.value = `下载 ${target.shortLabel}`
+  }
+})
 
 const activePreview = ref('home')
 const previewTabs = [

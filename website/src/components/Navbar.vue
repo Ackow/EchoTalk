@@ -12,9 +12,42 @@
       <router-link to="/community">场景社区</router-link>
       <router-link to="/docs">产品文档</router-link>
     </div>
-    <a class="nav-cta" href="https://github.com/Ackow/EchoTalk/releases" target="_blank">下载桌面端</a>
+    <div class="nav-actions">
+      <button type="button" class="nav-open-btn" @click="handleOpenApp">打开本机 APP</button>
+      <button type="button" class="nav-cta" @click="openDownload">{{ downloadLabel }}</button>
+    </div>
   </nav>
+  <DownloadModal v-model:notice="dlNotice" :open="dlOpen" @close="dlOpen = false" />
 </template>
+
+<script setup>
+import { onMounted, ref } from 'vue'
+import DownloadModal from './DownloadModal.vue'
+import { detectClientTarget, openLocalApp } from '../utils/clientDownload.js'
+
+const dlOpen = ref(false)
+const dlNotice = ref('')
+const downloadLabel = ref('下载客户端')
+
+function openDownload() {
+  dlNotice.value = ''
+  dlOpen.value = true
+}
+
+function handleOpenApp() {
+  openLocalApp(() => {
+    dlNotice.value = '未检测到本机已安装的 EchoTalk，请先下载对应系统的安装包。'
+    dlOpen.value = true
+  })
+}
+
+onMounted(async () => {
+  const target = await detectClientTarget()
+  if (target.key !== 'other') {
+    downloadLabel.value = `下载 ${target.shortLabel}`
+  }
+})
+</script>
 
 <style scoped>
 .navbar {
@@ -70,6 +103,30 @@
   color: var(--primary-ink);
   border-bottom-color: var(--primary);
 }
+.nav-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.nav-open-btn {
+  display: inline-flex;
+  align-items: center;
+  padding: 8px 14px;
+  border-radius: 11px;
+  font-size: 13px;
+  font-weight: 650;
+  background: #ffffff;
+  border: 1.5px solid #e6e1f2;
+  border-bottom: 3px solid #ddd6ec;
+  color: #5a5572;
+  cursor: pointer;
+  transition: transform 0.15s, background 0.15s;
+}
+.nav-open-btn:hover {
+  background: #f5f2ff;
+  color: var(--primary-ink);
+  transform: translateY(-1px);
+}
 .nav-cta {
   display: inline-flex;
   align-items: center;
@@ -81,6 +138,7 @@
   border: 1.5px solid #8067d1;
   border-bottom: 3px solid var(--primary-deep);
   color: #ffffff;
+  cursor: pointer;
   transition: transform 0.15s, background 0.15s;
 }
 .nav-cta:hover {
@@ -90,5 +148,6 @@
 @media (max-width: 860px) {
   .navbar { padding: 0 20px; }
   .nav-links { display: none; }
+  .nav-open-btn { display: none; }
 }
 </style>

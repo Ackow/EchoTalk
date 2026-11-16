@@ -228,35 +228,64 @@ uv run python init_db.py
 
 **迁移旧数据（可选）**：如果本地 MySQL 里已有数据，先在本地导出再导入云端：
 
-root@iZbp18ynntkrbwzej1vb81Z:~~# sudo adduser deploy  
-New password:  
-Retype new password:  
-Sorry, passwords do not match.  
-passwd: Authentication token manipulation error  
-passwd: password unchanged  
-warn: \`/bin/passwd deploy' failed with status 10. Continuing.  
-warn: wrong password given or password retyped incorrectly  
-Try again? [y/N] y  
-New password:  
-Retype new password:  
-passwd: password updated successfully  
-Changing the user information for deploy  
-Enter the new value, or press ENTER for the default  
-Full Name []:  
-Room Number []:  
-Work Phone []:  
-Home Phone []:  
-Other []:  
-Is the information correct? [Y/n]  
-root@iZbp18ynntkrbwzej1vb81Z:~~# sudo usermod -aG sudo deploy  
-root@iZbp18ynntkrbwzej1vb81Z:~~# sudo ufw allow OpenSSH  
-sudo ufw allow 80/tcp  
-sudo ufw allow 443/tcp  
-sudo ufw enable  
-sudo ufw statusRules updated  
-Rules updated (v6)  
-root@iZbp18ynntkrbwzej1vb81Z:~~# sudo apt install mysql-server -y  
-Error: Unable to locate package mysql-server  
+root@iZbp18ynntkrbwzej1vb81Z:~~# sudo adduser deploy
+
+New password:
+
+Retype new password:
+
+Sorry, passwords do not match.
+
+passwd: Authentication token manipulation error
+
+passwd: password unchanged
+
+warn: \`/bin/passwd deploy' failed with status 10. Continuing.
+
+warn: wrong password given or password retyped incorrectly
+
+Try again? [y/N] y
+
+New password:
+
+Retype new password:
+
+passwd: password updated successfully
+
+Changing the user information for deploy
+
+Enter the new value, or press ENTER for the default
+
+Full Name []:
+
+Room Number []:
+
+Work Phone []:
+
+Home Phone []:
+
+Other []:
+
+Is the information correct? [Y/n]
+
+root@iZbp18ynntkrbwzej1vb81Z:~~# sudo usermod -aG sudo deploy
+
+root@iZbp18ynntkrbwzej1vb81Z:~~# sudo ufw allow OpenSSH
+
+sudo ufw allow 80/tcp
+
+sudo ufw allow 443/tcp
+
+sudo ufw enable
+
+sudo ufw statusRules updated
+
+Rules updated (v6)
+
+root@iZbp18ynntkrbwzej1vb81Z:~~# sudo apt install mysql-server -y
+
+Error: Unable to locate package mysql-server
+
 root@iZbp18ynntkrbwzej1vb81Z:~#
 
 ---

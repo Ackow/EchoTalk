@@ -9,7 +9,9 @@
     "preview": "vite preview",
     "electron:start": "electron .",
     "electron:dev": "concurrently -k \"npm run dev\" \"wait-on http://127.0.0.1:5173 && npm run electron:start\"",
-    "pack": "npm run build && electron-builder"
+    "pack": "npm run build && electron-builder",
+    "pack:mac": "npm run build && electron-builder --mac",
+    "pack:win": "npm run build && electron-builder --win"
   },
   "dependencies": {
     "@milkdown/kit": "^7.22.2",
@@ -33,16 +35,53 @@
     "directories": {
       "output": "dist_electron"
     },
+    "protocols": [
+      {
+        "name": "EchoTalk",
+        "schemes": [
+          "echotalk"
+        ]
+      }
+    ],
     "files": [
       "dist/**/*",
       "electron/**/*",
       "package.json"
     ],
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "Ackow",
+        "repo": "EchoTalk"
+      }
+    ],
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        }
+      ],
+      "icon": "public/app-icon.png",
+      "category": "public.app-category.education",
+      "artifactName": "EchoTalk-${version}-mac-${arch}.${ext}"
+    },
     "win": {
       "target": [
         "nsis"
       ],
-      "icon": "public/favicon.ico"
+      "icon": "public/favicon.ico",
+      "artifactName": "EchoTalk-${version}-win-${arch}.${ext}"
     },
     "nsis": {
       "oneClick": false,

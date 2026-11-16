@@ -2,6 +2,7 @@
 import { onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { batchDeleteUsers, createUser, deleteUser, fetchRegistrationSetting, fetchUsers, grantUserSaas, updateRegistrationSetting, updateUser } from '../api/admin'
+import { apiUrl } from '../api/http'
 import { adminSession } from '../auth/session'
 
 const loading = ref(false)
@@ -237,7 +238,7 @@ onMounted(() => {
       <el-table-column label="用户名" min-width="160">
         <template #default="{ row }">
           <div style="display: flex; align-items: center; gap: 10px">
-            <el-avatar :size="30" :src="row.avatar_path ? `/api/auth/avatar/${row.id}` : ''">
+            <el-avatar :size="30" :src="row.avatar_path ? apiUrl(`/api/auth/avatar/${row.id}`) : ''">
               {{ row.username[0]?.toUpperCase() }}
             </el-avatar>
             <span>{{ row.username }}</span>

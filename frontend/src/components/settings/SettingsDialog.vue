@@ -140,15 +140,46 @@
                 <h3>EchoTalk <em>2.0</em></h3>
                 <p>英语情景对话与 AI 陪练</p>
               </div>
-              <span class="about-state"><i></i>已是最新版本</span>
+              <span class="about-state" :class="{ warn: updateState.status === 'available' }">
+                <i></i>{{ updateBadgeText }}
+              </span>
             </div>
 
             <dl class="about-grid">
-              <div><dt>版本号</dt><dd>2.0.0</dd></div>
-              <div><dt>构建日期</dt><dd>2026年11月12日</dd></div>
+              <div><dt>版本号</dt><dd>{{ appVersion }}</dd></div>
+              <div><dt>构建日期</dt><dd>2026年11月16日</dd></div>
               <div><dt>版本类型</dt><dd>正式版</dd></div>
               <div><dt>适用平台</dt><dd>macOS · Windows</dd></div>
             </dl>
+
+            <div v-if="isDesktop" class="update-bar">
+              <div class="update-bar-copy">
+                <b v-if="updateState.status === 'available'">发现新版本 v{{ updateState.latestVersion }}</b>
+                <b v-else-if="updateState.status === 'error'">检查更新失败</b>
+                <b v-else>版本更新检测</b>
+                <small v-if="updateState.status === 'available'">{{ updateState.releaseName || '包含功能优化与问题修复' }}</small>
+                <small v-else-if="updateState.status === 'error'">{{ updateState.message || '请检查网络连接后重试' }}</small>
+                <small v-else>自动检测 GitHub Releases 最新桌面端版本</small>
+              </div>
+              <div class="update-bar-actions">
+                <button
+                  v-if="updateState.status === 'available'"
+                  class="primary-button slim"
+                  type="button"
+                  @click="downloadLatest"
+                >
+                  下载 v{{ updateState.latestVersion }}
+                </button>
+                <button
+                  class="ghost-button"
+                  type="button"
+                  :disabled="checkingUpdate"
+                  @click="runUpdateCheck"
+                >
+                  {{ checkingUpdate ? '检查中…' : '检查更新' }}
+                </button>
+              </div>
+            </div>
 
             <div class="about-updates">
               <b>本版更新</b>
@@ -201,6 +232,42 @@ const uploading = ref(false)
 const avatarError = ref('')
 const loggingOut = ref(false)
 const logoutError = ref('')
+const isDesktop = Boolean(window.electronAPI?.checkForUpdates)
+const appVersion = ref('2.0.0')
+const checkingUpdate = ref(false)
+const updateState = reactive({ status: 'idle', latestVersion: '', releaseName: '', downloadUrl: '', releaseUrl: '', message: '' })
+
+const updateBadgeText = computed(() => {
+  if (checkingUpdate.value) return '正在检查…'
+  if (updateState.status === 'available') return `有新版本 v${updateState.latestVersion}`
+  if (updateState.status === 'error') return '检查失败'
+  return '已是最新版本'
+})
+
+async function runUpdateCheck() {
+  if (!window.electronAPI?.checkForUpdates || checkingUpdate.value) return
+  checkingUpdate.value = true
+  try {
+    const res = await window.electronAPI.checkForUpdates()
+    Object.assign(updateState, {
+      status: res?.status || 'latest',
+      latestVersion: res?.latestVersion || '',
+      releaseName: res?.releaseName || '',
+      downloadUrl: res?.downloadUrl || '',
+      releaseUrl: res?.releaseUrl || '',
+      message: res?.message || '',
+    })
+  } finally {
+    checkingUpdate.value = false
+  }
+}
+
+function downloadLatest() {
+  const url = updateState.downloadUrl || updateState.releaseUrl
+  if (!url) return
+  if (window.electronAPI?.openExternal) window.electronAPI.openExternal(url)
+  else window.open(url, '_blank')
+}
 
 const pad = (value) => String(value).padStart(2, '0')
 // 后端为北京时间 naive：直接按本地时区解析
@@ -227,9 +294,14 @@ const joinedDays = computed(() => {
 function onKeydown(event) {
   if (event.key === 'Escape') emit('close') // 弹窗惯例：Esc 关闭
 }
-onMounted(() => {
+onMounted(async () => {
   window.addEventListener('keydown', onKeydown)
   panel.value?.focus({ preventScroll: true }) // 焦点移到弹窗本身：键盘可达，又不给关闭按钮留焦点框
+  if (window.electronAPI?.getAppVersion) {
+    try {
+      appVersion.value = await window.electronAPI.getAppVersion()
+    } catch { /* ignore */ }
+  }
 })
 onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
 
@@ -449,6 +521,13 @@ async function doLogout() {
 .about-hero { display: flex; align-items: center; gap: 14px; padding-bottom: 18px; border-bottom: 1px solid #f2eff8; }
 .about-state { display: inline-flex; align-items: center; gap: 6px; margin-left: auto; padding: 4px 10px; border: 1px solid #d8ece1; border-radius: 999px; background: #f2f8f4; color: #2f7d5f; font-size: 11.5px; font-weight: 600; white-space: nowrap; }
 .about-state i { width: 6px; height: 6px; border-radius: 50%; background: #3f9e78; }
+.about-state.warn { border-color: #f4d8be; background: #fff6ee; color: #c46a24; }
+.about-state.warn i { background: #e08234; }
+.update-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 18px; padding: 12px 14px; border: 1px solid #ece7f7; border-radius: 13px; background: #faf9fd; }
+.update-bar-copy { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.update-bar-copy b { font-size: 13px; color: #35304e; }
+.update-bar-copy small { font-size: 12px; color: #76718c; }
+.update-bar-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
 .about-mark { display: grid; width: 56px; height: 56px; flex: 0 0 56px; place-items: center; overflow: hidden; border-radius: 16px; background: #f5f1ff; box-shadow: inset 0 0 0 1.5px #ebe4fb; }
 .about-mark img { width: 100%; height: 100%; object-fit: contain; transform: scale(1.2); }
 .about-name h3 { display: flex; align-items: center; gap: 7px; margin: 0; color: #332f4b; font-size: 17px; font-weight: 800; letter-spacing: -.01em; }
