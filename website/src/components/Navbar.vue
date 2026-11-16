@@ -88,7 +88,8 @@ onMounted(async () => {
 }
 .nav-links {
   display: flex;
-  gap: 28px;
+  gap: 22px;
+  white-space: nowrap;
 }
 .nav-links a {
   font-size: 14.5px;
@@ -96,6 +97,7 @@ onMounted(async () => {
   color: var(--text-muted);
   padding: 6px 2px;
   border-bottom: 2px solid transparent;
+  white-space: nowrap;
   transition: color 0.15s, border-color 0.15s;
 }
 .nav-links a:hover,
@@ -106,12 +108,13 @@ onMounted(async () => {
 .nav-actions {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
+  flex-shrink: 0;
 }
 .nav-open-btn {
   display: inline-flex;
   align-items: center;
-  padding: 8px 14px;
+  padding: 8px 12px;
   border-radius: 11px;
   font-size: 13px;
   font-weight: 650;
@@ -119,6 +122,7 @@ onMounted(async () => {
   border: 1.5px solid #e6e1f2;
   border-bottom: 3px solid #ddd6ec;
   color: #5a5572;
+  white-space: nowrap;
   cursor: pointer;
   transition: transform 0.15s, background 0.15s;
 }
@@ -130,14 +134,15 @@ onMounted(async () => {
 .nav-cta {
   display: inline-flex;
   align-items: center;
-  padding: 8px 18px;
+  padding: 8px 15px;
   border-radius: 11px;
-  font-size: 13.5px;
+  font-size: 13px;
   font-weight: 700;
   background: var(--primary);
   border: 1.5px solid #8067d1;
   border-bottom: 3px solid var(--primary-deep);
   color: #ffffff;
+  white-space: nowrap;
   cursor: pointer;
   transition: transform 0.15s, background 0.15s;
 }

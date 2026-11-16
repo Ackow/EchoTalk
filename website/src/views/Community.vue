@@ -218,7 +218,9 @@ async function loadFromBackend() {
           modeTone: s.mode === 'interview' ? 'mint' : 'purple',
           tier: tier === 'ENTERPRISE' ? 'ENT' : tier,
           tierClass: `tier-${(s.required_tier || 'free').toLowerCase()}`,
-          cover: s.cover_path ? apiUrl(`/api/scenes/${s.id}/cover`) : (s.source === 'builtin' ? `/images/covers/${s.id}.png` : ''),
+          cover: s.source === 'builtin'
+            ? `/images/covers/${s.id}.png`
+            : (s.cover_path ? apiUrl(`/api/scenes/${s.id}/cover`) : ''),
           tags: [CAT_MAP[s.category] || '场景', `${s.knowledge_count || 0} 份资料`],
           raw: s,
         })
@@ -242,7 +244,9 @@ async function loadFromBackend() {
           modeTone: 'amber',
           tier: tier === 'ENTERPRISE' ? 'ENT' : tier,
           tierClass: `tier-${(d.required_tier || 'free').toLowerCase()}`,
-          cover: apiUrl(d.coverUrl || `/api/debate/topics/${d.id}/cover`),
+          cover: d.isBuiltin
+            ? `/images/covers/${d.id}.png`
+            : apiUrl(d.coverUrl || `/api/debate/topics/${d.id}/cover`),
           tags: [d.sceneType === 'panel' ? '群面委员会' : '辩论对抗', `${(d.rolesConfig || []).length || 3} 位角色`],
           raw: d,
         })
