@@ -20,8 +20,39 @@
 核心原则：
 
 - **数据库绝不对公网开放**。API 与 MySQL 同机，MySQL 只监听 `127.0.0.1`，外部只能通过 API 访问数据。
-- **API 只监听 `127.0.0.1`**，对外统一走 Nginx 的 80/443，由 Nginx 负责 HTTPS。
+- **API 只监听 `127.0.0.1`**，对外统一走 Nginx 或 Cloudflare Tunnel，由其负责 HTTPS。
 - 依赖用 **uv** 按 `uv.lock` 精确安装，Python 3.12 由 uv 自行管理（Ubuntu 26.04 自带的 Python 是 3.13，不满足项目 `>=3.12,<3.13` 的要求）。
+
+---
+
+## 快捷入口：一键部署 & 已部署服务器更新
+
+### 1. 全新服务器：交互式一键部署
+
+把下方命令复制到新服务器即可按提示一步步自动完成（Swap、防火墙、MySQL、拉代码、`.env`、初始化、systemd、Cloudflare Tunnel / Nginx）：
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Ackow/EchoTalk/main/backend/deploy/install.sh -o install.sh
+sudo bash install.sh
+```
+
+### 2. 已经部署过一次：如何更新
+
+- **日常代码更新**（自动备份 → 拉代码 → 同步依赖 → 建表/种子 → 重启 → 健康检查）：
+  ```bash
+  bash /opt/echotalk/backend/deploy/update.sh
+  ```
+- **如果本次更新改动了 `echotalk-backend.service`**（例如升级到由 `start-backend.sh` 统一读取 `.env` 端口的新版服务配置），需先同步一次 service 副本：
+  ```bash
+  cd /opt/echotalk && git pull --ff-only
+  sudo cp /opt/echotalk/backend/deploy/echotalk-backend.service /etc/systemd/system/
+  sudo systemctl daemon-reload
+  bash /opt/echotalk/backend/deploy/update.sh
+  ```
+- **在已部署的服务器上补装 Cloudflare Tunnel（免备案 HTTPS）**：
+  ```bash
+  CF_TUNNEL_TOKEN="你的Tunnel_Token" sudo -E bash /opt/echotalk/backend/deploy/setup-tunnel.sh
+  ```
 
 ---
 
@@ -396,12 +427,15 @@ bash /opt/echotalk/backend/deploy/update.sh
 
 脚本行为：
 
-1. 更新前自动备份数据库（mysqldump + gzip）和 `storage/` 文件（tar + gzip）到 `/opt/echotalk/backups/`，自动清理 14 天前的旧备份
-2. `git pull --ff-only` 拉取最新代码（有未推送的分叉会安全终止，不会静默合并）
-3. `uv sync` 按 `uv.lock` 同步依赖
-4. `uv run python init_db.py`（幂等：新建缺失的表、同步内置场景包种子，已有数据不受影响）
-5. 重启 systemd 服务，并轮询 `/api/ready` 做健康检查
-6. 失败时给出日志查看命令和回滚提示
+1. 自动从 `backend/.env` 读取 `ECHOTALK_DB_*` 与 `ECHOTALK_API_PORT`（不再硬编码 8000 / 3306）
+2. 更新前自动备份数据库（mysqldump + gzip）和 `storage/` 文件（tar + gzip）到 `/opt/echotalk/backups/`，自动清理 14 天前的旧备份
+3. `git pull --ff-only` 拉取最新代码（有未推送的分叉会安全终止，不会静默合并）
+4. `uv sync` 按 `uv.lock` 同步依赖
+5. `uv run python init_db.py`（幂等：新建缺失的表、同步内置场景包种子，已有数据不受影响）
+6. 重启 systemd 服务，并轮询 `127.0.0.1:${ECHOTALK_API_PORT}/api/ready` 做健康检查（若启用了 `cloudflared` 也会一并检查）
+7. 失败时给出日志查看命令和回滚提示
+
+> 注意：如果 `deploy/echotalk-backend.service` 本身有更新（系统里的是副本），先执行一次 `sudo cp /opt/echotalk/backend/deploy/echotalk-backend.service /etc/systemd/system/ && sudo systemctl daemon-reload`。
 
 本地开发机推代码后，SSH 到服务器跑这一条命令即可完成发布。
 

@@ -35,7 +35,8 @@ echo "==> [1/6] 更新前备份（数据库 + storage 文件）"
 mkdir -p "$BACKUP_DIR"
 # 数据库备份（读取 .env 中的连接信息，避免明文出现在命令行）
 DB_PASSWORD="$(get_env ECHOTALK_DB_PASSWORD '')"
-mysqldump -h "$DB_HOST" -P "$DB_PORT" -u "$DB_USER" -p"$DB_PASSWORD" --single-transaction "$DB_NAME" \
+MYSQL_PWD="$DB_PASSWORD" mysqldump -h "$DB_HOST" -P "$DB_PORT" -u "$DB_USER" \
+  --single-transaction --no-tablespaces "$DB_NAME" \
   | gzip > "$BACKUP_DIR/db-$STAMP.sql.gz"
 # 文件存储备份（场景封面/知识资料等落盘文件）
 if [ -d "$BACKEND_DIR/storage" ]; then
