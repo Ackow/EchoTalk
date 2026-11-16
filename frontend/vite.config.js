@@ -9,8 +9,9 @@ export default defineConfig(({ mode }) => {
   if (mode === 'production' && !configuredApi) {
     throw new Error('正式构建前请在 frontend/.env.production.local 配置云端 VITE_API_BASE_URL')
   }
-  if (mode === 'production' && new URL(configuredApi).protocol !== 'https:') {
-    throw new Error('正式构建的 VITE_API_BASE_URL 必须使用 HTTPS')
+  const allowHttp = env.VITE_ALLOW_HTTP === '1' || env.VITE_ALLOW_HTTP === 'true'
+  if (mode === 'production' && !allowHttp && new URL(configuredApi).protocol !== 'https:') {
+    throw new Error('正式构建的 VITE_API_BASE_URL 必须使用 HTTPS（若国内未备案直连 IP，请设置 VITE_ALLOW_HTTP=1）')
   }
   const apiBaseUrl = configuredApi || 'http://127.0.0.1:8000'
   const apiOrigin = new URL(apiBaseUrl).origin
