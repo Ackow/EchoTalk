@@ -9,9 +9,23 @@
 ![MySQL](https://img.shields.io/badge/MySQL-8.0-4479A1?logo=mysql&logoColor=white)
 ![License](https://img.shields.io/badge/License-MIT-green)
 
-**EchoTalk 2.0** 是一个面向真实语境的 **AI 英语听说实训与自适应学习平台**（支持 Web 端、Electron 桌面客户端与独立 Admin 运营后台）。
+**EchoTalk 2.0** 是一个面向真实语境的 **AI 英语听说实训与自适应学习平台**，包含 Web 学习端、Electron 桌面客户端、独立运营后台和产品官网。
 
 项目围绕 **“学 — 练 — 测 — 评 — 复习”** 完整闭环构建：底层基于 **FastAPI + LangChain / LangGraph** 实现受控状态机对话 Agent，结合 **声明式场景包（`ScenePackage v2`）与 AST 安全表达式引擎** 驱动多阶段任务流转；知识层融合 **Hybrid RAG（MySQL `ngram` 全文 + `bge-m3` 向量 + RRF 重排）** 与 **LightRAG 实体关系图谱**；多模态交互层打通 **WebAudio 本地采样、腾讯云 Flash ASR、SSE 流式分句并发 TTS、科大讯飞 ISE 流式口语评测与程序化 2D 数字人实时口型驱动**，并配套 **多角色辩论工作台、听力/四六级工作室、SM-2 间隔重复复习与 Token 成本监控后台**。
+
+## 多端实机截图
+
+点击截图可查看原图。管理后台展示本地演示数据。
+
+| Electron 桌面客户端 · 语音对话 | Web 学习端 · 场景探索 |
+| :--- | :--- |
+| [![macOS 桌面客户端的咖啡厅点餐练习](website/public/images/shots/practice.jpg)](website/public/images/shots/practice.jpg) | [![Web 学习端的场景卡片与分类筛选](docs/screenshots/web-scenes.jpg)](docs/screenshots/web-scenes.jpg) |
+| 在 macOS 客户端与 AI 咖啡师对话、回听语音，并查看点单任务进度。 | 在浏览器中筛选场景分类、按难度排序，选择购票、改签或面试等口语练习。 |
+
+| 运营管理后台 · 数据概览 | 产品官网 · 首页 |
+| :--- | :--- |
+| [![运营管理后台的数据概览与管理菜单](docs/screenshots/admin-dashboard.jpg)](docs/screenshots/admin-dashboard.jpg) | [![产品官网首页的功能预览和客户端下载入口](docs/screenshots/website-home.jpg)](docs/screenshots/website-home.jpg) |
+| 查看用户、场景包和会话统计，并进入内容管理、订阅配额及 Token 用量页面。 | 预览练习功能、下载桌面客户端，以及进入场景社区和产品文档。 |
 
 ---
 

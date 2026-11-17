@@ -193,6 +193,10 @@ const gallery = [
 .gallery-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
 .gallery-card { overflow: hidden; transition: transform 0.16s; }
 .gallery-card:hover { transform: translateY(-3px); }
+@media (prefers-reduced-motion: reduce) {
+  .cap-card, .gallery-card { transition: none; }
+  .cap-card:hover, .gallery-card:hover { transform: none; }
+}
 .cover-wrap { position: relative; height: 148px; background: #f3eeff; }
 .cover-wrap img { width: 100%; height: 100%; object-fit: cover; }
 .mode-tag { position: absolute; top: 10px; left: 10px; padding: 3px 9px; border-radius: 999px; font-size: 10.5px; font-weight: 800; background: rgba(255, 255, 255, 0.94); }

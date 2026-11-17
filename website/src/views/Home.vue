@@ -13,9 +13,6 @@
             <button type="button" class="btn-primary" @click="handleDownload">
               {{ downloadBtnText }}
             </button>
-            <button type="button" class="btn-secondary" @click="handleOpenApp">
-              打开本机 APP
-            </button>
             <router-link to="/features" class="btn-secondary">探索核心特性</router-link>
           </div>
           <div class="hero-trust">
@@ -35,6 +32,7 @@
               :key="tab.key"
               type="button"
               :class="{ active: activePreview === tab.key }"
+              :aria-pressed="activePreview === tab.key"
               @click="activePreview = tab.key"
             >
               {{ tab.label }}
@@ -44,7 +42,11 @@
           <div class="mac-window">
             <div class="mac-body">
               <div class="preview-pane">
-                <img :src="currentPreview.src" :alt="currentPreview.label" class="real-shot" />
+                <div class="shot-frame">
+                  <Transition name="shot">
+                    <img :key="currentPreview.key" :src="currentPreview.src" :alt="currentPreview.label" class="real-shot" width="1024" height="664" />
+                  </Transition>
+                </div>
                 <div class="shot-caption">
                   <span>{{ currentPreview.caption }}</span>
                 </div>
@@ -147,7 +149,7 @@
 import { computed, onMounted, ref } from 'vue'
 import DownloadModal from '../components/DownloadModal.vue'
 import EchoCreditIcon from '../components/EchoCreditIcon.vue'
-import { detectClientTarget, openLocalApp, triggerAutoDownload } from '../utils/clientDownload.js'
+import { detectClientTarget, triggerAutoDownload } from '../utils/clientDownload.js'
 
 const dlOpen = ref(false)
 const dlNotice = ref('')
@@ -158,13 +160,6 @@ async function handleDownload() {
   if (target.key === 'other') {
     dlOpen.value = true
   }
-}
-
-function handleOpenApp() {
-  openLocalApp(() => {
-    dlNotice.value = '未检测到本机已安装的 EchoTalk 客户端，请先下载安装。'
-    dlOpen.value = true
-  })
 }
 
 onMounted(async () => {
@@ -218,6 +213,9 @@ const currentPreview = computed(() => previewTabs.find((t) => t.key === activePr
 .preview-switcher {
   display: inline-flex;
   align-self: center;
+  max-width: 100%;
+  flex-wrap: wrap;
+  justify-content: center;
   gap: 4px;
   padding: 4px;
   border-radius: 12px;
@@ -277,8 +275,12 @@ const currentPreview = computed(() => previewTabs.find((t) => t.key === activePr
   box-shadow: 0 18px 42px rgba(85, 68, 140, 0.1);
 }
 .mac-body { background: #ffffff; }
-.real-shot { width: 100%; height: auto; display: block; }
-.zigzag-shot { width: 100%; border-radius: 12px; display: block; }
+.shot-frame { position: relative; aspect-ratio: 1024 / 664; overflow: hidden; background: var(--surface-soft); }
+.real-shot { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; display: block; }
+.shot-enter-active, .shot-leave-active { transition: opacity .3s ease, transform .35s ease; }
+.shot-enter-from { opacity: 0; transform: translateY(6px); }
+.shot-leave-to { opacity: 0; transform: translateY(-6px); }
+.zigzag-shot { width: 100%; height: auto; border-radius: 12px; display: block; }
 .shot-caption { padding: 9px 14px; font-size: 12px; color: var(--text-muted); background: #faf9fd; border-top: 1px solid #efecf7; text-align: center; }
 
 .sim-panel { padding: 20px; display: flex; flex-direction: column; gap: 16px; }
@@ -321,6 +323,19 @@ const currentPreview = computed(() => previewTabs.find((t) => t.key === activePr
   padding: 18px;
   text-align: center;
 }
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  .mac-window, .metric-item, .zigzag-visual {
+    transition: transform .3s ease, box-shadow .3s ease;
+  }
+  .mac-window:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 24px 48px rgba(85, 68, 140, 0.16);
+  }
+  .metric-item:hover, .zigzag-visual:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 12px 24px rgba(85, 68, 140, 0.1);
+  }
+}
 .metric-item strong { display: block; font-size: 18px; color: var(--primary-ink); margin-bottom: 4px; }
 .metric-item span { font-size: 12.5px; color: var(--text-muted); }
 
@@ -350,7 +365,7 @@ const currentPreview = computed(() => previewTabs.find((t) => t.key === activePr
 .cta-card { padding: 30px 34px; display: flex; justify-content: space-between; align-items: center; gap: 20px; flex-wrap: wrap; background: linear-gradient(135deg, #f5f1ff 0%, #ffffff 70%); }
 .cta-card h2 { font-size: 22px; margin-bottom: 4px; }
 .cta-card p { font-size: 14px; color: var(--text-muted); }
-.cta-btns { display: flex; gap: 12px; }
+.cta-btns { display: flex; gap: 12px; flex-wrap: wrap; }
 
 .fade-in-up { animation: fadeInUp 0.55s ease both; }
 .delay-1 { animation-delay: 0.12s; }
@@ -359,5 +374,14 @@ const currentPreview = computed(() => previewTabs.find((t) => t.key === activePr
 @media (max-width: 960px) {
   .hero-grid, .metrics-strip, .zigzag-row { grid-template-columns: 1fr; }
   .zigzag-row.reverse .zigzag-copy { order: 0; }
+}
+@media (max-width: 540px) {
+  .preview-switcher button { padding: 6px 8px; }
+  .cta-card { padding: 24px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .fade-in-up, .float-badge.static, .wave-bars span { animation: none; }
+  .shot-enter-active, .shot-leave-active { transition: none; }
+  .shot-enter-from, .shot-leave-to { transform: none; }
 }
 </style>

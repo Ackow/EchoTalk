@@ -13,7 +13,6 @@
       <router-link to="/docs">产品文档</router-link>
     </div>
     <div class="nav-actions">
-      <button type="button" class="nav-open-btn" @click="handleOpenApp">打开本机 APP</button>
       <button type="button" class="nav-cta" @click="openDownload">{{ downloadLabel }}</button>
     </div>
   </nav>
@@ -23,7 +22,7 @@
 <script setup>
 import { onMounted, ref } from 'vue'
 import DownloadModal from './DownloadModal.vue'
-import { detectClientTarget, openLocalApp } from '../utils/clientDownload.js'
+import { detectClientTarget } from '../utils/clientDownload.js'
 
 const dlOpen = ref(false)
 const dlNotice = ref('')
@@ -32,13 +31,6 @@ const downloadLabel = ref('下载客户端')
 function openDownload() {
   dlNotice.value = ''
   dlOpen.value = true
-}
-
-function handleOpenApp() {
-  openLocalApp(() => {
-    dlNotice.value = '未检测到本机已安装的 EchoTalk，请先下载对应系统的安装包。'
-    dlOpen.value = true
-  })
 }
 
 onMounted(async () => {
@@ -111,26 +103,6 @@ onMounted(async () => {
   gap: 8px;
   flex-shrink: 0;
 }
-.nav-open-btn {
-  display: inline-flex;
-  align-items: center;
-  padding: 8px 12px;
-  border-radius: 11px;
-  font-size: 13px;
-  font-weight: 650;
-  background: #ffffff;
-  border: 1.5px solid #e6e1f2;
-  border-bottom: 3px solid #ddd6ec;
-  color: #5a5572;
-  white-space: nowrap;
-  cursor: pointer;
-  transition: transform 0.15s, background 0.15s;
-}
-.nav-open-btn:hover {
-  background: #f5f2ff;
-  color: var(--primary-ink);
-  transform: translateY(-1px);
-}
 .nav-cta {
   display: inline-flex;
   align-items: center;
@@ -153,6 +125,5 @@ onMounted(async () => {
 @media (max-width: 860px) {
   .navbar { padding: 0 20px; }
   .nav-links { display: none; }
-  .nav-open-btn { display: none; }
 }
 </style>

@@ -112,3 +112,10 @@ img { max-width: 100%; display: block; }
   border-color: #d6ccf0;
   transform: translateY(-2px);
 }
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  .page-fade-enter-active, .page-fade-leave-active { transition: none; }
+  .btn-primary, .btn-secondary { transition: none; }
+  .btn-primary:hover, .btn-primary:active, .btn-secondary:hover { transform: none; }
+}

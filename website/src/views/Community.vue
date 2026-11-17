@@ -307,6 +307,10 @@ onMounted(loadFromBackend)
 .pack-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; margin-bottom: 48px; }
 .pack-card { overflow: hidden; display: flex; flex-direction: column; cursor: pointer; transition: transform 0.16s; }
 .pack-card:hover { transform: translateY(-3px); }
+@media (prefers-reduced-motion: reduce) {
+  .pack-card { transition: none; }
+  .pack-card:hover { transform: none; }
+}
 .pack-cover { position: relative; height: 156px; background: #f3eeff; }
 .pack-cover img { width: 100%; height: 100%; object-fit: cover; }
 .cover-fallback { height: 100%; display: grid; place-items: center; color: var(--primary-ink); font-weight: 700; font-size: 14px; }
