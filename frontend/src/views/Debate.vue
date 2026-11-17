@@ -981,9 +981,8 @@ onMounted(async () => {
       const { data } = await listDebateTopics()
       if (Array.isArray(data?.items)) {
         const allTopics = data.items.map(normalizeTopicItem)
-        // 优先展示本人创建或已收藏的场景；新用户尚无自有/收藏时兜底展示官方内置场景
-        const curated = allTopics.filter((t) => t.isMine || t.stats?.favorited)
-        let visible = curated.length ? curated : allTopics.filter((t) => t.isBuiltin !== false)
+        // 仅展示本人创建或已收藏的场景；未收藏/未自建时严格保持为空
+        let visible = allTopics.filter((t) => t.isMine || t.stats?.favorited)
         const topicIdParam = String(route.query?.topic || '').trim()
         if (topicIdParam) {
           const foundTopic = allTopics.find((t) => t.id === topicIdParam)

@@ -1,6 +1,7 @@
 // Electron 仅承载前端窗口；开发时 FastAPI 由单独终端启动。
 const { app, BrowserWindow, ipcMain, net, shell } = require('electron')
 const path = require('path')
+const { extractHighlights } = require('./release-notes')
 
 const GITHUB_RELEASES_API = 'https://api.github.com/repos/Ackow/EchoTalk/releases/latest'
 const GITHUB_RELEASES_PAGE = 'https://github.com/Ackow/EchoTalk/releases/latest'
@@ -103,6 +104,25 @@ async function checkForUpdates() {
   }
 }
 
+async function getCurrentReleaseNotes() {
+  const version = app.getVersion()
+  try {
+    for (const tag of [`v${version}`, version]) {
+      const response = await net.fetch(`https://api.github.com/repos/Ackow/EchoTalk/releases/tags/${encodeURIComponent(tag)}`, {
+        headers: { Accept: 'application/vnd.github+json', 'User-Agent': `EchoTalk/${version}` },
+        signal: AbortSignal.timeout(8000),
+      })
+      if (response.status === 404) continue
+      if (!response.ok) throw new Error(`HTTP ${response.status}`)
+      const release = await response.json()
+      return { highlights: extractHighlights(release.body), url: `https://github.com/Ackow/EchoTalk/releases/tag/${encodeURIComponent(tag)}` }
+    }
+    return { highlights: [], url: '' }
+  } catch {
+    return { highlights: [], url: '' }
+  }
+}
+
 // 开发模式下用 F12 / Ctrl(Cmd)+Shift+I 切换开发者工具。
 // 不用全局快捷键（会抢占系统级组合键），也不用菜单角色——autoHideMenuBar 已隐藏菜单，
 // 菜单加速器在无菜单栏时并不可靠，before-input-event 直接作用于本窗口最稳。
@@ -174,6 +194,7 @@ function createWindow() {
 
 app.whenReady().then(() => {
   ipcMain.handle('get-app-version', () => app.getVersion()) // 渲染进程查询应用版本
+  ipcMain.handle('get-current-release-notes', () => getCurrentReleaseNotes())
   ipcMain.handle('check-for-updates', () => checkForUpdates())
   ipcMain.handle('open-external', (_event, url) => {
     if (typeof url === 'string' && /^https?:\/\//i.test(url)) {

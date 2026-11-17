@@ -290,7 +290,7 @@ npm run dev
 # 方式 B：Electron 桌面客户端开发模式
 npm run electron:dev
 
-# 方式 C：构建桌面端安装包 (输出至 frontend/dist_electron/)
+# 方式 C：构建桌面端安装包 (输出至 frontend/dist_electron/<版本号>/)
 npm run pack
 ```
 
@@ -322,6 +322,19 @@ uv run --locked python -m unittest discover -s tests -p 'test_*.py' -v
 * 完整部署文档：[`backend/deploy/README.md`](backend/deploy/README.md)
 * 首次服务器初始化：`bash backend/deploy/server-init.sh`
 * 日常迭代自动备份并发布：`bash backend/deploy/update.sh`
+
+桌面端发布时，将 Git 标签与 `frontend/package.json` 的版本号保持一致（例如 `v2.0.2`），并在对应 GitHub Release 的正文中填写：
+
+```markdown
+## 更新亮点
+- 优化语音对话体验
+- 修复已知问题
+
+## 其他说明
+完整的安装说明和技术细节写在这里。
+```
+
+App 的「关于」页面按当前安装版本读取「更新亮点」下最多 5 条列表，并提供完整 Release 链接。未发布 Release、未填写该小节或网络不可用时显示暂无说明。默认桌面构建目标为 macOS ARM64 和 Windows x64，分别使用 `npm run pack:mac`、`npm run pack:win`；`npm run pack:all` 尝试构建两者，跨平台打包需要相应构建环境。
 
 ---
 

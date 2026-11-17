@@ -1,6 +1,6 @@
 {
   "name": "echotalk-frontend",
-  "version": "2.0.0",
+  "version": "2.0.2",
   "description": "EchoTalk 2.0 account and workspace shell",
   "main": "electron/main.js",
   "scripts": {
@@ -10,8 +10,9 @@
     "electron:start": "electron .",
     "electron:dev": "concurrently -k \"npm run dev\" \"wait-on http://127.0.0.1:5173 && npm run electron:start\"",
     "pack": "npm run build && electron-builder",
-    "pack:mac": "npm run build && electron-builder --mac",
-    "pack:win": "npm run build && electron-builder --win"
+    "pack:mac": "npm run build && electron-builder --mac --arm64",
+    "pack:win": "npm run build && electron-builder --win --x64",
+    "pack:all": "npm run build && electron-builder --mac --win"
   },
   "dependencies": {
     "@milkdown/kit": "^7.22.2",
@@ -33,7 +34,7 @@
     "appId": "com.echotalk.app",
     "productName": "EchoTalk",
     "directories": {
-      "output": "dist_electron"
+      "output": "dist_electron/${version}"
     },
     "protocols": [
       {
@@ -60,15 +61,13 @@
         {
           "target": "dmg",
           "arch": [
-            "arm64",
-            "x64"
+            "arm64"
           ]
         },
         {
           "target": "zip",
           "arch": [
-            "arm64",
-            "x64"
+            "arm64"
           ]
         }
       ],
@@ -78,7 +77,7 @@
     },
     "win": {
       "target": [
-        "nsis"
+        { "target": "nsis", "arch": ["x64"] }
       ],
       "icon": "public/favicon.ico",
       "artifactName": "EchoTalk-${version}-win-${arch}.${ext}"

@@ -4,6 +4,7 @@ const { contextBridge, ipcRenderer } = require('electron')
 // 将安全的 Electron API 方法暴露给渲染进程 (Vue 前端)
 contextBridge.exposeInMainWorld('electronAPI', {
   getAppVersion: () => ipcRenderer.invoke('get-app-version'), // 异步获取应用版本
+  getCurrentReleaseNotes: () => ipcRenderer.invoke('get-current-release-notes'),
   checkForUpdates: () => ipcRenderer.invoke('check-for-updates'), // 检查 GitHub Releases 新版本
   openExternal: (url) => ipcRenderer.invoke('open-external', url), // 用系统浏览器打开链接
   onUpdateAvailable: (callback) => {

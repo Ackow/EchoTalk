@@ -36,6 +36,11 @@ jobs:
         working-directory: frontend
         run: npm ci
 
+      - name: Read application version
+        id: version
+        shell: bash
+        run: echo "version=$(node -p "require('./frontend/package.json').version")" >> "$GITHUB_OUTPUT"
+
       - name: Build and package Electron app
         working-directory: frontend
         env:
@@ -48,10 +53,10 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            frontend/dist_electron/*.exe
-            frontend/dist_electron/*.dmg
-            frontend/dist_electron/*.zip
-            frontend/dist_electron/*.blockmap
-            frontend/dist_electron/latest*.yml
+            frontend/dist_electron/${{ steps.version.outputs.version }}/*.exe
+            frontend/dist_electron/${{ steps.version.outputs.version }}/*.dmg
+            frontend/dist_electron/${{ steps.version.outputs.version }}/*.zip
+            frontend/dist_electron/${{ steps.version.outputs.version }}/*.blockmap
+            frontend/dist_electron/${{ steps.version.outputs.version }}/latest*.yml
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

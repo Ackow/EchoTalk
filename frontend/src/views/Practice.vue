@@ -673,11 +673,10 @@ onMounted(async () => {
     const { data } = await listScenes()
     const allScenes = data?.items || []
     allScenesList.value = allScenes
-    // 优先展示本人创建以及已收藏的场景；新用户尚无自有/收藏场景时兜底展示官方内置场景
-    const curated = allScenes.filter(
+    // 仅展示本人创建以及已收藏的场景；未收藏/未自建时严格保持为空
+    scenes.value = allScenes.filter(
       (s) => (session.user && s.author_id === session.user.id) || s.stats?.favorited
     )
-    scenes.value = curated.length ? curated : allScenes.filter((s) => s.source === 'builtin')
     const selected = route.query.scene ? allScenes.find(scene => scene.id === route.query.scene) : null
     if (selected) void chooseScene(selected)
     else if (resumeId) await resumeSession(resumeId, pendingSession) // 从历史记录进入某次会话：等恢复完成再收遮罩

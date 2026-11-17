@@ -183,11 +183,11 @@
 
             <div class="about-updates">
               <b>本版更新</b>
-              <ul>
-                <li>新增设置面板，头像、密码与侧边栏偏好集中在一处</li>
-                <li>场景包与语音对话流程重做，练习衔接更连贯</li>
-                <li>历史记录支持逐句复盘，积累常用表达</li>
+              <ul v-if="releaseHighlights.length">
+                <li v-for="(item, index) in releaseHighlights" :key="index">{{ item }}</li>
               </ul>
+              <p v-else class="release-empty">{{ releaseNotesLoading ? '正在获取更新说明…' : '暂无本版更新说明' }}</p>
+              <button v-if="releaseNotesUrl" class="release-link" type="button" @click="openReleaseNotes">查看完整更新日志</button>
             </div>
 
             <p class="about-note">面向大学生与成年人的英语口语练习工具：在真实情境中对话、复盘与积累表达，练习记录与场景资料都保存在自己的账户里。</p>
@@ -202,6 +202,7 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
+import { version as frontendVersion } from '../../../package.json'
 import AppIcon from '../AppIcon.vue'
 import UserAvatar from '../UserAvatar.vue'
 import brandImage from '../../assets/echotalk-brand.png'
@@ -233,7 +234,10 @@ const avatarError = ref('')
 const loggingOut = ref(false)
 const logoutError = ref('')
 const isDesktop = Boolean(window.electronAPI?.checkForUpdates)
-const appVersion = ref('2.0.0')
+const appVersion = ref(frontendVersion)
+const releaseHighlights = ref([])
+const releaseNotesUrl = ref('')
+const releaseNotesLoading = ref(false)
 const checkingUpdate = ref(false)
 const updateState = reactive({ status: 'idle', latestVersion: '', releaseName: '', downloadUrl: '', releaseUrl: '', message: '' })
 
@@ -269,6 +273,10 @@ function downloadLatest() {
   else window.open(url, '_blank')
 }
 
+function openReleaseNotes() {
+  if (releaseNotesUrl.value) window.electronAPI?.openExternal(releaseNotesUrl.value)
+}
+
 const pad = (value) => String(value).padStart(2, '0')
 // 后端为北京时间 naive：直接按本地时区解析
 const joinedFull = computed(() => {
@@ -299,8 +307,17 @@ onMounted(async () => {
   panel.value?.focus({ preventScroll: true }) // 焦点移到弹窗本身：键盘可达，又不给关闭按钮留焦点框
   if (window.electronAPI?.getAppVersion) {
     try {
-      appVersion.value = await window.electronAPI.getAppVersion()
+      appVersion.value = (await window.electronAPI.getAppVersion()) || frontendVersion
     } catch { /* ignore */ }
+  }
+  if (window.electronAPI?.getCurrentReleaseNotes) {
+    releaseNotesLoading.value = true
+    try {
+      const result = await window.electronAPI.getCurrentReleaseNotes()
+      releaseHighlights.value = result?.highlights || []
+      releaseNotesUrl.value = result?.url || ''
+    } catch { /* 更新说明不可用时显示空状态 */ }
+    finally { releaseNotesLoading.value = false }
   }
 })
 onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
@@ -540,6 +557,8 @@ async function doLogout() {
 .about-updates b { display: block; color: #4b4664; font-size: 12.5px; font-weight: 700; }
 .about-updates ul { margin: 8px 0 0; padding-left: 17px; color: #6f6a86; font-size: 12.5px; line-height: 1.9; }
 .about-updates li::marker { color: #b9aee0; }
+.release-empty { margin: 8px 0 0; color: #88849c; font-size: 12.5px; }
+.release-link { margin-top: 8px; padding: 0; border: 0; background: none; color: #6951b8; font: inherit; font-size: 12.5px; cursor: pointer; }
 .about-note { margin: 20px 0 0; padding: 13px 15px; border: 1px solid #f0edf8; border-radius: 13px; background: #fbf9ff; color: #6f6a86; font-size: 12.5px; line-height: 1.85; }
 .about-copy { margin: 16px 0 0; color: #a9a4b8; font-size: 11.5px; }
 
