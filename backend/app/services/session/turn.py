@@ -36,15 +36,61 @@ def _auto_detect_turn_signals(text: str, scenario_state: dict) -> None:
             scenario_state["polite_request"] = True
 
 
-def _evaluate_guardrails(package, text: str) -> list[dict]:
-    """检测场景 guardrails（keyword_tips 关键词教学提示与 min_words 词数提醒）。"""
+_CJK_RE = re.compile(r"[\u4e00-\u9fff]")
+_SMALLTALK_WORDS = {
+    "yes", "yeah", "yep", "no", "nope", "sure", "ok", "okay", "thanks", "thank",
+    "please", "sorry", "pardon", "repeat", "help", "hi", "hello", "hey", "bye",
+    "goodbye", "good", "great", "fine", "alright", "understand", "ready", "wait", "excuse",
+}
+
+
+def _collect_domain_keywords(package) -> set[str]:
+    """合并场景声明的 off_topic 领域词、state 键名与目标/阶段中的英文关键词。"""
+    kws: set[str] = set()
+    guardrails = getattr(package, "guardrails", None)
+    off_topic = getattr(guardrails, "off_topic", None) or {}
+    for w in off_topic.get("domain_keywords") or []:
+        for tok in re.findall(r"[a-z]{3,}", str(w).lower()):
+            kws.add(tok)
+    for k in (getattr(package, "state", None) or {}).keys():
+        for tok in re.findall(r"[a-z]{3,}", str(k).lower()):
+            kws.add(tok)
+    for obj in getattr(package, "objectives", None) or []:
+        for tok in re.findall(r"[a-z]{3,}", str(getattr(obj, "label", "") or "").lower()):
+            kws.add(tok)
+    for st in getattr(package, "stages", None) or []:
+        for tok in re.findall(r"[a-z]{3,}", str(getattr(st, "name", "") or "").lower()):
+            kws.add(tok)
+    return kws
+
+
+def _evaluate_guardrails(package, text: str, state: dict | None = None) -> list[dict]:
+    """检测场景 guardrails（language / keyword_tips / min_words / off_topic）。"""
     guardrails = getattr(package, "guardrails", None)
     if guardrails is None:
         return []
     tips: list[dict] = []
     cleaned = (text or "").strip()
     lowered = cleaned.lower()
+    en_words = re.findall(r"[A-Za-z0-9']+", cleaned)
+    en_lower = [w.lower() for w in en_words]
+    scenario_state = state.get("scenario_state") if isinstance(state, dict) else None
 
+    # 1. 目标语言检测（当前仅针对 language == "en"）
+    lang_triggered = False
+    if (getattr(guardrails, "language", None) or "").lower() == "en" and cleaned:
+        cjk_count = len(_CJK_RE.findall(cleaned))
+        if cjk_count > 0 and (len(en_words) < 2 or cjk_count / max(1, len(cleaned)) > 0.3):
+            lang_triggered = True
+            tips.append({
+                "kind": "language",
+                "expected": "en",
+                "message": "当前为英文口语练习场景，请尽量用英语开口表达；不确定怎么说时可点击下方「提示」获取参考句式。",
+            })
+            if isinstance(scenario_state, dict):
+                scenario_state["_off_topic_streak"] = 0
+
+    # 2. 关键词教学提示
     for item in getattr(guardrails, "keyword_tips", None) or []:
         match_kw = (getattr(item, "match", "") or "").strip()
         tip_text = (getattr(item, "tip", "") or "").strip()
@@ -55,16 +101,42 @@ def _evaluate_guardrails(package, text: str) -> list[dict]:
                 "message": tip_text,
             })
 
+    # 3. 最少词数提醒（已触发语言提醒时不重复叠加）
     min_words = getattr(guardrails, "min_words", None)
-    if min_words:
-        words = re.findall(r"[A-Za-z0-9']+", cleaned)
-        if len(words) < min_words:
+    if min_words and not lang_triggered:
+        if len(en_words) < min_words:
             tips.append({
                 "kind": "min_words",
                 "min_words": min_words,
-                "actual_words": len(words),
-                "message": f"本次表达仅 {len(words)} 个词，建议尽量用 {min_words} 个词以上的完整句表达，以获得更准确的口语反馈。",
+                "actual_words": len(en_words),
+                "message": f"本次表达仅 {len(en_words)} 个词，建议尽量用 {min_words} 个词以上的完整句表达，以获得更准确的口语反馈。",
             })
+
+    # 4. 偏离话题检测（短句/礼貌衔接词/首轮破冰豁免；连续 2 轮长句无领域词触发提醒）
+    off_topic_cfg = getattr(guardrails, "off_topic", None)
+    if off_topic_cfg and not lang_triggered and isinstance(scenario_state, dict):
+        domain_kws = _collect_domain_keywords(package)
+        turn_count = int((state or {}).get("turn_count") or 0)
+        is_short_or_smalltalk = turn_count <= 1 or len(en_words) < 6 or any(w in _SMALLTALK_WORDS for w in en_lower)
+        hits_domain = bool(domain_kws) and any(
+            kw in w or w in kw for w in en_lower if len(w) >= 3 for kw in domain_kws
+        )
+        if not domain_kws or is_short_or_smalltalk or hits_domain:
+            scenario_state["_off_topic_streak"] = 0
+        else:
+            streak = int(scenario_state.get("_off_topic_streak") or 0) + 1
+            scenario_state["_off_topic_streak"] = streak
+            if streak >= 2:
+                goals = (state or {}).get("goals") or []
+                pending_goal = next((g.get("label") for g in goals if not g.get("done") and g.get("label")), None)
+                stage_id = (state or {}).get("stage")
+                stage_obj = next((s for s in (getattr(package, "stages", None) or []) if s.id == stage_id), None)
+                target_hint = pending_goal or (stage_obj.name if stage_obj else "本场任务")
+                tips.append({
+                    "kind": "off_topic",
+                    "streak": streak,
+                    "message": f"当前话题似乎偏离了本场主题，建议围绕「{target_hint}」继续英文交流。",
+                })
 
     limit = max(1, int(getattr(guardrails, "max_warnings_per_turn", 1) or 1))
     return tips[:limit]
@@ -108,17 +180,19 @@ def run_turn(db: Session, user_id: int, session_id: str, request_id: str, text: 
                 ensure_visible(scene, read_db.get(User, user_id))
                 return search_scene(read_db, package.meta.id, query, top_k)
 
+    guardrail_tips = _evaluate_guardrails(package, text, state)
     registry = ToolRegistry(package, text, search)
     graph = build_conversation_graph(package, model if model is not None else create_chat_model(), registry, before)
     started = time.perf_counter()
     result = graph.invoke(state, {"recursion_limit": 16})
     logger.info("对话轮次执行耗时 %.2fs，模型调用 %d 次，工具调用 %d 次", time.perf_counter() - started, result["model_calls"], len(result["tool_results"]))
     saved_state = {key: result[key] for key in initial_state(package)}
+    if any(t.get("ok") for t in (result.get("tool_results") or [])) and isinstance(saved_state.get("scenario_state"), dict):
+        saved_state["scenario_state"]["_off_topic_streak"] = 0
     if saved_state.get("status") == "finished" and package.stages:
         saved_state["stage"] = package.stages[-1].id
         saved_state["stage_turns"] = 0
     turn_id = str(uuid4())
-    guardrail_tips = _evaluate_guardrails(package, text)
     response = {
         "session_id": session_id, "turn_id": turn_id, "request_id": request_id,
         "number": result["turn_count"], "input_text": text, "text": result["final_text"],
@@ -338,7 +412,7 @@ async def stream_turn(
     state["stage_turns"] += 1
     state.update(advance(package, state, before))
 
-    guardrail_tips = _evaluate_guardrails(package, text)
+    guardrail_tips = _evaluate_guardrails(package, text, state)
     if guardrail_tips:
         yield _sse("guardrail", {"tips": guardrail_tips})
 
@@ -368,6 +442,8 @@ async def stream_turn(
                 len(result["tool_results"]),
             )
             saved_state = {key: result[key] for key in initial_state(package)}
+            if any(t.get("ok") for t in (result.get("tool_results") or [])) and isinstance(saved_state.get("scenario_state"), dict):
+                saved_state["scenario_state"]["_off_topic_streak"] = 0
             if saved_state.get("status") == "finished" and package.stages:
                 saved_state["stage"] = package.stages[-1].id
                 saved_state["stage_turns"] = 0

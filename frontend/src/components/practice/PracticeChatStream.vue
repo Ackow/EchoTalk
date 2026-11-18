@@ -39,7 +39,7 @@
                 class="guardrail-tip-pill"
                 :class="`is-${tip.kind || 'keyword_tip'}`"
               >
-                <AppIcon :name="tip.kind === 'min_words' ? 'info' : 'sparkles'" :size="12" />
+                <AppIcon :name="['min_words', 'language', 'off_topic'].includes(tip.kind) ? 'info' : 'sparkles'" :size="12" />
                 <span>{{ tip.message }}</span>
               </div>
             </div>
@@ -280,7 +280,9 @@ defineExpose({ scrollToBottom, chatBody })
 .user-feedback-wrap { margin-top: 6px; display: flex; flex-direction: column; align-items: flex-end; }
 .guardrail-tips { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; margin-top: 4px; max-width: min(100%, 440px); }
 .guardrail-tip-pill { display: inline-flex; align-items: flex-start; gap: 6px; padding: 6px 10px; border-radius: 10px; font-size: 12px; line-height: 1.45; color: #5b4598; background: #f4f0ff; border: 1px solid #e3d9ff; text-align: left; }
-.guardrail-tip-pill.is-min_words { color: #8c5a12; background: #fff8eb; border-color: #f3dfb8; }
+.guardrail-tip-pill.is-min_words,
+.guardrail-tip-pill.is-language,
+.guardrail-tip-pill.is-off_topic { color: #8c5a12; background: #fff8eb; border-color: #f3dfb8; }
 .guardrail-tip-pill :deep(svg) { flex-shrink: 0; margin-top: 2px; }
 .fb-collapse-pill {
   display: inline-flex; align-items: center; gap: 5px;

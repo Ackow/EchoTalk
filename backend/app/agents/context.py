@@ -56,6 +56,8 @@ def system_prompt(package: ScenePackage, state: dict, tool_names: list[str]) -> 
         "NEVER use Markdown, bullet points, numbered lists, semicolons, bold/asterisks, arrows (→, ->), or raw schedule/table dumps. "
         "When sharing options or schedules from reference data, mention at most 2 key choices conversationally in plain sentences and ask which one they prefer; let the learner ask for more details. "
         "If session_status is finished, give a brief closing response. "
+        "If the learner writes in a non-target language (e.g., Chinese in an English practice scene), gently model one short natural English phrasing they could use, then ask a question to continue in English. "
+        "If the learner goes off-topic, do NOT elaborate on the unrelated topic; acknowledge briefly in half a sentence and smoothly steer them back to the current stage and remaining goals in character. "
         "There is no real payment or external action in this training application.\n"
         + json.dumps(context, ensure_ascii=False)
     )
