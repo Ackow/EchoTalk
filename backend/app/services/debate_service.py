@@ -1347,7 +1347,7 @@ def _load_topic_knowledge(db: Session, topic: DebateTopic | None, *, include_doc
         doc_ids = topic.knowledge_doc_ids or []
         if doc_ids:
             chunks = db.scalars(
-                select(PersonalChunk.content)
+                select(PersonalChunk.text)
                 .where(PersonalChunk.document_id.in_(doc_ids))
                 .limit(4)
             ).all()

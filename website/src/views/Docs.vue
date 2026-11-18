@@ -438,7 +438,6 @@
         <li>绑定个人资料（简历 / JD）使用 <code>knowledgeDocIds</code> + <code>search_knowledge</code>。</li>
         <li>发布前用不同对手强度各跑一遍，确认评分与裁决符合预期。</li>
       </ol>
-      <p class="note warn"><strong>已知问题：</strong>当前 <code>_load_topic_knowledge</code> 读取 <code>PersonalChunk.content</code>，而模型字段名为 <code>text</code>。绑定 <code>knowledgeDocIds</code> 且启用 <code>search_knowledge</code> 的场景在发言时会触发 <code>AttributeError</code>（HTTP 500）。修复为 <code>PersonalChunk.text</code> 之前请勿在多角色场景中绑定个人资料。</p>
 
       <!-- ============ 8. SaaS 明细 ============ -->
       <h2 id="saas-detail">SaaS 计量明细</h2>

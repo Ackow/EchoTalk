@@ -79,7 +79,7 @@ const capabilities = [
     title: 'Hybrid RRF + LightRAG 双引擎知识库',
     desc: '让 AI 对话伙伴真正读懂你的简历、题库或企业产品白皮书。',
     points: [
-      'SQLite FTS5 全文 + 语义向量 + RRF 融合重排',
+      'MySQL ngram 全文 + 语义向量 + RRF 融合重排',
       'LightRAG 后台异步实体抽取与力导向关系图谱',
       '支持 user / ai_only 可见性隔离与管理端后台开关',
     ],
