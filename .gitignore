@@ -104,3 +104,4 @@ backend/data/listening_audio_cache/
 
 # 浏览器自动化工具的临时快照
 .playwright-mcp/
+学习清单.md
