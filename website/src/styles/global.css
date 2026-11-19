@@ -26,6 +26,8 @@
 }
 
 html { scroll-behavior: smooth; }
+html.lenis, html.lenis body { height: auto; }
+html.lenis { scroll-behavior: auto; }
 
 body {
   font-family: var(--font);
@@ -250,4 +252,51 @@ dialog.theater-dialog::backdrop {
   overscroll-behavior: contain;
   background: rgba(34, 37, 59, 0.56);
   backdrop-filter: blur(6px);
+}
+
+/* ===== Tactile Card Spotlight & Micro-3D Tilt ===== */
+.tactile-card.spotlight-card {
+  position: relative;
+  overflow: hidden;
+  will-change: transform;
+  transform: perspective(1000px) rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg));
+  transition: transform 0.22s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.24s ease, border-color 0.24s ease;
+}
+.tactile-card.spotlight-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: radial-gradient(
+    420px circle at var(--mx, 50%) var(--my, 50%),
+    rgba(139, 115, 221, 0.13),
+    rgba(69, 201, 142, 0.08) 42%,
+    transparent 70%
+  );
+  opacity: var(--spot-opacity, 0);
+  transition: opacity 0.25s ease;
+  pointer-events: none;
+  z-index: 1;
+}
+.tactile-card.spotlight-card > * {
+  position: relative;
+  z-index: 2;
+}
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  .tactile-card.spotlight-card:hover {
+    border-color: #d7cbf4;
+    box-shadow:
+      0 20px 44px rgba(96, 70, 180, 0.12),
+      0 4px 14px rgba(69, 201, 142, 0.08);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tactile-card.spotlight-card {
+    transform: none !important;
+    transition: none !important;
+    will-change: auto;
+  }
+  .tactile-card.spotlight-card::before {
+    display: none;
+  }
 }

@@ -1,37 +1,57 @@
 <template>
   <div ref="pageRef" class="home-page">
-    <!-- Hero 首屏：左侧品牌介绍与下载按钮 + 右侧 18s 宣传片一行并排，无底部控制台 -->
+    <!-- Hero 首屏：居中金字塔品牌排版 + 超大影院级 18s 宣传片舞台 -->
     <section class="hero-section">
       <div class="hero-ambient" aria-hidden="true">
         <div class="hero-grid-bg"></div>
         <div class="hero-orb orb-purple"></div>
         <div class="hero-orb orb-mint"></div>
+        <canvas ref="waveCanvasRef" class="hero-wave-canvas"></canvas>
       </div>
 
-      <div class="hero-grid">
-        <div class="hero-copy fade-in-up">
-          <span class="hero-pill">
-            <i class="pill-dot" aria-hidden="true"></i>
-            EchoTalk 2.0
-          </span>
-          <h1>
-            让每一次开口<br />
-            <span class="gradient-text">都有真实 AI 回响</span>
-          </h1>
-          <p class="hero-sub">
-            1v1 场景口语 · 1vN 多角色辩论 · 双引擎 RAG · 实时发音评测
-          </p>
-          <div class="hero-actions">
-            <button type="button" class="btn-primary" @click="handleDownload">
-              {{ downloadBtnText }}
-            </button>
-            <router-link to="/features" class="btn-secondary">
-              探索核心特性 →
-            </router-link>
-          </div>
-        </div>
+      <div class="hero-editorial">
+        <span class="hero-pill js-hero-pill">
+          <i class="pill-dot" aria-hidden="true"></i>
+          EchoTalk 2.0
+        </span>
 
-        <div class="hero-video-wrap fade-in-up delay-1">
+        <h1 class="hero-title">
+          <span class="hero-line-mask">
+            <span class="hero-line js-hero-line">让每一次开口</span>
+          </span>
+          <span class="hero-line-mask">
+            <span class="hero-line js-hero-line">
+              <span class="gradient-text hero-flow-gradient">都有真实 AI 回响</span>
+            </span>
+          </span>
+        </h1>
+
+        <p class="hero-sub js-hero-sub">
+          1v1 场景口语 · 1vN 多角色辩论 · 双引擎 RAG · 实时发音评测
+        </p>
+
+        <div class="hero-actions js-hero-actions">
+          <button
+            ref="magneticBtnRef"
+            type="button"
+            class="btn-primary btn-shimmer js-magnetic"
+            @click="handleDownload"
+          >
+            {{ downloadBtnText }}
+          </button>
+          <button type="button" class="btn-secondary" @click="openTheater">
+            ▶ 有声剧场观看
+          </button>
+          <router-link to="/features" class="btn-ghost-pill">
+            探索核心特性 →
+          </router-link>
+        </div>
+      </div>
+
+      <!-- 超大画幅 16:9 影院舞台：GSAP ScrollTrigger 3D 透视随滚回正 -->
+      <div class="hero-video-wrap js-video-stage">
+        <div class="video-ambient-glow" aria-hidden="true"></div>
+        <div class="showreel-border-wrap js-video-unfold">
           <div class="showreel-frame">
             <video
               ref="heroVideoRef"
@@ -48,26 +68,39 @@
               @timeupdate="onVideoTimeUpdate"
             />
 
-            <!-- 仅保留右上角极简隐形图标按钮（静音/取消静音 + 大屏剧场） -->
-            <div class="video-corner-actions">
+            <!-- 优雅毛玻璃悬浮控制胶囊 -->
+            <div class="video-glass-controls">
               <button
                 type="button"
-                class="corner-btn"
+                class="glass-ctrl-btn"
                 :class="{ active: !videoMuted }"
                 :aria-label="videoMuted ? '开启配音与 BGM' : '静音'"
-                :title="videoMuted ? '开启配音与 BGM' : '静音'"
                 @click="toggleVideoSound"
               >
-                {{ videoMuted ? '🔇' : '🔊' }}
+                <span v-if="!videoMuted" class="ctrl-dot" aria-hidden="true"></span>
+                <svg v-if="videoMuted" viewBox="0 0 20 20" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M11 4.5L6.5 8H3.5v4h3L11 15.5V4.5z" />
+                  <path d="M14.5 7.5l3 5M17.5 7.5l-3 5" />
+                </svg>
+                <svg v-else viewBox="0 0 20 20" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M11 4.5L6.5 8H3.5v4h3L11 15.5V4.5z" />
+                  <path d="M14.2 7.4a4 4 0 0 1 0 5.2M16.5 5.2a7 7 0 0 1 0 9.6" />
+                </svg>
+                <span>{{ videoMuted ? '开启配音与 BGM' : '配音已开启' }}</span>
               </button>
+
+              <span class="glass-divider" aria-hidden="true"></span>
+
               <button
                 type="button"
-                class="corner-btn"
-                aria-label="大屏观看宣传片"
-                title="大屏观看宣传片"
+                class="glass-ctrl-btn"
+                aria-label="全屏剧场观看宣传片"
                 @click="openTheater"
               >
-                ⛶
+                <svg viewBox="0 0 20 20" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M3.5 7.5v-4h4M16.5 7.5v-4h-4M3.5 12.5v4h4M16.5 12.5v4h-4" />
+                </svg>
+                <span>全屏剧场</span>
               </button>
             </div>
           </div>
@@ -75,17 +108,17 @@
       </div>
     </section>
 
-    <!-- 四大核心引擎 Zig-Zag 交替展示（左文右图 ⇄ 左图右文，滑动渐入渐出） -->
+    <!-- 四大核心引擎 Zig-Zag 交替展示（GSAP 立体飞入 + 景深视差 + 活态数据演进） -->
     <section class="showcase-section" aria-label="四大核心引擎亮点">
-      <div class="section-intro" data-reveal>
+      <div class="section-intro js-section-head">
         <span class="sec-tag">核心亮点</span>
         <h2>四大核心引擎，把“哑巴英语”变成真实实战</h2>
       </div>
 
       <div class="zigzag-list">
         <!-- Row 1: Copy Left | Visual Right -->
-        <div class="zigzag-row">
-          <div class="zigzag-copy" data-reveal-left>
+        <div class="zigzag-row js-zigzag-row" data-copy-side="left">
+          <div class="zigzag-copy">
             <span class="sec-tag">双轨对话</span>
             <h3>从 1v1 咖啡点单到 1vN 外企群面</h3>
             <p>内置 ScenePackage v2 与 AST 白名单引擎，确定性追踪阶段与目标，告别 AI 状态幻觉。</p>
@@ -96,79 +129,92 @@
             </div>
           </div>
 
-          <div class="tactile-card zigzag-visual" data-reveal-right>
-            <div class="visual-head">
-              <span class="vis-label">1v1 + 1vN 双轨语音实训</span>
-              <div class="inline-switcher" role="tablist" aria-label="切换双轨对话预览">
-                <button
-                  type="button"
-                  role="tab"
-                  :aria-selected="trackTab === '1v1'"
-                  :class="{ active: trackTab === '1v1' }"
-                  @click="trackTab = '1v1'"
-                >
-                  1v1 咖啡点单
-                </button>
-                <button
-                  type="button"
-                  role="tab"
-                  :aria-selected="trackTab === '1vN'"
-                  :class="{ active: trackTab === '1vN' }"
-                  @click="trackTab = '1vN'"
-                >
-                  1vN 圆桌辩论
-                </button>
+          <div class="zigzag-visual-wrap">
+            <div class="parallax-slot">
+              <div class="tactile-card spotlight-card zigzag-visual">
+                <div class="visual-head">
+                  <span class="vis-label">1v1 + 1vN 双轨语音实训</span>
+                  <div class="inline-switcher" role="tablist" aria-label="切换双轨对话预览">
+                    <span
+                      class="switcher-thumb"
+                      :style="{ transform: `translateX(${trackTab === '1v1' ? '0%' : '100%'})` }"
+                      aria-hidden="true"
+                    ></span>
+                    <button
+                      type="button"
+                      role="tab"
+                      :aria-selected="trackTab === '1v1'"
+                      :class="{ active: trackTab === '1v1' }"
+                      @click="trackTab = '1v1'"
+                    >
+                      1v1 咖啡点单
+                    </button>
+                    <button
+                      type="button"
+                      role="tab"
+                      :aria-selected="trackTab === '1vN'"
+                      :class="{ active: trackTab === '1vN' }"
+                      @click="trackTab = '1vN'"
+                    >
+                      1vN 圆桌辩论
+                    </button>
+                  </div>
+                </div>
+                <div class="mini-shot-frame">
+                  <Transition name="shot" mode="out-in">
+                    <img
+                      :key="trackTab"
+                      :src="trackTab === '1v1' ? '/images/shots/practice.jpg' : '/images/shots/debate.jpg'"
+                      :alt="trackTab === '1v1' ? '1v1 咖啡点单语音实训界面' : '1vN 多角色圆桌辩论界面'"
+                    />
+                  </Transition>
+                </div>
               </div>
-            </div>
-            <div class="mini-shot-frame">
-              <Transition name="shot" mode="out-in">
-                <img
-                  :key="trackTab"
-                  :src="trackTab === '1v1' ? '/images/shots/practice.jpg' : '/images/shots/debate.jpg'"
-                  :alt="trackTab === '1v1' ? '1v1 咖啡点单语音实训界面' : '1vN 多角色圆桌辩论界面'"
-                />
-              </Transition>
             </div>
           </div>
         </div>
 
         <!-- Row 2: Visual Left | Copy Right -->
-        <div class="zigzag-row is-reverse">
-          <div class="tactile-card zigzag-visual" data-reveal-left>
-            <div class="ise-score-hero">
-              <div class="score-ring-wrap">
-                <svg viewBox="0 0 96 96" class="score-ring-svg" aria-hidden="true">
-                  <circle cx="48" cy="48" r="39" class="ring-track" />
-                  <circle cx="48" cy="48" r="39" class="ring-fill" />
-                </svg>
-                <div class="score-center">
-                  <strong>94</strong>
-                  <small>发音总分</small>
+        <div class="zigzag-row is-reverse js-zigzag-row" data-copy-side="right">
+          <div class="zigzag-visual-wrap">
+            <div class="parallax-slot">
+              <div class="tactile-card spotlight-card zigzag-visual">
+                <div class="ise-score-hero">
+                  <div class="score-ring-wrap">
+                    <svg viewBox="0 0 96 96" class="score-ring-svg" aria-hidden="true">
+                      <circle cx="48" cy="48" r="39" class="ring-track" />
+                      <circle cx="48" cy="48" r="39" class="ring-fill js-ring-fill" />
+                    </svg>
+                    <div class="score-center">
+                      <strong>{{ scoreTotal }}</strong>
+                      <small>发音总分</small>
+                    </div>
+                  </div>
+
+                  <div class="ise-substats">
+                    <div class="substat">
+                      <span>语调</span>
+                      <strong>{{ scoreTone }}</strong>
+                    </div>
+                    <div class="substat">
+                      <span>语速</span>
+                      <strong>{{ scoreWpm }} WPM</strong>
+                    </div>
+                    <span class="natural-pill">✓ 表达自然准确</span>
+                  </div>
+                </div>
+
+                <div class="word-scores-grid" aria-label="逐词发音得分示例">
+                  <span class="w-chip good js-w-chip">Could <b>96</b></span>
+                  <span class="w-chip good js-w-chip">large <b>95</b></span>
+                  <span class="w-chip good js-w-chip">coffee <b>94</b></span>
+                  <span class="w-chip warn js-w-chip">croissant <b>84</b></span>
                 </div>
               </div>
-
-              <div class="ise-substats">
-                <div class="substat">
-                  <span>语调</span>
-                  <strong>89</strong>
-                </div>
-                <div class="substat">
-                  <span>语速</span>
-                  <strong>138 WPM</strong>
-                </div>
-                <span class="natural-pill">✓ 表达自然准确</span>
-              </div>
-            </div>
-
-            <div class="word-scores-grid" aria-label="逐词发音得分示例">
-              <span class="w-chip good">Could <b>96</b></span>
-              <span class="w-chip good">large <b>95</b></span>
-              <span class="w-chip good">coffee <b>94</b></span>
-              <span class="w-chip warn">croissant <b>84</b></span>
             </div>
           </div>
 
-          <div class="zigzag-copy" data-reveal-right>
+          <div class="zigzag-copy">
             <span class="sec-tag mint">旁路并行评测</span>
             <h3>开口即评测，逐词定位发音短板</h3>
             <p>单次录音签发一次性 audio_token，旁路并行完成讯飞 ISE 逐词打分与 LLM 地道度纠错。</p>
@@ -181,8 +227,8 @@
         </div>
 
         <!-- Row 3: Copy Left | Visual Right -->
-        <div class="zigzag-row">
-          <div class="zigzag-copy" data-reveal-left>
+        <div class="zigzag-row js-zigzag-row" data-copy-side="left">
+          <div class="zigzag-copy">
             <span class="sec-tag">双引擎知识图谱</span>
             <h3>让 AI 真正读懂你的简历与题库</h3>
             <p>融合 MySQL ngram 全文与 bge-m3 1024 维向量 RRF 重排，并自动抽取实体关系图谱。</p>
@@ -193,108 +239,126 @@
             </div>
           </div>
 
-          <div class="tactile-card zigzag-visual" data-reveal-right>
-            <div class="lightrag-canvas">
-              <svg viewBox="0 0 300 184" class="lightrag-svg" role="img" aria-label="LightRAG 实体关系图谱预览">
-                <g class="lr-edges">
-                  <path
-                    v-for="(edge, idx) in lightragEdges"
-                    :key="idx"
-                    :d="edgePath(edge[0], edge[1])"
-                    :class="{ hot: edge[0] === 0 || edge[1] === 0 }"
-                  />
-                </g>
-                <g v-for="node in lightragNodes" :key="node.id" :transform="`translate(${node.x}, ${node.y})`">
-                  <circle
-                    :r="node.r"
-                    :fill="node.color"
-                    fill-opacity="0.16"
-                    :stroke="node.color"
-                    stroke-width="1.6"
-                  />
-                  <circle r="3.6" :fill="node.color" />
-                  <text
-                    x="0"
-                    :y="node.r + 12"
-                    text-anchor="middle"
-                    class="lr-label"
-                  >
-                    {{ node.label }}
-                  </text>
-                </g>
-              </svg>
-            </div>
+          <div class="zigzag-visual-wrap">
+            <div class="parallax-slot">
+              <div class="tactile-card spotlight-card zigzag-visual">
+                <div class="lightrag-canvas">
+                  <svg viewBox="0 0 300 184" class="lightrag-svg" role="img" aria-label="LightRAG 实体关系图谱预览">
+                    <g class="lr-edges">
+                      <path
+                        v-for="(edge, idx) in lightragEdges"
+                        :key="idx"
+                        :d="edgePath(edge[0], edge[1])"
+                        class="js-lr-edge"
+                        :class="{ hot: edge[0] === 0 || edge[1] === 0 }"
+                      />
+                    </g>
+                    <g v-for="(node, nIdx) in lightragNodes" :key="node.id" :transform="`translate(${node.x}, ${node.y})`">
+                      <circle
+                        v-if="nIdx === 0"
+                        :r="node.r + 7"
+                        :stroke="node.color"
+                        stroke-width="1.4"
+                        fill="none"
+                        class="lr-pulse-ring"
+                      />
+                      <circle
+                        :r="node.r"
+                        :fill="node.color"
+                        fill-opacity="0.16"
+                        :stroke="node.color"
+                        stroke-width="1.6"
+                      />
+                      <circle r="3.6" :fill="node.color" />
+                      <text
+                        x="0"
+                        :y="node.r + 12"
+                        text-anchor="middle"
+                        class="lr-label"
+                      >
+                        {{ node.label }}
+                      </text>
+                    </g>
+                  </svg>
+                </div>
 
-            <div class="vis-rows">
-              <div class="vis-doc-row">
-                <span>interview_rubric.md</span>
-                <span class="vis-tag ai">[ai] 仅 AI 底牌</span>
-              </div>
-              <div class="vis-doc-row">
-                <span>candidate_brief.pdf</span>
-                <span class="vis-tag user">[user] 用户可见</span>
+                <div class="vis-rows">
+                  <div class="vis-doc-row js-vis-doc-row">
+                    <span>interview_rubric.md</span>
+                    <span class="vis-tag ai">[ai] 仅 AI 底牌</span>
+                  </div>
+                  <div class="vis-doc-row js-vis-doc-row">
+                    <span>candidate_brief.pdf</span>
+                    <span class="vis-tag user">[user] 用户可见</span>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
         </div>
 
         <!-- Row 4: Visual Left | Copy Right -->
-        <div class="zigzag-row is-reverse">
-          <div class="tactile-card zigzag-visual" data-reveal-left>
-            <div class="loop-pipeline" aria-label="全链路流程">
-              <template v-for="(step, idx) in loopNodes" :key="step.label">
-                <div class="loop-node" :class="step.tone">
-                  <span class="loop-dot"></span>
-                  <span>{{ step.label }}</span>
+        <div class="zigzag-row is-reverse js-zigzag-row" data-copy-side="right">
+          <div class="zigzag-visual-wrap">
+            <div class="parallax-slot">
+              <div class="tactile-card spotlight-card zigzag-visual">
+                <div class="loop-pipeline" aria-label="全链路流程">
+                  <template v-for="(step, idx) in loopNodes" :key="step.label">
+                    <div class="loop-node js-loop-node" :class="step.tone">
+                      <span class="loop-dot"></span>
+                      <span>{{ step.label }}</span>
+                    </div>
+                    <span v-if="idx < loopNodes.length - 1" class="loop-arrow" aria-hidden="true">→</span>
+                  </template>
                 </div>
-                <span v-if="idx < loopNodes.length - 1" class="loop-arrow" aria-hidden="true">→</span>
-              </template>
-            </div>
 
-            <div class="split-minipanels">
-              <div class="minipanel">
-                <div class="minipanel-head">
-                  <strong>SM-2 遗忘曲线</strong>
-                  <span class="mini-tag amber">&lt; 78 分入卡</span>
-                </div>
-                <svg viewBox="0 0 240 76" class="sm2-svg" role="img" aria-label="SM-2 间隔重复记忆保持曲线">
-                  <line x1="6" y1="64" x2="234" y2="64" stroke="#ebe7f5" stroke-width="1" />
-                  <path
-                    d="M10 18 Q40 48 64 53 L70 15 Q114 34 144 40 L150 13 Q198 22 230 20"
-                    fill="none"
-                    stroke="#2a8c5f"
-                    stroke-width="2.6"
-                    stroke-linecap="round"
-                  />
-                  <circle cx="70" cy="15" r="3.6" fill="#2a8c5f" />
-                  <circle cx="150" cy="13" r="3.6" fill="#2a8c5f" />
-                  <circle cx="230" cy="20" r="3.6" fill="#2a8c5f" />
-                  <text x="58" y="74" class="sm2-tick">Day 1</text>
-                  <text x="138" y="74" class="sm2-tick">Day 6</text>
-                  <text x="206" y="74" class="sm2-tick">Day 15</text>
-                </svg>
-              </div>
+                <div class="split-minipanels">
+                  <div class="minipanel">
+                    <div class="minipanel-head">
+                      <strong>SM-2 遗忘曲线</strong>
+                      <span class="mini-tag amber">&lt; 78 分入卡</span>
+                    </div>
+                    <svg viewBox="0 0 240 76" class="sm2-svg" role="img" aria-label="SM-2 间隔重复记忆保持曲线">
+                      <line x1="6" y1="64" x2="234" y2="64" stroke="#ebe7f5" stroke-width="1" />
+                      <path
+                        d="M10 18 Q40 48 64 53 L70 15 Q114 34 144 40 L150 13 Q198 22 230 20"
+                        fill="none"
+                        stroke="#2a8c5f"
+                        stroke-width="2.6"
+                        stroke-linecap="round"
+                        class="js-sm2-path"
+                      />
+                      <circle cx="70" cy="15" r="3.6" fill="#2a8c5f" />
+                      <circle cx="150" cy="13" r="3.6" fill="#2a8c5f" />
+                      <circle cx="230" cy="20" r="3.6" fill="#2a8c5f" />
+                      <text x="58" y="74" class="sm2-tick">Day 1</text>
+                      <text x="138" y="74" class="sm2-tick">Day 6</text>
+                      <text x="206" y="74" class="sm2-tick">Day 15</text>
+                    </svg>
+                  </div>
 
-              <div class="minipanel">
-                <div class="minipanel-head">
-                  <strong>共享免费额度池</strong>
-                  <span class="mini-tag purple">已用 35%</span>
-                </div>
-                <div class="demo-bar" aria-label="今日免费额度已用 35%">
-                  <div class="demo-fill"></div>
-                </div>
-                <div class="pool-badges">
-                  <span class="d-badge green">每日签到 +10 点</span>
-                  <span class="d-badge purple">
-                    <EchoCreditIcon :size="13" />
-                    对话 +15 XP
-                  </span>
+                  <div class="minipanel">
+                    <div class="minipanel-head">
+                      <strong>共享免费额度池</strong>
+                      <span class="mini-tag purple">已用 35%</span>
+                    </div>
+                    <div class="demo-bar" aria-label="今日免费额度已用 35%">
+                      <div class="demo-fill js-quota-fill"></div>
+                    </div>
+                    <div class="pool-badges">
+                      <span class="d-badge green">每日签到 +10 点</span>
+                      <span class="d-badge purple">
+                        <EchoCreditIcon :size="13" />
+                        对话 +15 XP
+                      </span>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
           </div>
 
-          <div class="zigzag-copy" data-reveal-right>
+          <div class="zigzag-copy">
             <span class="sec-tag mint">记忆与激励闭环</span>
             <h3>低分词自动入卡，每日免费额度无压力</h3>
             <p>自动抓取发音低于 78 分的词汇生成 SM-2 复习卡片，配合共享免费额度池与 XP 段位成长。</p>
@@ -309,19 +373,23 @@
     </section>
 
     <!-- 互动试听模块：还原宣传片「先出语音气泡 → 再展开原文」与三角色轮换 -->
-    <div data-reveal>
+    <div class="js-launch-wrap">
       <LaunchShowcase ref="voiceDemoRef" @voice-start="muteHeroVideo" />
     </div>
 
     <!-- 真实客户端多端界面预览 -->
-    <section class="shots-section" data-reveal aria-label="实机界面总览">
-      <div class="section-intro">
+    <section class="shots-section" aria-label="实机界面总览">
+      <div class="section-intro js-section-head">
         <span class="sec-tag">实机工作台</span>
         <h2>点击切换四大核心页面，所见即所得</h2>
       </div>
 
       <div class="preview-stage">
-        <div class="preview-switcher">
+        <div
+          class="preview-switcher"
+          :style="{ '--active-idx': activePreviewIndex }"
+        >
+          <span class="preview-thumb" aria-hidden="true"></span>
           <button
             v-for="tab in previewTabs"
             :key="tab.key"
@@ -334,7 +402,16 @@
           </button>
         </div>
 
-        <div class="mac-window">
+        <div class="mac-window js-mac-window">
+          <div class="mac-chrome" aria-hidden="true">
+            <div class="mac-dots">
+              <span class="dot red"></span>
+              <span class="dot yellow"></span>
+              <span class="dot green"></span>
+            </div>
+            <span class="mac-title">EchoTalk 2.0 — {{ currentPreview.label }}</span>
+            <span class="mac-spacer"></span>
+          </div>
           <div class="mac-body">
             <div class="shot-frame">
               <Transition name="shot">
@@ -357,15 +434,15 @@
     </section>
 
     <!-- 底部引导 -->
-    <section class="bottom-cta" data-reveal>
-      <div class="tactile-card cta-card">
-        <div>
+    <section class="bottom-cta">
+      <div class="tactile-card spotlight-card cta-card js-cta-card">
+        <div class="cta-content">
           <h2>准备好开启高效英语口语训练了吗？</h2>
           <p>下载 EchoTalk 2.0 桌面客户端，或浏览场景包社区与完整技术文档。</p>
         </div>
         <div class="cta-btns">
           <router-link to="/community" class="btn-secondary">浏览场景社区</router-link>
-          <router-link to="/docs" class="btn-primary">阅读 2.0 文档</router-link>
+          <router-link to="/docs" class="btn-primary btn-shimmer">阅读 2.0 文档</router-link>
         </div>
       </div>
     </section>
@@ -410,15 +487,23 @@
 </template>
 
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, onUnmounted, ref } from 'vue'
+import gsap from 'gsap'
+import { ScrollTrigger } from 'gsap/ScrollTrigger'
 import DownloadModal from '../components/DownloadModal.vue'
 import EchoCreditIcon from '../components/EchoCreditIcon.vue'
 import LaunchShowcase from '../components/LaunchShowcase.vue'
-import { useScrollReveal } from '../composables/useScrollReveal.js'
+import { useCardSpotlight } from '../composables/useCardSpotlight.js'
+import { startSmoothScroll, stopSmoothScroll } from '../composables/useScrollReveal.js'
 import { detectClientTarget, triggerAutoDownload } from '../utils/clientDownload.js'
 
+gsap.registerPlugin(ScrollTrigger)
+
 const pageRef = ref(null)
-useScrollReveal(pageRef)
+const waveCanvasRef = ref(null)
+const magneticBtnRef = ref(null)
+
+useCardSpotlight(pageRef, '.spotlight-card')
 
 const dlOpen = ref(false)
 const dlNotice = ref('')
@@ -432,6 +517,11 @@ const voiceDemoRef = ref(null)
 const videoMuted = ref(true)
 const videoCurrentTime = ref(0)
 const trackTab = ref('1v1')
+
+// Animated ISE count-up values (triggered on Row 2 scroll-in)
+const scoreTotal = ref(94)
+const scoreTone = ref(89)
+const scoreWpm = ref(138)
 
 const lightragNodes = [
   { id: 'n0', label: 'System Design', color: '#8B73DD', x: 150, y: 80, r: 16 },
@@ -519,6 +609,7 @@ function openTheater() {
   }
   const dialog = theaterDialogRef.value
   if (dialog && !dialog.open) {
+    stopSmoothScroll()
     dialog.showModal()
     if (theaterVideoRef.value) {
       theaterVideoRef.value.currentTime = videoCurrentTime.value
@@ -541,15 +632,426 @@ function onTheaterClose() {
   if (theaterDialogRef.value) {
     theaterDialogRef.value.returnValue = ''
   }
+  startSmoothScroll()
   if (wasPlayingBeforeTheater && heroVideoRef.value) {
     heroVideoRef.value.play().catch(() => {})
   }
 }
 
-// Safari <dialog closedby="any"> light-dismiss fallback
+// Canvas 2D lightweight ambient AI voice wave ribbons + Magnetic button + GSAP choreography
 let removeLightDismiss = null
+let destroyWaveCanvas = null
+let removeMagnetic = null
+let gsapCtx = null
+
+function setupWaveCanvas() {
+  const canvas = waveCanvasRef.value
+  if (!canvas || typeof window === 'undefined') return () => {}
+  const ctx = canvas.getContext('2d')
+  if (!ctx) return () => {}
+
+  const allowsMotion = window.matchMedia('(prefers-reduced-motion: no-preference)').matches
+  let width = 0
+  let height = 0
+  let dpr = 1
+  let rafId = 0
+  let phase = 0
+  let pointerX = 0
+  let pointerY = 0
+  let smoothX = 0
+  let smoothY = 0
+
+  const curves = [
+    { amp: 24, freq: 0.0052, speed: 0.018, offset: 0, color: 'rgba(139, 115, 221, 0.22)', lineW: 1.8, yBias: 0.36 },
+    { amp: 18, freq: 0.0068, speed: -0.014, offset: 1.8, color: 'rgba(69, 201, 142, 0.20)', lineW: 1.6, yBias: 0.44 },
+    { amp: 14, freq: 0.0085, speed: 0.022, offset: 3.4, color: 'rgba(167, 139, 250, 0.16)', lineW: 1.3, yBias: 0.40 },
+  ]
+
+  function resize() {
+    const rect = canvas.getBoundingClientRect()
+    width = rect.width || window.innerWidth
+    height = rect.height || 420
+    dpr = Math.min(window.devicePixelRatio || 1, 2)
+    canvas.width = Math.round(width * dpr)
+    canvas.height = Math.round(height * dpr)
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+    if (!allowsMotion) drawFrame()
+  }
+
+  function drawFrame() {
+    ctx.clearRect(0, 0, width, height)
+    smoothX += (pointerX - smoothX) * 0.06
+    smoothY += (pointerY - smoothY) * 0.06
+
+    for (let c = 0; c < curves.length; c++) {
+      const curve = curves[c]
+      ctx.beginPath()
+      ctx.strokeStyle = curve.color
+      ctx.lineWidth = curve.lineW
+      const baseY = height * curve.yBias + smoothY * (c + 1) * 6
+
+      for (let x = 0; x <= width; x += 10) {
+        const edgeFade = Math.sin((x / Math.max(1, width)) * Math.PI)
+        const y =
+          baseY +
+          Math.sin(x * curve.freq + phase * (curve.speed / 0.018) + curve.offset + smoothX * 0.6) *
+            curve.amp *
+            edgeFade
+        if (x === 0) ctx.moveTo(x, y)
+        else ctx.lineTo(x, y)
+      }
+      ctx.stroke()
+    }
+  }
+
+  function loop() {
+    phase += 0.022
+    drawFrame()
+    rafId = window.requestAnimationFrame(loop)
+  }
+
+  function onPointerMove(e) {
+    pointerX = (e.clientX / Math.max(1, window.innerWidth) - 0.5) * 2
+    pointerY = (e.clientY / Math.max(1, window.innerHeight) - 0.5) * 2
+  }
+
+  const ro = new ResizeObserver(resize)
+  ro.observe(canvas)
+  resize()
+
+  if (allowsMotion) {
+    window.addEventListener('pointermove', onPointerMove, { passive: true })
+    rafId = window.requestAnimationFrame(loop)
+  }
+
+  return () => {
+    ro.disconnect()
+    window.removeEventListener('pointermove', onPointerMove)
+    if (rafId) window.cancelAnimationFrame(rafId)
+  }
+}
+
+function setupMagneticButton() {
+  const btn = magneticBtnRef.value
+  if (!btn || typeof window === 'undefined') return () => {}
+
+  const canHover = window.matchMedia('(hover: hover) and (pointer: fine)').matches
+  const allowsMotion = window.matchMedia('(prefers-reduced-motion: no-preference)').matches
+  if (!canHover || !allowsMotion) return () => {}
+
+  const xTo = gsap.quickTo(btn, 'x', { duration: 0.35, ease: 'power3.out' })
+  const yTo = gsap.quickTo(btn, 'y', { duration: 0.35, ease: 'power3.out' })
+
+  function onMove(e) {
+    const rect = btn.getBoundingClientRect()
+    const relX = (e.clientX - (rect.left + rect.width / 2)) / (rect.width / 2)
+    const relY = (e.clientY - (rect.top + rect.height / 2)) / (rect.height / 2)
+    xTo(Math.max(-1, Math.min(1, relX)) * 6)
+    yTo(Math.max(-1, Math.min(1, relY)) * 5)
+  }
+
+  function onLeave() {
+    xTo(0)
+    yTo(0)
+  }
+
+  btn.addEventListener('pointermove', onMove, { passive: true })
+  btn.addEventListener('pointerleave', onLeave, { passive: true })
+
+  return () => {
+    btn.removeEventListener('pointermove', onMove)
+    btn.removeEventListener('pointerleave', onLeave)
+  }
+}
+
+function appendRowCardAnimations(tl, row, idx) {
+  if (idx === 1) {
+    // Row 2: ISE circular gauge + counter + staggered word chips
+    const ring = row.querySelector('.js-ring-fill')
+    const chips = row.querySelectorAll('.js-w-chip')
+    const counts = { total: 0, tone: 0, wpm: 0 }
+
+    scoreTotal.value = 0
+    scoreTone.value = 0
+    scoreWpm.value = 0
+
+    if (ring) {
+      tl.fromTo(
+        ring,
+        { strokeDashoffset: 245 },
+        { strokeDashoffset: 15, duration: 1.15, ease: 'power2.out' },
+        '<+0.15'
+      )
+    }
+    tl.to(
+      counts,
+      {
+        total: 94,
+        tone: 89,
+        wpm: 138,
+        duration: 1.15,
+        ease: 'power2.out',
+        onUpdate: () => {
+          scoreTotal.value = Math.round(counts.total)
+          scoreTone.value = Math.round(counts.tone)
+          scoreWpm.value = Math.round(counts.wpm)
+        },
+      },
+      '<'
+    )
+    if (chips.length) {
+      tl.from(
+        chips,
+        { scale: 0.72, y: 14, opacity: 0, stagger: 0.08, duration: 0.45, ease: 'back.out(1.7)' },
+        '<+0.25'
+      )
+    }
+  } else if (idx === 2) {
+    // Row 3: LightRAG graph SVG edge draw + doc visibility rows slide in
+    const edges = row.querySelectorAll('.js-lr-edge')
+    const docRows = row.querySelectorAll('.js-vis-doc-row')
+    edges.forEach((edge) => {
+      const len = typeof edge.getTotalLength === 'function' ? edge.getTotalLength() : 140
+      gsap.set(edge, { strokeDasharray: len, strokeDashoffset: len })
+    })
+    if (edges.length) {
+      tl.to(
+        edges,
+        { strokeDashoffset: 0, duration: 0.65, stagger: 0.08, ease: 'power2.out' },
+        '<+0.2'
+      )
+    }
+    if (docRows.length) {
+      tl.from(
+        docRows,
+        { x: 20, opacity: 0, stagger: 0.12, duration: 0.45, ease: 'power2.out' },
+        '<+0.15'
+      )
+    }
+  } else if (idx === 3) {
+    // Row 4: Loop wave + SM-2 curve draw + quota scaleX fill
+    const nodes = row.querySelectorAll('.js-loop-node')
+    const sm2Path = row.querySelector('.js-sm2-path')
+    const quotaFill = row.querySelector('.js-quota-fill')
+
+    if (nodes.length) {
+      tl.fromTo(
+        nodes,
+        { scale: 1 },
+        { scale: 1.08, duration: 0.22, yoyo: true, repeat: 1, stagger: 0.12, ease: 'power1.inOut' },
+        '<+0.2'
+      )
+    }
+    if (sm2Path) {
+      const len = typeof sm2Path.getTotalLength === 'function' ? sm2Path.getTotalLength() : 280
+      gsap.set(sm2Path, { strokeDasharray: len, strokeDashoffset: len })
+      tl.to(sm2Path, { strokeDashoffset: 0, duration: 1.05, ease: 'power2.out' }, '<+0.15')
+    }
+    if (quotaFill) {
+      tl.fromTo(
+        quotaFill,
+        { scaleX: 0 },
+        { scaleX: 1, duration: 0.85, ease: 'power2.out' },
+        '<+0.1'
+      )
+    }
+  }
+}
+
+function setupGsapAnimations() {
+  if (!pageRef.value || typeof window === 'undefined') return
+
+  gsapCtx = gsap.context(() => {
+    const mm = gsap.matchMedia()
+
+    mm.add(
+      {
+        isDesktop: '(min-width: 961px)',
+        isMobile: '(max-width: 960px)',
+        allowsMotion: '(prefers-reduced-motion: no-preference)',
+      },
+      (context) => {
+        const { isDesktop, allowsMotion } = context.conditions
+        if (!allowsMotion) return
+
+        // 1. Hero Entrance Choreography
+        const heroTl = gsap.timeline({ defaults: { ease: 'power3.out' } })
+        heroTl
+          .from('.js-hero-pill', { y: 18, opacity: 0, duration: 0.5 })
+          .from(
+            '.js-hero-line',
+            {
+              yPercent: 105,
+              clipPath: 'inset(0 0 100% 0)',
+              opacity: 0,
+              duration: 0.72,
+              stagger: 0.12,
+              clearProps: 'clipPath',
+            },
+            '-=0.3'
+          )
+          .from('.js-hero-sub', { y: 16, opacity: 0, duration: 0.5 }, '-=0.45')
+          .from('.js-hero-actions > *', { y: 16, opacity: 0, stagger: 0.08, duration: 0.48 }, '-=0.35')
+          .from('.js-video-stage', { opacity: 0, duration: 0.75 }, '-=0.4')
+
+        // 2. Oversized Video Stage 3D Scroll Unfold (scrubbed on inner .js-video-unfold)
+        gsap.fromTo(
+          '.js-video-unfold',
+          {
+            transformPerspective: isDesktop ? 1400 : 1000,
+            rotateX: isDesktop ? 10 : 4,
+            scale: isDesktop ? 0.92 : 0.96,
+            y: isDesktop ? 18 : 8,
+          },
+          {
+            rotateX: 0,
+            scale: 1,
+            y: 0,
+            ease: 'none',
+            scrollTrigger: {
+              trigger: '.js-video-stage',
+              start: 'top 90%',
+              end: 'top 22%',
+              scrub: 0.8,
+            },
+          }
+        )
+
+        // Section Heads
+        gsap.utils.toArray('.js-section-head').forEach((head) => {
+          gsap.from(head, {
+            y: 28,
+            opacity: 0,
+            duration: 0.65,
+            ease: 'power3.out',
+            scrollTrigger: { trigger: head, start: 'top 86%', once: true },
+          })
+        })
+
+        // 3. Zig-Zag Alternating Rows + Live Card Data Animations
+        gsap.utils.toArray('.js-zigzag-row').forEach((row, idx) => {
+          const isCopyLeft = row.dataset.copySide === 'left'
+          const copy = row.querySelector('.zigzag-copy')
+          const copyItems = row.querySelectorAll('.zigzag-copy .sec-tag, .zigzag-copy h3, .zigzag-copy p, .copy-pills > *')
+          const visualWrap = row.querySelector('.zigzag-visual-wrap')
+          const parallaxSlot = row.querySelector('.parallax-slot')
+
+          const tl = gsap.timeline({
+            scrollTrigger: {
+              trigger: row,
+              start: 'top 82%',
+              once: true,
+            },
+          })
+
+          if (isDesktop) {
+            tl.from(copy, {
+              x: isCopyLeft ? -90 : 90,
+              opacity: 0,
+              filter: 'blur(6px)',
+              duration: 0.85,
+              ease: 'power3.out',
+              clearProps: 'filter',
+            })
+              .from(
+                copyItems,
+                { y: 16, opacity: 0, stagger: 0.08, duration: 0.5, ease: 'power2.out' },
+                '-=0.6'
+              )
+              .from(
+                visualWrap,
+                {
+                  x: isCopyLeft ? 110 : -110,
+                  rotateY: isCopyLeft ? -8 : 8,
+                  transformPerspective: 1200,
+                  scale: 0.94,
+                  opacity: 0,
+                  duration: 0.92,
+                  ease: 'power3.out',
+                },
+                0.06
+              )
+
+            if (parallaxSlot) {
+              gsap.fromTo(
+                parallaxSlot,
+                { y: 22 },
+                {
+                  y: -22,
+                  ease: 'none',
+                  scrollTrigger: {
+                    trigger: row,
+                    start: 'top bottom',
+                    end: 'bottom top',
+                    scrub: 0.6,
+                  },
+                }
+              )
+            }
+          } else {
+            tl.from([copy, visualWrap], {
+              y: 32,
+              scale: 0.97,
+              opacity: 0,
+              stagger: 0.12,
+              duration: 0.65,
+              ease: 'power3.out',
+            })
+          }
+
+          appendRowCardAnimations(tl, row, idx)
+        })
+
+        // 4. LaunchShowcase Entrance
+        const launchWrap = pageRef.value?.querySelector('.js-launch-wrap')
+        if (launchWrap) {
+          gsap.from(launchWrap, {
+            y: 60,
+            scale: 0.95,
+            opacity: 0,
+            duration: 0.85,
+            ease: 'power3.out',
+            scrollTrigger: { trigger: launchWrap, start: 'top 84%', once: true },
+          })
+        }
+
+        // 5. Real App Screenshots Showcase Entrance
+        const macWin = pageRef.value?.querySelector('.js-mac-window')
+        if (macWin) {
+          gsap.from(macWin, {
+            transformPerspective: isDesktop ? 1400 : 1000,
+            rotateX: isDesktop ? 6 : 0,
+            scale: isDesktop ? 0.95 : 0.97,
+            y: 36,
+            opacity: 0,
+            duration: 0.85,
+            ease: 'power3.out',
+            scrollTrigger: { trigger: macWin, start: 'top 84%', once: true },
+          })
+        }
+
+        // 6. Bottom CTA Entrance
+        const ctaCard = pageRef.value?.querySelector('.js-cta-card')
+        if (ctaCard) {
+          gsap.from(ctaCard, {
+            scale: 0.93,
+            y: 40,
+            opacity: 0,
+            duration: 0.8,
+            ease: 'power3.out',
+            scrollTrigger: { trigger: ctaCard, start: 'top 88%', once: true },
+          })
+        }
+      }
+    )
+  }, pageRef.value)
+}
 
 onMounted(async () => {
+  destroyWaveCanvas = setupWaveCanvas()
+  removeMagnetic = setupMagneticButton()
+  setupGsapAnimations()
+
   const dialog = theaterDialogRef.value
   if (dialog && !('closedBy' in HTMLDialogElement.prototype)) {
     const outside = (e) => {
@@ -581,8 +1083,15 @@ onMounted(async () => {
 })
 
 onBeforeUnmount(() => {
-  if (removeLightDismiss) {
-    removeLightDismiss()
+  if (removeLightDismiss) removeLightDismiss()
+  if (destroyWaveCanvas) destroyWaveCanvas()
+  if (removeMagnetic) removeMagnetic()
+})
+
+onUnmounted(() => {
+  if (gsapCtx) {
+    gsapCtx.revert()
+    gsapCtx = null
   }
 })
 
@@ -593,22 +1102,21 @@ const previewTabs = [
   { key: 'debate', label: '1vN 多角色', src: '/images/shots/debate.jpg', caption: '1vN 多角色辩论/群面 · 正反方胜率对抗条 + 四维战况雷达 + 轮流席位' },
   { key: 'scenes', label: '场景探索', src: '/images/shots/scenes.jpg', caption: '场景探索大厅 · 1v1 与多角色场景分类筛选 + ZIP 导入导出' },
 ]
-const currentPreview = computed(() => previewTabs.find((t) => t.key === activePreview.value) || previewTabs[0])
+const activePreviewIndex = computed(() => Math.max(0, previewTabs.findIndex((t) => t.key === activePreview.value)))
+const currentPreview = computed(() => previewTabs[activePreviewIndex.value] || previewTabs[0])
 </script>
 
 <style scoped>
 .home-page { padding-top: 0; position: relative; overflow-x: clip; }
 
-/* ===== Single-Row Side-by-Side Hero & Ambient Aura ===== */
+/* ===== Centered Editorial Hero & Canvas Wave Ambient ===== */
 .hero-section {
   position: relative;
-  max-width: 1220px;
-  margin: 0 auto;
-  padding: 36px 24px 20px;
+  padding: 28px 24px 36px;
 }
 .hero-ambient {
   position: absolute;
-  inset: -44px -100px -24px;
+  inset: -44px 0 -40px;
   pointer-events: none;
   z-index: 0;
   overflow: hidden;
@@ -617,96 +1125,201 @@ const currentPreview = computed(() => previewTabs.find((t) => t.key === activePr
   position: absolute;
   inset: 0;
   background-image:
-    linear-gradient(to right, rgba(139, 115, 221, 0.085) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(139, 115, 221, 0.085) 1px, transparent 1px);
+    linear-gradient(to right, rgba(139, 115, 221, 0.08) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(139, 115, 221, 0.08) 1px, transparent 1px);
   background-size: 56px 56px;
-  mask-image: radial-gradient(ellipse 76% 68% at 50% 45%, #000 18%, transparent 88%);
-  -webkit-mask-image: radial-gradient(ellipse 76% 68% at 50% 45%, #000 18%, transparent 88%);
+  mask-image: radial-gradient(ellipse 76% 70% at 50% 40%, #000 18%, transparent 88%);
+  -webkit-mask-image: radial-gradient(ellipse 76% 70% at 50% 40%, #000 18%, transparent 88%);
   animation: gridBreath 7s ease-in-out infinite;
 }
 .hero-orb {
   position: absolute;
   border-radius: 50%;
-  filter: blur(52px);
+  filter: blur(56px);
   opacity: 0.45;
 }
 .hero-orb.orb-purple {
-  width: 440px;
-  height: 440px;
-  top: -100px;
-  left: -40px;
+  width: 520px;
+  height: 520px;
+  top: -140px;
+  left: 12%;
   background: radial-gradient(circle, rgba(139, 115, 221, 0.28), transparent 70%);
 }
 .hero-orb.orb-mint {
-  width: 380px;
-  height: 380px;
-  top: -60px;
-  right: 4%;
+  width: 440px;
+  height: 440px;
+  top: -80px;
+  right: 12%;
   background: radial-gradient(circle, rgba(69, 201, 142, 0.22), transparent 70%);
+}
+.hero-wave-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 480px;
+  opacity: 0.9;
 }
 @keyframes gridBreath {
   0%, 100% { opacity: 0.55; transform: scale(1); }
   50% { opacity: 0.95; transform: scale(1.012); }
 }
 
-.hero-grid {
+.hero-editorial {
   position: relative;
   z-index: 1;
-  display: grid;
-  grid-template-columns: 0.88fr 1.22fr;
-  gap: 36px;
-  align-items: center;
+  max-width: 820px;
+  margin: 0 auto;
+  text-align: center;
 }
 .hero-pill {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  padding: 5px 14px;
+  padding: 6px 15px;
   border-radius: 999px;
-  background: #eee9ff;
+  border: 1px solid #e2daf5;
+  background: rgba(238, 233, 255, 0.85);
+  backdrop-filter: blur(8px);
   color: var(--primary-ink);
   font-size: 13px;
   font-weight: 800;
-  margin-bottom: 16px;
+  margin-bottom: 18px;
 }
 .pill-dot {
   width: 7px;
   height: 7px;
   border-radius: 50%;
   background: #45c98e;
-  box-shadow: 0 0 8px rgba(69, 201, 142, 0.75);
+  box-shadow: 0 0 8px rgba(69, 201, 142, 0.8);
+  animation: dotBreath 2.4s ease-in-out infinite;
 }
-.hero-copy h1 {
-  font-size: clamp(32px, 3.8vw, 48px);
+@keyframes dotBreath {
+  0%, 100% { transform: scale(1); opacity: 0.9; }
+  50% { transform: scale(1.35); opacity: 1; }
+}
+
+.hero-title {
+  font-size: clamp(38px, 4.8vw, 62px);
   font-weight: 900;
-  line-height: 1.15;
-  letter-spacing: -0.025em;
-  margin-bottom: 14px;
+  line-height: 1.12;
+  letter-spacing: -0.03em;
+  margin-bottom: 16px;
+}
+.hero-line-mask {
+  display: block;
+  overflow: hidden;
+  padding-bottom: 4px;
+}
+.hero-line {
+  display: inline-block;
+  will-change: transform, opacity, clip-path;
+}
+.hero-flow-gradient {
+  background: linear-gradient(120deg, #745be0 0%, #6046b4 36%, #2a8c5f 68%, #8b73dd 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
 }
 .hero-sub {
-  font-size: 15.5px;
+  font-size: clamp(15px, 1.4vw, 17.5px);
   font-weight: 600;
   color: var(--text-soft);
-  margin-bottom: 24px;
+  margin-bottom: 26px;
 }
 .hero-actions {
   display: flex;
+  justify-content: center;
+  align-items: center;
   gap: 12px;
   flex-wrap: wrap;
 }
 
-/* ===== Seamless 16:9 Launch Video Frame (Zero Bottom Dock) ===== */
+.btn-shimmer {
+  position: relative;
+  overflow: hidden;
+}
+.btn-shimmer::after {
+  content: '';
+  position: absolute;
+  inset: -40% auto -40% -60%;
+  width: 45%;
+  background: linear-gradient(100deg, transparent 0%, rgba(255, 255, 255, 0.34) 50%, transparent 100%);
+  transform: translateX(-140%) skewX(-18deg);
+  pointer-events: none;
+}
+.btn-shimmer:hover::after {
+  transition: transform 0.65s cubic-bezier(0.22, 1, 0.36, 1);
+  transform: translateX(460%) skewX(-18deg);
+}
+
+.btn-ghost-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 12px 18px;
+  border-radius: 13px;
+  font-size: 14.5px;
+  font-weight: 700;
+  color: var(--primary-ink);
+  transition: background 0.16s ease, transform 0.16s ease;
+}
+.btn-ghost-pill:hover {
+  background: #f2edff;
+  transform: translateY(-1px);
+}
+
+/* ===== Oversized Cinema 16:9 Launch Video Stage ===== */
 .hero-video-wrap {
   position: relative;
+  z-index: 1;
+  width: min(1360px, 92vw);
+  margin: 38px auto 0;
+  will-change: transform;
 }
+.video-ambient-glow {
+  position: absolute;
+  inset: 14% -4% -10%;
+  border-radius: 36px;
+  background:
+    radial-gradient(55% 65% at 24% 65%, rgba(139, 115, 221, 0.24), transparent 72%),
+    radial-gradient(55% 65% at 78% 60%, rgba(69, 201, 142, 0.2), transparent 72%);
+  filter: blur(36px);
+  pointer-events: none;
+  z-index: 0;
+}
+.showreel-border-wrap {
+  position: relative;
+  z-index: 1;
+  padding: 2px;
+  border-radius: 26px;
+  overflow: hidden;
+  background: #e4dcf5;
+  box-shadow: 0 30px 80px rgba(85, 68, 140, 0.18);
+}
+.showreel-border-wrap::before {
+  content: '';
+  position: absolute;
+  inset: -45%;
+  background: conic-gradient(
+    from 0deg,
+    rgba(139, 115, 221, 0.55) 0deg,
+    rgba(69, 201, 142, 0.45) 110deg,
+    rgba(229, 222, 245, 0.7) 210deg,
+    rgba(139, 115, 221, 0.55) 360deg
+  );
+  animation: borderOrbit 10s linear infinite;
+  pointer-events: none;
+}
+@keyframes borderOrbit {
+  to { transform: rotate(360deg); }
+}
+
 .showreel-frame {
   position: relative;
+  z-index: 1;
   aspect-ratio: 16 / 9;
-  border: 1.5px solid #e6dff5;
-  border-radius: 20px;
+  border-radius: 24px;
   overflow: hidden;
   background: #f8f7fd;
-  box-shadow: 0 24px 64px rgba(105, 81, 184, 0.13);
 }
 .launch-video {
   width: 100%;
@@ -715,52 +1328,61 @@ const currentPreview = computed(() => previewTabs.find((t) => t.key === activePr
   display: block;
   cursor: pointer;
 }
-.video-corner-actions {
+
+.video-glass-controls {
   position: absolute;
-  top: 12px;
-  right: 12px;
+  top: 16px;
+  right: 16px;
+  z-index: 4;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.84);
+  backdrop-filter: blur(12px);
+  border: 1.5px solid rgba(230, 224, 245, 0.95);
+  box-shadow: 0 10px 28px rgba(53, 48, 78, 0.14);
+}
+.glass-ctrl-btn {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 4px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.72);
-  backdrop-filter: blur(8px);
-  border: 1px solid rgba(230, 224, 245, 0.9);
-  opacity: 0.78;
-  transition: opacity 0.18s ease, background 0.18s ease;
-}
-.showreel-frame:hover .video-corner-actions,
-.video-corner-actions:focus-within {
-  opacity: 1;
-  background: rgba(255, 255, 255, 0.94);
-}
-.corner-btn {
-  width: 30px;
-  height: 30px;
+  padding: 7px 13px;
   border-radius: 999px;
   border: none;
   background: transparent;
   color: #35304e;
-  font-size: 14px;
+  font-size: 12.5px;
   font-weight: 700;
-  display: grid;
-  place-items: center;
   cursor: pointer;
-  transition: background 0.15s ease, color 0.15s ease;
+  white-space: nowrap;
+  transition: background 0.16s ease, color 0.16s ease, transform 0.14s ease;
 }
-.corner-btn:hover { background: #eee9ff; color: #6046b4; }
-.corner-btn.active { background: #8b73dd; color: #ffffff; }
+.glass-ctrl-btn:hover { background: #eee9ff; color: #6046b4; transform: translateY(-1px); }
+.glass-ctrl-btn.active { background: #8b73dd; color: #ffffff; }
+.ctrl-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #6ee7b7;
+  box-shadow: 0 0 8px #6ee7b7;
+}
+.glass-divider {
+  width: 1px;
+  height: 16px;
+  background: #dfd7f3;
+}
 
 /* ===== Alternating Zig-Zag Feature Showcase ===== */
 .showcase-section {
   max-width: 1180px;
-  margin: 68px auto 0;
+  margin: 84px auto 0;
   padding: 0 24px;
 }
 .section-intro {
   text-align: center;
-  margin-bottom: 42px;
+  margin-bottom: 48px;
 }
 .sec-tag {
   display: inline-block;
@@ -783,7 +1405,7 @@ const currentPreview = computed(() => previewTabs.find((t) => t.key === activePr
 .zigzag-list {
   display: flex;
   flex-direction: column;
-  gap: 56px;
+  gap: 64px;
 }
 .zigzag-row {
   display: grid;
@@ -827,6 +1449,10 @@ const currentPreview = computed(() => previewTabs.find((t) => t.key === activePr
 .pill-chip.amber { background: #fff3ea; color: #c46a24; }
 .pill-chip.neutral { background: #faf9fd; border: 1px solid #e8e2f6; color: #5a5572; }
 
+.zigzag-visual-wrap,
+.parallax-slot {
+  will-change: transform;
+}
 .zigzag-visual {
   padding: 20px;
   display: flex;
@@ -845,30 +1471,44 @@ const currentPreview = computed(() => previewTabs.find((t) => t.key === activePr
   font-weight: 800;
   color: var(--text);
 }
+
+/* Sliding highlight inline switcher */
 .inline-switcher {
-  display: inline-flex;
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
   padding: 3px;
   border-radius: 10px;
   background: #f4f1fb;
   border: 1px solid #e6dff5;
-  gap: 3px;
+}
+.switcher-thumb {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  bottom: 3px;
+  width: calc(50% - 3px);
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 2px 6px rgba(96, 70, 180, 0.14);
+  transition: transform 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+  pointer-events: none;
 }
 .inline-switcher button {
+  position: relative;
+  z-index: 1;
   border: none;
   background: transparent;
-  padding: 4px 11px;
+  padding: 5px 12px;
   border-radius: 8px;
   font-size: 11.5px;
   font-weight: 700;
   color: #76718c;
   cursor: pointer;
-  transition: background 0.15s, color 0.15s;
+  white-space: nowrap;
+  transition: color 0.18s;
 }
-.inline-switcher button.active {
-  background: #ffffff;
-  color: #6046b4;
-  box-shadow: 0 2px 6px rgba(96, 70, 180, 0.12);
-}
+.inline-switcher button.active { color: #6046b4; }
 
 .mini-shot-frame {
   position: relative;
@@ -925,6 +1565,7 @@ const currentPreview = computed(() => previewTabs.find((t) => t.key === activePr
   font-weight: 900;
   line-height: 1;
   color: #2a8c5f;
+  font-variant-numeric: tabular-nums;
 }
 .score-center small {
   font-size: 10.5px;
@@ -949,6 +1590,7 @@ const currentPreview = computed(() => previewTabs.find((t) => t.key === activePr
   font-size: 15px;
   font-weight: 800;
   color: #35304e;
+  font-variant-numeric: tabular-nums;
 }
 .natural-pill {
   display: inline-flex;
@@ -975,10 +1617,7 @@ const currentPreview = computed(() => previewTabs.find((t) => t.key === activePr
   font-size: 13px;
   font-weight: 700;
 }
-.w-chip b {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 12px;
-}
+.w-chip b { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
 .w-chip.good { background: #eaf7f0; color: #2a8c5f; }
 .w-chip.warn { background: #fff3ea; color: #c46a24; }
 
@@ -996,6 +1635,15 @@ const currentPreview = computed(() => previewTabs.find((t) => t.key === activePr
 }
 .lr-edges path { fill: none; stroke: #d7cff0; stroke-width: 1.3; }
 .lr-edges path.hot { stroke: #8b73dd; stroke-width: 1.8; }
+.lr-pulse-ring {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: nodePulse 2.8s ease-out infinite;
+}
+@keyframes nodePulse {
+  0% { transform: scale(0.88); opacity: 0.7; }
+  100% { transform: scale(1.42); opacity: 0; }
+}
 .lr-label { font-size: 10.5px; font-weight: 700; fill: #35304e; }
 .vis-rows { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .vis-doc-row {
@@ -1079,7 +1727,13 @@ const currentPreview = computed(() => previewTabs.find((t) => t.key === activePr
 .sm2-tick { font-size: 9.5px; font-weight: 700; fill: #837f96; font-family: ui-monospace, monospace; }
 
 .demo-bar { height: 11px; background: #ede8f9; border-radius: 999px; overflow: hidden; }
-.demo-fill { width: 35%; height: 100%; background: linear-gradient(90deg, #8b73dd, #6951b8); border-radius: 999px; }
+.demo-fill {
+  width: 35%;
+  height: 100%;
+  background: linear-gradient(90deg, #8b73dd, #6951b8);
+  border-radius: 999px;
+  transform-origin: left center;
+}
 .pool-badges { display: flex; gap: 6px; flex-wrap: wrap; margin-top: auto; }
 .d-badge {
   display: inline-flex;
@@ -1096,49 +1750,77 @@ const currentPreview = computed(() => previewTabs.find((t) => t.key === activePr
 /* ===== Real App Screenshots Showcase ===== */
 .shots-section {
   max-width: 1180px;
-  margin: 68px auto 0;
+  margin: 76px auto 0;
   padding: 0 24px;
 }
-.preview-stage { position: relative; display: flex; flex-direction: column; gap: 14px; }
+.preview-stage { position: relative; display: flex; flex-direction: column; gap: 16px; }
 .preview-switcher {
-  display: inline-flex;
+  position: relative;
+  display: inline-grid;
+  grid-template-columns: repeat(4, minmax(100px, 1fr));
   align-self: center;
   max-width: 100%;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 4px;
   padding: 4px;
-  border-radius: 12px;
+  border-radius: 13px;
   background: #f1edf9;
   border: 1px solid #e6dff5;
 }
+.preview-thumb {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  bottom: 4px;
+  width: calc((100% - 8px) / 4);
+  border-radius: 9px;
+  background: #ffffff;
+  box-shadow: 0 2px 8px rgba(96, 70, 180, 0.14);
+  transform: translateX(calc(var(--active-idx, 0) * 100%));
+  transition: transform 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+  pointer-events: none;
+}
 .preview-switcher button {
+  position: relative;
+  z-index: 1;
   border: none;
   background: transparent;
-  padding: 7px 16px;
+  padding: 8px 16px;
   border-radius: 9px;
   font-size: 13px;
   font-weight: 700;
   color: var(--text-muted);
   cursor: pointer;
-  transition: background 0.15s, color 0.15s;
+  white-space: nowrap;
+  transition: color 0.18s;
 }
-.preview-switcher button.active {
-  background: #ffffff;
-  color: var(--primary-ink);
-  box-shadow: 0 2px 6px rgba(96, 70, 180, 0.12);
-}
+.preview-switcher button.active { color: var(--primary-ink); }
+
 .mac-window {
-  max-width: 1020px;
+  max-width: 1120px;
   width: 100%;
   margin: 0 auto;
   border: 2px solid #dfd7f3;
   border-bottom: 6px solid #d0c4ec;
-  border-radius: 18px;
+  border-radius: 20px;
   background: #ffffff;
   overflow: hidden;
-  box-shadow: 0 18px 42px rgba(85, 68, 140, 0.12);
+  box-shadow: 0 24px 56px rgba(85, 68, 140, 0.14);
 }
+.mac-chrome {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  background: #faf9fd;
+  border-bottom: 1px solid #efecf7;
+}
+.mac-dots { display: flex; align-items: center; gap: 7px; width: 64px; }
+.mac-dots .dot { width: 10px; height: 10px; border-radius: 50%; }
+.mac-dots .dot.red { background: #ff5f56; }
+.mac-dots .dot.yellow { background: #ffbd2e; }
+.mac-dots .dot.green { background: #27c93f; }
+.mac-title { font-size: 12px; font-weight: 700; color: #6e6886; }
+.mac-spacer { width: 64px; }
+
 .mac-body { background: #ffffff; }
 .shot-frame { position: relative; aspect-ratio: 1024 / 664; overflow: hidden; background: var(--surface-soft); }
 .real-shot { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; display: block; }
@@ -1147,11 +1829,36 @@ const currentPreview = computed(() => previewTabs.find((t) => t.key === activePr
 .shot-leave-to { opacity: 0; transform: translateY(-6px); }
 .shot-caption { padding: 10px 14px; font-size: 12.5px; color: var(--text-muted); background: #faf9fd; border-top: 1px solid #efecf7; text-align: center; }
 
-/* ===== Bottom CTA ===== */
-.bottom-cta { max-width: 1180px; margin: 56px auto 48px; padding: 0 24px; }
-.cta-card { padding: 30px 34px; display: flex; justify-content: space-between; align-items: center; gap: 20px; flex-wrap: wrap; background: linear-gradient(135deg, #f5f1ff 0%, #ffffff 70%); }
-.cta-card h2 { font-size: 22px; margin-bottom: 4px; }
-.cta-card p { font-size: 14px; color: var(--text-muted); }
+/* ===== Bottom CTA with Soft Ambient Sweep ===== */
+.bottom-cta { max-width: 1180px; margin: 64px auto 48px; padding: 0 24px; }
+.cta-card {
+  position: relative;
+  overflow: hidden;
+  padding: 34px 38px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 20px;
+  flex-wrap: wrap;
+  background: linear-gradient(135deg, #f4efff 0%, #ffffff 55%, #effaf4 100%);
+}
+.cta-card::after {
+  content: '';
+  position: absolute;
+  inset: -40% auto -40% -55%;
+  width: 45%;
+  background: linear-gradient(100deg, transparent 0%, rgba(139, 115, 221, 0.08) 50%, transparent 100%);
+  transform: translateX(-80%) skewX(-18deg);
+  animation: ctaSweep 7.5s ease-in-out infinite;
+  pointer-events: none;
+  z-index: 1;
+}
+@keyframes ctaSweep {
+  0%, 35% { transform: translateX(-100%) skewX(-18deg); }
+  75%, 100% { transform: translateX(380%) skewX(-18deg); }
+}
+.cta-content h2 { font-size: 24px; font-weight: 900; margin-bottom: 4px; }
+.cta-content p { font-size: 14.5px; color: var(--text-muted); }
 .cta-btns { display: flex; gap: 12px; flex-wrap: wrap; }
 
 /* ===== Native Theater <dialog> Inner Chrome ===== */
@@ -1188,12 +1895,7 @@ const currentPreview = computed(() => previewTabs.find((t) => t.key === activePr
 .theater-video-wrap { aspect-ratio: 16 / 9; background: #f8f7fd; }
 .theater-video { width: 100%; height: 100%; display: block; }
 
-.fade-in-up { animation: fadeInUp 0.55s ease both; }
-.delay-1 { animation-delay: 0.12s; }
-@keyframes fadeInUp { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: translateY(0); } }
-
 @media (max-width: 960px) {
-  .hero-grid,
   .zigzag-row,
   .zigzag-row.is-reverse {
     grid-template-columns: 1fr;
@@ -1201,13 +1903,20 @@ const currentPreview = computed(() => previewTabs.find((t) => t.key === activePr
   }
   .zigzag-row.is-reverse .zigzag-copy { order: -1; }
   .split-minipanels, .vis-rows { grid-template-columns: 1fr; }
+  .hero-video-wrap { width: 100%; }
 }
 @media (max-width: 600px) {
   .cta-card { padding: 24px; }
+  .video-glass-controls { top: 10px; right: 10px; padding: 3px; }
+  .glass-ctrl-btn { padding: 5px 9px; font-size: 11.5px; }
+  .preview-switcher { grid-template-columns: repeat(2, 1fr); }
+  .preview-thumb { display: none; }
+  .preview-switcher button.active { background: #ffffff; color: var(--primary-ink); box-shadow: 0 2px 6px rgba(96, 70, 180, 0.12); }
 }
 @media (prefers-reduced-motion: reduce) {
-  .fade-in-up, .hero-grid-bg { animation: none; }
-  .shot-enter-active, .shot-leave-active { transition: none; }
+  .hero-grid-bg, .pill-dot, .showreel-border-wrap::before, .lr-pulse-ring, .cta-card::after { animation: none; }
+  .btn-shimmer::after { display: none; }
+  .switcher-thumb, .preview-thumb, .shot-enter-active, .shot-leave-active { transition: none; }
   .shot-enter-from, .shot-leave-to { transform: none; }
 }
 </style>
