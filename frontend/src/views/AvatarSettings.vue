@@ -585,15 +585,18 @@ const states = [
               @click="editCustomAvatar(item)"
               @keydown.enter.prevent="editCustomAvatar(item)"
             >
-              <CharacterPortrait
-                character-id="leo_2d"
-                :appearance="item.appearance"
-                :size="40"
-              />
-              <div class="character-meta">
+              <span class="chip-thumb" :style="{ background: accentOf(item.theme) }">
+                <CharacterPortrait
+                  :character="item.id"
+                  :appearance="item.appearance"
+                  :animated="false"
+                  :name="nameOf(item)"
+                />
+              </span>
+              <span class="chip-text">
                 <b>{{ item.display_name || item.id }}</b>
-                <span>{{ item.description || (item.is_public ? '已公开到角色市场' : '私有自建角色') }}</span>
-              </div>
+                <small>{{ item.description || (item.is_public ? '已公开到角色市场' : '私有自建角色') }}</small>
+              </span>
               <button
                 type="button"
                 class="del-btn"
@@ -809,14 +812,14 @@ const states = [
 .empty-note { margin-top: 0; }
 
 /* 创作角色列表与表单 */
-.custom-list { display: grid; gap: 8px; }
+.custom-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-content: start; gap: 8px; }
 .custom-item {
-  display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 13px;
-  border: 1.5px solid #ece8f4; background: #fff; cursor: pointer; transition: border-color .15s, background .15s;
+  display: flex; align-items: center; gap: 8px; min-width: 0; padding: 7px 8px; border-radius: 13px;
+  border: 1.5px solid #ece8f4; border-bottom-width: 3px; background: #fff; cursor: pointer; transition: border-color .15s, background .15s;
 }
 .custom-item:hover { border-color: #cfc1f1; }
-.custom-item.active { border-color: #a58ee9; background: #f3efff; }
-.del-btn { border: 0; background: transparent; color: #9c95b0; font-size: 12px; padding: 4px 8px; border-radius: 7px; cursor: pointer; }
+.custom-item.active { border-color: #a58ee9; border-bottom-color: #8067d1; background: #f3efff; }
+.del-btn { flex-shrink: 0; border: 0; background: transparent; color: #9c95b0; font-size: 11.5px; padding: 4px 6px; border-radius: 7px; cursor: pointer; }
 .del-btn:hover { background: #fee2e2; color: #dc2626; }
 
 .studio-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 4px; }
